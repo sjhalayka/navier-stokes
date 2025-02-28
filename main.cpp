@@ -19,12 +19,12 @@ using namespace std;
 
 // Simulation parameters
 const int N = 64;                // Grid size
-const float dt = 0.1f;            // Time step
-const float diff = 0.0f;          // Diffusion rate
+const float dt = 0.001f;            // Time step
+const float diff = 0.01f;          // Diffusion rate
 const float visc = 0.0f;          // Viscosity
-const float force = 5.0f;         // Force multiplier
+const float force = 50.0f;         // Force multiplier
 const float source = 100.0f;      // Density source
-const int iterations = 100;        // Gauss-Seidel iterations
+const int iterations = 200;        // Gauss-Seidel iterations
 const int FLUID = 0;              // Cell type for fluid
 const int OBSTACLE = 1;           // Cell type for obstacle
 
@@ -48,6 +48,7 @@ int IX(int i, int j) {
 // Boundary condition handling with obstacles
 void setBoundary(int b, std::vector<float>& x) {
 	// Set boundary conditions for domain edges
+
 	//for (int i = 1; i < N - 1; i++) {
 	//	x[IX(i, 0)] = b == 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
 	//	x[IX(i, N - 1)] = b == 2 ? -x[IX(i, N - 2)] : x[IX(i, N - 2)];
@@ -271,9 +272,13 @@ void densityStep() {
 }
 
 // Add density source from mouse
-void addDensity(int x, int y, float amount) {
+void addDensity(int x, int y, float amount)
+{
 	int i = static_cast<int>(x / cellSize);
 	int j = static_cast<int>(y / cellSize);
+
+	if (i <= 1 || j <= 1 || i >= N - 1 || j >= N - 1)
+		return;
 
 	// Don't add density to obstacle cells
 	if (obstacles[IX(i, j)] != OBSTACLE) {
@@ -285,6 +290,9 @@ void addDensity(int x, int y, float amount) {
 void addVelocity(int x, int y, float amountX, float amountY) {
 	int i = static_cast<int>(x / cellSize);
 	int j = static_cast<int>(y / cellSize);
+
+	if (i <= 1 || j <= 1 || i >= N - 1 || j >= N - 1)
+		return;
 
 	// Don't add velocity to obstacle cells
 	if (obstacles[IX(i, j)] != OBSTACLE) {
