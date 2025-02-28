@@ -24,7 +24,7 @@ const float diff = 0.0f;          // Diffusion rate
 const float visc = 0.0f;          // Viscosity
 const float force = 5.0f;         // Force multiplier
 const float source = 100.0f;      // Density source
-const int iterations = 20;        // Gauss-Seidel iterations
+const int iterations = 100;        // Gauss-Seidel iterations
 const int FLUID = 0;              // Cell type for fluid
 const int OBSTACLE = 1;           // Cell type for obstacle
 
@@ -48,19 +48,19 @@ int IX(int i, int j) {
 // Boundary condition handling with obstacles
 void setBoundary(int b, std::vector<float>& x) {
 	// Set boundary conditions for domain edges
-	for (int i = 1; i < N - 1; i++) {
-		x[IX(i, 0)] = b == 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
-		x[IX(i, N - 1)] = b == 2 ? -x[IX(i, N - 2)] : x[IX(i, N - 2)];
-	}
-	for (int j = 1; j < N - 1; j++) {
-		x[IX(0, j)] = b == 1 ? -x[IX(1, j)] : x[IX(1, j)];
-		x[IX(N - 1, j)] = b == 1 ? -x[IX(N - 2, j)] : x[IX(N - 2, j)];
-	}
+	//for (int i = 1; i < N - 1; i++) {
+	//	x[IX(i, 0)] = b == 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
+	//	x[IX(i, N - 1)] = b == 2 ? -x[IX(i, N - 2)] : x[IX(i, N - 2)];
+	//}
+	//for (int j = 1; j < N - 1; j++) {
+	//	x[IX(0, j)] = b == 1 ? -x[IX(1, j)] : x[IX(1, j)];
+	//	x[IX(N - 1, j)] = b == 1 ? -x[IX(N - 2, j)] : x[IX(N - 2, j)];
+	//}
 
-	x[IX(0, 0)] = 0.5f * (x[IX(1, 0)] + x[IX(0, 1)]);
-	x[IX(0, N - 1)] = 0.5f * (x[IX(1, N - 1)] + x[IX(0, N - 2)]);
-	x[IX(N - 1, 0)] = 0.5f * (x[IX(N - 2, 0)] + x[IX(N - 1, 1)]);
-	x[IX(N - 1, N - 1)] = 0.5f * (x[IX(N - 2, N - 1)] + x[IX(N - 1, N - 2)]);
+	//x[IX(0, 0)] = 0.5f * (x[IX(1, 0)] + x[IX(0, 1)]);
+	//x[IX(0, N - 1)] = 0.5f * (x[IX(1, N - 1)] + x[IX(0, N - 2)]);
+	//x[IX(N - 1, 0)] = 0.5f * (x[IX(N - 2, 0)] + x[IX(N - 1, 1)]);
+	//x[IX(N - 1, N - 1)] = 0.5f * (x[IX(N - 2, N - 1)] + x[IX(N - 1, N - 2)]);
 
 	// Set boundary conditions for internal obstacles
 	for (int j = 1; j < N - 1; j++) {
