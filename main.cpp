@@ -1268,7 +1268,31 @@ void keyboard(unsigned char key, int x, int y) {
 
 // GLUT reshape callback
 void reshape(int w, int h) {
+
     glViewport(0, 0, w, h);
+
+    glDeleteTextures(2, velocityTexture);
+    glDeleteTextures(2, pressureTexture);
+    glDeleteTextures(2, densityTexture);
+    glDeleteTextures(1, &divergenceTexture);
+    glDeleteTextures(1, &obstacleTexture);
+    glDeleteTextures(1, &collisionTexture);
+    glDeleteFramebuffers(1, &fbo);
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
+    glDeleteProgram(advectProgram);
+    glDeleteProgram(divergenceProgram);
+    glDeleteProgram(pressureProgram);
+    glDeleteProgram(gradientSubtractProgram);
+    glDeleteProgram(addForceProgram);
+    glDeleteProgram(addDensityProgram);
+    glDeleteProgram(diffuseDensityProgram);
+    glDeleteProgram(addObstacleProgram);
+    glDeleteProgram(detectCollisionProgram);
+
+    initGL();
+
+
 }
 
 int main(int argc, char** argv) {
