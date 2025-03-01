@@ -101,7 +101,7 @@ uniform vec2 texelSize;
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
-float aspect_ratio = 1;//WIDTH/HEIGHT;
+float aspect_ratio = WIDTH/HEIGHT;
 
 out vec4 FragColor;
 
@@ -964,7 +964,7 @@ void addForce() {
     mousePosY *= aspect;
     mousePosY += 0.25;
 
-    float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT/(float(WIDTH)));
+    float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
     float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
 
@@ -1062,7 +1062,7 @@ void diffuseDensity() {
 }
 
 // Add or remove obstacles
-void updateObstacle() 
+void updateObstacle()
 {
     if (!rightMouseDown) return;
 
