@@ -24,6 +24,7 @@ using namespace std;
 // Simulation parameters
 int WIDTH = 1000;
 int HEIGHT = 500;
+
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 10.0f;     // Fluid viscosity
 const float DIFFUSION = 0.0f;    // Density diffusion rate
@@ -97,6 +98,11 @@ uniform sampler2D obstacleTexture;
 uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
+
+float WIDTH = texelSize.x;
+float HEIGHT = texelSize.y;
+float aspect_ratio = WIDTH/HEIGHT;
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -111,8 +117,9 @@ void main() {
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-    vec2 pos = TexCoord - dt * vel * texelSize;
-    
+    //vec2 pos = TexCoord - dt * vel * texelSize;
+    vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
+
     // Sample the source texture at the back-traced position
     vec4 result = texture(sourceTexture, pos);
     
@@ -491,6 +498,13 @@ const char* renderFragmentShader = R"(
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
+
+uniform vec2 texelSize;
+
+float WIDTH = texelSize.x;
+float HEIGHT = texelSize.y;
+float aspect_ratio = WIDTH/HEIGHT;
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -499,10 +513,6 @@ in vec2 TexCoord;
 vec3 densityToColor(float density) 
 {
     vec3 gray = vec3(density, density, density);
-
-
-
-
 
     // Use a blue-to-red color map
     vec3 color1 = vec3(0.0, 0.0, 0.0); // Dark blue for low density
@@ -522,8 +532,21 @@ vec3 densityToColor(float density)
 }
 
 void main() {
-    // Check for collision at obstacle boundaries
-    float collision = texture(collisionTexture, TexCoord).r;
+    // Adjust texture coordinates based on aspect ratio
+    vec2 adjustedCoord = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    // This keeps the simulation visually correct regardless of window shape
+    if (aspect_ratio > 1.0) {
+        // Wide screen - adjust x coordinate
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        // Tall screen - adjust y coordinate
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }
+    
+    // Check for collision at obstacle boundaries using adjusted coordinates
+    float collision = texture(collisionTexture, adjustedCoord).r;
     if (collision > 0.0) {
         // Show collision as bright orange
         FragColor = vec4(1.0, 0.6, 0.0, 1.0);
@@ -531,15 +554,15 @@ void main() {
     }
     
     // Check for obstacle
-    float obstacle = texture(obstacleTexture, TexCoord).r;
+    float obstacle = texture(obstacleTexture, adjustedCoord).r;
     if (obstacle > 0.0) {
         // Render obstacles as white
         FragColor = vec4(1.0, 1.0, 1.0, 1.0);
         return;
     }
     
-    // Get density at current position
-    float density = texture(densityTexture, TexCoord).r;
+    // Get density at adjusted position
+    float density = texture(densityTexture, adjustedCoord).r;
     
     // Convert density to color
     vec3 color = densityToColor(density);
@@ -932,13 +955,22 @@ void addForce() {
 
     glUseProgram(addForceProgram);
 
-    // Calculate force direction from mouse movement
-    float mouseVelX = (mouseX - prevMouseX) * 0.01f;
-    float mouseVelY = -(mouseY - prevMouseY) * 0.01f;  // Invert Y direction
+    //// Calculate force direction from mouse movement
+    //float mouseVelX = (mouseX - prevMouseX) * 0.01f;// *aspect_ratio;
+    //float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
-    // Get normalized mouse position
+    //// Get normalized mouse position
+    //float mousePosX = mouseX / (float)WIDTH;
+    //float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
     float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
+
+    // When applying forces, adjust for aspect ratio:
+    // In addForce():
+    float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT/(float(WIDTH)));
+    float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -1135,6 +1167,7 @@ void renderToScreen() {
     glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
     glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+    glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
     // Bind textures
     glActiveTexture(GL_TEXTURE0);
