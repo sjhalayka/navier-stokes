@@ -487,17 +487,20 @@ const char* detectCollisionFragmentShader = R"(
 #version 330 core
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
+uniform sampler2D colorTexture;  // Add color texture uniform
 uniform float collisionThreshold;
 out float FragColor;
 
 in vec2 TexCoord;
 
 void main() {
-    // Get current density and obstacle values
+    // Get current density, obstacle, and color values
     float density = texture(densityTexture, TexCoord).r;
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    
-    // Check for collision on obstacle boundaries
+    vec4 color = texture(colorTexture, TexCoord);  // Get color
+
+
+
     if (obstacle > 0.0) {
         // We're in an obstacle - check if there's high density nearby
         vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
@@ -536,6 +539,62 @@ void main() {
         // Not in an obstacle - no collision
         FragColor = 0.0;
     }
+
+/*    
+    // Check for collision on obstacle boundaries
+    if (obstacle > 0.0) {
+        // We're in an obstacle - check if there's high density nearby
+        vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
+        
+        // Check neighboring cells for high density and color
+        float leftDensity = texture(densityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightDensity = texture(densityTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomDensity = texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topDensity = texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        vec4 leftColor = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0));
+        vec4 rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0));
+        vec4 bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y));
+        vec4 topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y));
+        
+        // Check for obstacles in neighboring cells
+        float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightObstacle = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        // Only consider densities from non-obstacle cells
+        if (leftObstacle < 0.5) leftDensity = max(leftDensity, 0.0);
+        else leftDensity = 0.0;
+        
+        if (rightObstacle < 0.5) rightDensity = max(rightDensity, 0.0);
+        else rightDensity = 0.0;
+        
+        if (bottomObstacle < 0.5) bottomDensity = max(bottomDensity, 0.0);
+        else bottomDensity = 0.0;
+        
+        if (topObstacle < 0.5) topDensity = max(topDensity, 0.0);
+        else topDensity = 0.0;
+        
+        // Calculate max density at boundaries
+        float maxBoundaryDensity = max(max(leftDensity, rightDensity), max(bottomDensity, topDensity));
+        
+        // Also check if there's significant color nearby (alpha > 0.1)
+        bool hasColor = (leftColor.a > 0.1 && leftObstacle < 0.5) || 
+                         (rightColor.a > 0.1 && rightObstacle < 0.5) || 
+                         (bottomColor.a > 0.1 && bottomObstacle < 0.5) || 
+                         (topColor.a > 0.1 && topObstacle < 0.5);
+        
+        // Set collision value based on density threshold or color presence
+        FragColor = (maxBoundaryDensity > collisionThreshold || hasColor) ? 1.0 : 0.0;
+    } else {
+        // Not in an obstacle - no collision
+        FragColor = 0.0;
+    }
+
+*/
+
+
 }
 )";
 
@@ -599,6 +658,27 @@ void main() {
         return;
     }
     
+
+    // Check for collision at obstacle boundaries using adjusted coordinates
+    //float collision = texture(collisionTexture, adjustedCoord).r;
+    //if (collision > 0.0) {
+    //    // Get the color that's colliding
+    //    vec4 fluidColor = texture(colorTexture, adjustedCoord);
+    //    
+    //    if (fluidColor.a > 0.1) {
+    //        // If there's color, use a brightened version of that color for the collision
+    //        vec3 brightColor = fluidColor.rgb * 1.5 + vec3(0.3);
+    //        FragColor = vec4(brightColor, 1.0);
+    //    } else {
+    //        // Default orange for density-only collisions
+    //        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+    //    }
+    //    return;
+    //}
+
+
+
+
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
     if (obstacle > 0.0) {
@@ -641,6 +721,7 @@ void detectCollisions() {
     // Set uniforms
     glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+    glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);  // Add this line
     glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
 
     // Bind textures
@@ -648,6 +729,8 @@ void detectCollisions() {
     glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+    glActiveTexture(GL_TEXTURE2);  // Add this line
+    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);  // Add this line
 
     // Render full-screen quad
     glBindVertexArray(vao);
@@ -1332,6 +1415,7 @@ void renderToScreen() {
     glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
     glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+
     glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);  // Add this line
     glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
