@@ -24,8 +24,8 @@ using namespace std;
 
 
 // Simulation parameters
-const int WIDTH = 800;
-const int HEIGHT = 800;
+ int WIDTH = 800;
+ int HEIGHT = 800;
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 10.0f;     // Fluid viscosity
 const float DIFFUSION = 0.0f;    // Density diffusion rate
@@ -1270,6 +1270,9 @@ void keyboard(unsigned char key, int x, int y) {
 void reshape(int w, int h) {
 
     glViewport(0, 0, w, h);
+
+    WIDTH = w;
+    HEIGHT = h;
 
     glDeleteTextures(2, velocityTexture);
     glDeleteTextures(2, pressureTexture);
