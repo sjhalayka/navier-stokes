@@ -20,11 +20,11 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-
+// TODO: redo textures when window size changes
 
 // Simulation parameters
-const int WIDTH = 512;
-const int HEIGHT = 512;
+const int WIDTH = 800;
+const int HEIGHT = 800;
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 0.1f;     // Fluid viscosity
 const float DIFFUSION = 0.1f;    // Density diffusion rate
@@ -491,28 +491,29 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 // Function to map density to color
-vec3 densityToColor(float density) {
-
-    return vec3(density, density, density);
-
-
+vec3 densityToColor(float density) 
+{
+    vec3 gray = vec3(density, density, density);
 
 
-    //// Use a blue-to-red color map
-    //vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
-    //vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
-    //vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
-    //vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
-    //
-    //if (density < 0.25) {
-    //    return mix(color1, color2, density * 4.0);
-    //} else if (density < 0.5) {
-    //    return mix(color2, color3, (density - 0.25) * 4.0);
-    //} else if (density < 0.75) {
-    //    return mix(color3, color4, (density - 0.5) * 4.0);
-    //} else {
-    //    return color4;
-    //}
+
+
+
+    // Use a blue-to-red color map
+    vec3 color1 = vec3(0.0, 0.0, 0.0); // Dark blue for low density
+    vec3 color2 = vec3(0.25, 0.125, 0.0); // Cyan for medium-low density
+    vec3 color3 = vec3(0.5, 0.25, 0.0); // Yellow for medium-high density
+    vec3 color4 = vec3(1.0, 0.5, 0.0); // Red for high density
+    
+    if (density < 0.25) {
+        return gray + mix(color1, color2, density * 4.0);
+    } else if (density < 0.5) {
+        return gray + mix(color2, color3, (density - 0.25) * 4.0);
+    } else if (density < 0.75) {
+        return gray + mix(color3, color4, (density - 0.5) * 4.0);
+    } else {
+        return gray + color4;
+    }
 }
 
 void main() {
