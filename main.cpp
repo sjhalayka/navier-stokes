@@ -487,22 +487,27 @@ const char* detectCollisionFragmentShader = R"(
 #version 330 core
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
-uniform sampler2D colorTexture;  // Add color texture uniform
+uniform sampler2D colorTexture;  // Color texture uniform
 uniform float collisionThreshold;
+uniform vec3 targetColor;        // Add this uniform for the color to detect
+uniform float colorTolerance;    // Add tolerance for color matching
 out float FragColor;
 
 in vec2 TexCoord;
+
+// Helper function to check if two colors are similar
+bool colorMatches(vec3 color1, vec3 color2, float tolerance) {
+    return length(color1 - color2) < tolerance;
+}
 
 void main() {
     // Get current density, obstacle, and color values
     float density = texture(densityTexture, TexCoord).r;
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    vec4 color = texture(colorTexture, TexCoord);  // Get color
-
-
+    vec4 color = texture(colorTexture, TexCoord);
 
     if (obstacle > 0.0) {
-        // We're in an obstacle - check if there's high density nearby
+        // We're in an obstacle - check if there's high density or specific color nearby
         vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
         
         // Check neighboring cells for high density
@@ -511,51 +516,11 @@ void main() {
         float bottomDensity = texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
         float topDensity = texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
         
-        // Check for obstacles in neighboring cells
-        float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
-        float rightObstacle = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
-        float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
-        float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
-        
-        // Only consider densities from non-obstacle cells
-        if (leftObstacle < 0.5) leftDensity = max(leftDensity, 0.0);
-        else leftDensity = 0.0;
-        
-        if (rightObstacle < 0.5) rightDensity = max(rightDensity, 0.0);
-        else rightDensity = 0.0;
-        
-        if (bottomObstacle < 0.5) bottomDensity = max(bottomDensity, 0.0);
-        else bottomDensity = 0.0;
-        
-        if (topObstacle < 0.5) topDensity = max(topDensity, 0.0);
-        else topDensity = 0.0;
-        
-        // Calculate max density at boundaries
-        float maxBoundaryDensity = max(max(leftDensity, rightDensity), max(bottomDensity, topDensity));
-        
-        // Set collision value based on density threshold
-        FragColor = (maxBoundaryDensity > collisionThreshold) ? 1.0 : 0.0;
-    } else {
-        // Not in an obstacle - no collision
-        FragColor = 0.0;
-    }
-
-/*    
-    // Check for collision on obstacle boundaries
-    if (obstacle > 0.0) {
-        // We're in an obstacle - check if there's high density nearby
-        vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
-        
-        // Check neighboring cells for high density and color
-        float leftDensity = texture(densityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
-        float rightDensity = texture(densityTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
-        float bottomDensity = texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
-        float topDensity = texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
-        
-        vec4 leftColor = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0));
-        vec4 rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0));
-        vec4 bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y));
-        vec4 topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y));
+        // Check neighboring cells for target color
+        vec3 leftColor = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0)).rgb;
+        vec3 rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0)).rgb;
+        vec3 bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y)).rgb;
+        vec3 topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y)).rgb;
         
         // Check for obstacles in neighboring cells
         float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
@@ -563,40 +528,50 @@ void main() {
         float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
         float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
         
-        // Only consider densities from non-obstacle cells
-        if (leftObstacle < 0.5) leftDensity = max(leftDensity, 0.0);
-        else leftDensity = 0.0;
+        // Only consider densities and colors from non-obstacle cells
+        bool hasTargetColor = false;
         
-        if (rightObstacle < 0.5) rightDensity = max(rightDensity, 0.0);
-        else rightDensity = 0.0;
+        if (leftObstacle < 0.5) {
+            leftDensity = max(leftDensity, 0.0);
+            hasTargetColor = hasTargetColor || colorMatches(leftColor, targetColor, colorTolerance);
+        } else {
+            leftDensity = 0.0;
+        }
         
-        if (bottomObstacle < 0.5) bottomDensity = max(bottomDensity, 0.0);
-        else bottomDensity = 0.0;
+        if (rightObstacle < 0.5) {
+            rightDensity = max(rightDensity, 0.0);
+            hasTargetColor = hasTargetColor || colorMatches(rightColor, targetColor, colorTolerance);
+        } else {
+            rightDensity = 0.0;
+        }
         
-        if (topObstacle < 0.5) topDensity = max(topDensity, 0.0);
-        else topDensity = 0.0;
+        if (bottomObstacle < 0.5) {
+            bottomDensity = max(bottomDensity, 0.0);
+            hasTargetColor = hasTargetColor || colorMatches(bottomColor, targetColor, colorTolerance);
+        } else {
+            bottomDensity = 0.0;
+        }
+        
+        if (topObstacle < 0.5) {
+            topDensity = max(topDensity, 0.0);
+            hasTargetColor = hasTargetColor || colorMatches(topColor, targetColor, colorTolerance);
+        } else {
+            topDensity = 0.0;
+        }
         
         // Calculate max density at boundaries
         float maxBoundaryDensity = max(max(leftDensity, rightDensity), max(bottomDensity, topDensity));
         
-        // Also check if there's significant color nearby (alpha > 0.1)
-        bool hasColor = (leftColor.a > 0.1 && leftObstacle < 0.5) || 
-                         (rightColor.a > 0.1 && rightObstacle < 0.5) || 
-                         (bottomColor.a > 0.1 && bottomObstacle < 0.5) || 
-                         (topColor.a > 0.1 && topObstacle < 0.5);
-        
-        // Set collision value based on density threshold or color presence
-        FragColor = (maxBoundaryDensity > collisionThreshold || hasColor) ? 1.0 : 0.0;
+        // Set collision value based on density threshold or target color presence
+        FragColor = (maxBoundaryDensity > collisionThreshold || hasTargetColor) ? 1.0 : 0.0;
     } else {
         // Not in an obstacle - no collision
         FragColor = 0.0;
     }
-
-*/
-
-
 }
 )";
+
+
 
 const char* renderFragmentShader = R"(
 #version 330 core
@@ -713,28 +688,34 @@ void main() {
 
 
 void detectCollisions() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-    glUseProgram(detectCollisionProgram);
+        glUseProgram(detectCollisionProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);  // Add this line
-    glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
+        // Set uniforms
+        glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
+        glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+        glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
+        glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-    glActiveTexture(GL_TEXTURE2);  // Add this line
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);  // Add this line
+        // Set the target color uniform (e.g., red = vec3(1.0, 0.0, 0.0))
+        glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), 1.0, 0.0, 0.0);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        // Set tolerance for color matching (adjust as needed)
+        glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorTolerance"), 0.3f);
+
+        // Bind textures
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+
+        // Render full-screen quad
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     // If reporting is enabled, read back collision data
     if (reportCollisions) {
@@ -1338,9 +1319,9 @@ void addColor() {
 
     // Generate a rainbow color based on time
     float time = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-    float r = 0.5f + 0.5f * sin(time);
-    float g = 0.5f + 0.5f * sin(time + 2.094f);  // 2π/3
-    float b = 0.5f + 0.5f * sin(time + 4.189f);  // 4π/3
+    float r = 1.0;// 0.5f + 0.5f * sin(time);
+    float g = 0.0;// 0.5f + 0.5f * sin(time + 2.094f);  // 2π/3
+    float b = 0.0;// 0.5f + 0.5f * sin(time + 4.189f);  // 4π/3
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
