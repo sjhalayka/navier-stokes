@@ -14,23 +14,30 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+
+
+
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <iostream>
 #include <vector>
 #include <string>
 #include <cmath>
+#include <iomanip>
+#include <fstream>
+#include <sstream>
 
 // Simulation parameters
 const int WIDTH = 512;
 const int HEIGHT = 512;
-const float DT = 1.0f;            // Time step
-const float VISCOSITY = 0.0f;     // Fluid viscosity
-const float DIFFUSION = 0.0f;    // Density diffusion rate
-const float FORCE = 500.0f;         // Force applied by mouse
+const float DT = 0.1f;            // Time step
+const float VISCOSITY = 0.1f;     // Fluid viscosity
+const float DIFFUSION = 0.01f;    // Density diffusion rate
+const float FORCE = 5.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.5; // Threshold for density-obstacle collision
+const float COLLISION_THRESHOLD = 0.5f; // Threshold for density-obstacle collision
+const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 // OpenGL variables
 GLuint velocityTexture[2];
@@ -64,6 +71,11 @@ int velocityIndex = 0;
 int pressureIndex = 0;
 int densityIndex = 0;
 
+// Collision tracking
+int frameCount = 0;
+bool reportCollisions = false;
+std::vector<std::pair<int, int>> collisionLocations;
+
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
 #version 330 core
@@ -77,6 +89,11 @@ void main() {
     TexCoord = aTexCoord;
 }
 )";
+
+
+
+
+
 
 const char* advectFragmentShader = R"(
 #version 330 core
@@ -480,26 +497,21 @@ in vec2 TexCoord;
 
 // Function to map density to color
 vec3 densityToColor(float density) {
-
-    vec3 colour = vec3(density, density, density);
-    return colour;
-
-
-    //// Use a blue-to-red color map
-    //vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
-    //vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
-    //vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
-    //vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
-    //
-    //if (density < 0.25) {
-    //    return mix(color1, color2, density * 4.0);
-    //} else if (density < 0.5) {
-    //    return mix(color2, color3, (density - 0.25) * 4.0);
-    //} else if (density < 0.75) {
-    //    return mix(color3, color4, (density - 0.5) * 4.0);
-    //} else {
-    //    return color4;
-    //}
+    // Use a blue-to-red color map
+    vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
+    vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
+    vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
+    vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
+    
+    if (density < 0.25) {
+        return mix(color1, color2, density * 4.0);
+    } else if (density < 0.5) {
+        return mix(color2, color3, (density - 0.25) * 4.0);
+    } else if (density < 0.75) {
+        return mix(color3, color4, (density - 0.5) * 4.0);
+    } else {
+        return color4;
+    }
 }
 
 void main() {
@@ -507,7 +519,7 @@ void main() {
     float collision = texture(collisionTexture, TexCoord).r;
     if (collision > 0.0) {
         // Show collision as bright orange
-        FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
         return;
     }
     
@@ -528,6 +540,94 @@ void main() {
     FragColor = vec4(color, 1.0);
 }
 )";
+
+
+void detectCollisions() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+    glUseProgram(detectCollisionProgram);
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
+    glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+    glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // If reporting is enabled, read back collision data
+    if (reportCollisions) {
+        // Allocate buffer for collision data
+        std::vector<float> collisionData(WIDTH * HEIGHT);
+
+        // Read back collision texture data from GPU
+        glReadPixels(0, 0, WIDTH, HEIGHT, GL_RED, GL_FLOAT, collisionData.data());
+
+        // Clear previous collision locations
+        collisionLocations.clear();
+
+        // Find collision locations
+        for (int y = 0; y < HEIGHT; ++y) {
+            for (int x = 0; x < WIDTH; ++x) {
+                int index = y * WIDTH + x;
+                if (collisionData[index] > 0.5f) {
+                    collisionLocations.push_back(std::make_pair(x, y));
+                }
+            }
+        }
+
+        // Output collision report
+        std::cout << "===== Collision Report =====" << std::endl;
+        std::cout << "Found " << collisionLocations.size() << " collision points" << std::endl;
+
+        // Output first few collision locations
+        const int MAX_REPORT_LOCATIONS = 10;
+        int locationsToReport = std::min((int)collisionLocations.size(), MAX_REPORT_LOCATIONS);
+
+        for (int i = 0; i < locationsToReport; ++i) {
+            std::cout << "Collision at (" << collisionLocations[i].first << ", "
+                << collisionLocations[i].second << ")" << std::endl;
+        }
+
+        if (collisionLocations.size() > MAX_REPORT_LOCATIONS) {
+            std::cout << "... and " << (collisionLocations.size() - MAX_REPORT_LOCATIONS)
+                << " more locations" << std::endl;
+        }
+
+        // Write complete collision data to file if there are any collisions
+        if (!collisionLocations.empty()) {
+            std::stringstream filename;
+            filename << "collision_data_" << frameCount << ".csv";
+            std::ofstream outFile(filename.str());
+
+            if (outFile.is_open()) {
+                outFile << "x,y" << std::endl;
+                for (const auto& loc : collisionLocations) {
+                    outFile << loc.first << "," << loc.second << std::endl;
+                }
+                outFile.close();
+                std::cout << "Complete collision data written to " << filename.str() << std::endl;
+            }
+            else {
+                std::cerr << "Could not open file for writing collision data" << std::endl;
+            }
+        }
+
+        std::cout << "===========================" << std::endl;
+
+        // Reset reporting flag
+        reportCollisions = false;
+    }
+}
+
 
 // Utility function to create and compile shaders
 GLuint compileShader(GLenum type, const char* source) {
@@ -981,35 +1081,6 @@ void advectDensity() {
     densityIndex = 1 - densityIndex;
 }
 
-
-
-
-// Detect collisions between density and obstacles
-void detectCollisions()
-{
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-
-    glUseProgram(detectCollisionProgram);
-
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
-    glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
-
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-}
-
-
-
 // Perform one simulation step
 void simulationStep() {
     // Add force from mouse interaction
@@ -1075,6 +1146,14 @@ void renderToScreen() {
 
 // GLUT display callback
 void display() {
+    // Increment frame counter
+    frameCount++;
+
+    // Check if it's time to report collisions
+    if (frameCount % REPORT_INTERVAL == 0) {
+        reportCollisions = true;
+    }
+
     // Perform simulation step
     simulationStep();
 
@@ -1168,6 +1247,12 @@ void keyboard(unsigned char key, int x, int y) {
         glDeleteProgram(detectCollisionProgram);
         exit(0);
         break;
+
+    case 'c':  // Report collisions immediately
+    case 'C':
+        reportCollisions = true;
+        std::cout << "Generating collision report on next frame..." << std::endl;
+        break;
     }
 }
 
@@ -1175,8 +1260,6 @@ void keyboard(unsigned char key, int x, int y) {
 void reshape(int w, int h) {
     glViewport(0, 0, w, h);
 }
-
-
 
 int main(int argc, char** argv) {
     // Initialize GLUT
@@ -1203,8 +1286,10 @@ int main(int argc, char** argv) {
     std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
     std::cout << "Right Mouse Button: Add obstacles" << std::endl;
     std::cout << "F1: Reset simulation" << std::endl;
+    std::cout << "C: Generate collision report immediately" << std::endl;
     std::cout << "ESC: Exit" << std::endl;
     std::cout << "Orange highlights show density-obstacle collisions" << std::endl;
+    std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
 
     // Main loop
     glutMainLoop();
