@@ -957,12 +957,12 @@ void addForce() {
 
     float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position
+    // Get normalized mouse position (0 to 1 range)
     float mousePosX = mouseX / (float)WIDTH;
     float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    mousePosY *= aspect;
-    mousePosY += 0.25;
+    // Center the Y coordinate, apply aspect ratio, then un-center
+    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
     float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
     float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
@@ -1005,12 +1005,12 @@ void addDensity() {
 
     float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position
+    // Get normalized mouse position (0 to 1 range)
     float mousePosX = mouseX / (float)WIDTH;
     float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    mousePosY *= aspect;
-    mousePosY += 0.25;
+    // Center the Y coordinate, apply aspect ratio, then un-center
+    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addDensityProgram, "densityTexture"), 0);
@@ -1073,12 +1073,12 @@ void updateObstacle()
 
     float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position
+    // Get normalized mouse position (0 to 1 range)
     float mousePosX = mouseX / (float)WIDTH;
     float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    mousePosY *= aspect;
-    mousePosY += 0.25;
+    // Center the Y coordinate, apply aspect ratio, then un-center
+    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
