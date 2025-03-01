@@ -27,8 +27,8 @@ using namespace std;
 const int WIDTH = 800;
 const int HEIGHT = 800;
 const float DT = 0.1f;            // Time step
-const float VISCOSITY = 0.001f;     // Fluid viscosity
-const float DIFFUSION = 1.0f;    // Density diffusion rate
+const float VISCOSITY = 10.0f;     // Fluid viscosity
+const float DIFFUSION = 0.0f;    // Density diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
@@ -359,6 +359,12 @@ out float FragColor;
 
 in vec2 TexCoord;
 
+
+
+const float fake_dispersion = 0.99;
+
+
+
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
@@ -392,7 +398,7 @@ void main() {
     float result = center + diffusionRate * dt * laplacian;
     
     // Clamp result to [0, 1]
-    FragColor = clamp(result, 0.0, 1.0);
+    FragColor = fake_dispersion*clamp(result, 0.0, 1.0);
 }
 )";
 
