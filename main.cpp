@@ -20,12 +20,10 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-// TODO: redo textures when window size changes
-
 
 // Simulation parameters
- int WIDTH = 800;
- int HEIGHT = 800;
+int WIDTH = 1000;
+int HEIGHT = 500;
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 10.0f;     // Fluid viscosity
 const float DIFFUSION = 0.0f;    // Density diffusion rate
