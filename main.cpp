@@ -1,6 +1,5 @@
 // https://claude.ai/chat/150e7512-37b3-4a6d-aa2a-05072caface4
 
-
 #include <GL/glew.h>
 #include <GL/glut.h>
 
@@ -8,6 +7,13 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <iomanip>
+#include <fstream>
+#include <sstream>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -16,23 +22,12 @@ using namespace std;
 
 
 
-
-#include <GL/glew.h>
-#include <GL/freeglut.h>
-#include <iostream>
-#include <vector>
-#include <string>
-#include <cmath>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-
 // Simulation parameters
 const int WIDTH = 512;
 const int HEIGHT = 512;
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 0.1f;     // Fluid viscosity
-const float DIFFUSION = 0.01f;    // Density diffusion rate
+const float DIFFUSION = 0.1f;    // Density diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
@@ -608,24 +603,24 @@ void detectCollisions() {
                 << " more locations" << std::endl;
         }
 
-        // Write complete collision data to file if there are any collisions
-        if (!collisionLocations.empty()) {
-            std::stringstream filename;
-            filename << "collision_data_" << frameCount << ".csv";
-            std::ofstream outFile(filename.str());
+        // Write complete collision data to file if there are any collisions    
+        //if (!collisionLocations.empty()) {
+        //    std::stringstream filename;
+        //    filename << "collision_data_" << frameCount << ".csv";
+        //    std::ofstream outFile(filename.str());
 
-            if (outFile.is_open()) {
-                outFile << "x,y" << std::endl;
-                for (const auto& loc : collisionLocations) {
-                    outFile << loc.first << "," << loc.second << std::endl;
-                }
-                outFile.close();
-                std::cout << "Complete collision data written to " << filename.str() << std::endl;
-            }
-            else {
-                std::cerr << "Could not open file for writing collision data" << std::endl;
-            }
-        }
+        //    if (outFile.is_open()) {
+        //        outFile << "x,y" << std::endl;
+        //        for (const auto& loc : collisionLocations) {
+        //            outFile << loc.first << "," << loc.second << std::endl;
+        //        }
+        //        outFile.close();
+        //        std::cout << "Complete collision data written to " << filename.str() << std::endl;
+        //    }
+        //    else {
+        //        std::cerr << "Could not open file for writing collision data" << std::endl;
+        //    }
+        //}
 
         std::cout << "===========================" << std::endl;
 
