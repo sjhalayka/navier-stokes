@@ -22,15 +22,15 @@ using namespace std;
 #include <cmath>
 
 // Simulation parameters
-const int WIDTH = 512;
-const int HEIGHT = 512;
-const float DT = 0.1f;            // Time step
+const int WIDTH = 768;
+const int HEIGHT = 768;
+const float DT = 1.0f;            // Time step
 const float VISCOSITY = 0.0f;     // Fluid viscosity
 const float DIFFUSION = 0.0f;    // Density diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.5f; // Threshold for density-obstacle collision
+const float COLLISION_THRESHOLD = 0.0f; // Threshold for density-obstacle collision
 
 // OpenGL variables
 GLuint velocityTexture[2];
