@@ -12,6 +12,8 @@ using namespace std;
 
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
+
+
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <iostream>
@@ -20,14 +22,15 @@ using namespace std;
 #include <cmath>
 
 // Simulation parameters
-const int WIDTH = 768;
-const int HEIGHT = 768;
-const float DT = 0.1f;        // Time step
-const float VISCOSITY = 0.01f;  // Fluid viscosity
-const float DIFFUSION = 1.0f; // Density diffusion rate
-const float FORCE = 50.0f;      // Force applied by mouse
+const int WIDTH = 512;
+const int HEIGHT = 512;
+const float DT = 0.1f;            // Time step
+const float VISCOSITY = 0.0f;     // Fluid viscosity
+const float DIFFUSION = 0.0f;    // Density diffusion rate
+const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
+const float COLLISION_THRESHOLD = 0.5f; // Threshold for density-obstacle collision
 
 // OpenGL variables
 GLuint velocityTexture[2];
@@ -35,6 +38,7 @@ GLuint pressureTexture[2];
 GLuint densityTexture[2];
 GLuint divergenceTexture;
 GLuint obstacleTexture;
+GLuint collisionTexture;
 
 GLuint advectProgram;
 GLuint divergenceProgram;
@@ -44,6 +48,7 @@ GLuint addForceProgram;
 GLuint addDensityProgram;
 GLuint diffuseDensityProgram;
 GLuint addObstacleProgram;
+GLuint detectCollisionProgram;
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -408,10 +413,67 @@ void main() {
 }
 )";
 
+const char* detectCollisionFragmentShader = R"(
+#version 330 core
+uniform sampler2D densityTexture;
+uniform sampler2D obstacleTexture;
+uniform float collisionThreshold;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Get current density and obstacle values
+    float density = texture(densityTexture, TexCoord).r;
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    
+    // Check for collision on obstacle boundaries
+    if (obstacle > 0.0) {
+        // We're in an obstacle - check if there's high density nearby
+        vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
+        
+        // Check neighboring cells for high density
+        float leftDensity = texture(densityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightDensity = texture(densityTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomDensity = texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topDensity = texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        // Check for obstacles in neighboring cells
+        float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightObstacle = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        // Only consider densities from non-obstacle cells
+        if (leftObstacle < 0.5) leftDensity = max(leftDensity, 0.0);
+        else leftDensity = 0.0;
+        
+        if (rightObstacle < 0.5) rightDensity = max(rightDensity, 0.0);
+        else rightDensity = 0.0;
+        
+        if (bottomObstacle < 0.5) bottomDensity = max(bottomDensity, 0.0);
+        else bottomDensity = 0.0;
+        
+        if (topObstacle < 0.5) topDensity = max(topDensity, 0.0);
+        else topDensity = 0.0;
+        
+        // Calculate max density at boundaries
+        float maxBoundaryDensity = max(max(leftDensity, rightDensity), max(bottomDensity, topDensity));
+        
+        // Set collision value based on density threshold
+        FragColor = (maxBoundaryDensity > collisionThreshold) ? 1.0 : 0.0;
+    } else {
+        // Not in an obstacle - no collision
+        FragColor = 0.0;
+    }
+}
+)";
+
 const char* renderFragmentShader = R"(
 #version 330 core
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
+uniform sampler2D collisionTexture;
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -436,6 +498,14 @@ vec3 densityToColor(float density) {
 }
 
 void main() {
+    // Check for collision at obstacle boundaries
+    float collision = texture(collisionTexture, TexCoord).r;
+    if (collision > 0.0) {
+        // Show collision as bright orange
+        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+        return;
+    }
+    
     // Check for obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
@@ -541,6 +611,7 @@ void initGL() {
     addDensityProgram = createShaderProgram(vertexShaderSource, addDensityFragmentShader);
     diffuseDensityProgram = createShaderProgram(vertexShaderSource, diffuseDensityFragmentShader);
     addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
+    detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
 
     // Create textures for simulation
     for (int i = 0; i < 2; i++) {
@@ -551,6 +622,7 @@ void initGL() {
 
     divergenceTexture = createTexture(GL_R32F, GL_RED, true);
     obstacleTexture = createTexture(GL_R32F, GL_RED, false);
+    collisionTexture = createTexture(GL_R32F, GL_RED, false);
 
     // Create framebuffer object
     glGenFramebuffers(1, &fbo);
@@ -579,10 +651,14 @@ void initGL() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // Clear the obstacle texture
+    // Clear the obstacle and collision textures
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     // Reset all textures to initial state
@@ -868,16 +944,15 @@ void updateObstacle() {
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
-
 void advectDensity() {
-    // Target the next density texture
+    // Target the next density texture (ping-pong buffers)
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
 
     // Use the advection shader program
     glUseProgram(advectProgram);
 
-    // Configure the shader with parameters
+    // Set uniforms for the shader
     glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
     glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
     glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
@@ -885,7 +960,7 @@ void advectDensity() {
     glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
     glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind the required textures
+    // Bind all required textures
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);  // Current velocity field
     glActiveTexture(GL_TEXTURE1);
@@ -900,6 +975,34 @@ void advectDensity() {
     // Swap to use the newly computed density field in the next step
     densityIndex = 1 - densityIndex;
 }
+
+
+
+
+// Detect collisions between density and obstacles
+void detectCollisions()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+    glUseProgram(detectCollisionProgram);
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
+    glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+    glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+}
+
 
 
 // Perform one simulation step
@@ -926,8 +1029,10 @@ void simulationStep() {
     computeDivergence();
     solvePressure(20);  // 20 iterations of Jacobi method
     subtractPressureGradient();
-}
 
+    // Detect collisions between density and obstacles
+    detectCollisions();
+}
 
 // Render the simulation to the screen
 void renderToScreen() {
@@ -945,12 +1050,15 @@ void renderToScreen() {
     // Set uniforms
     glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
+    glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
 
     // Bind textures
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, collisionTexture);
 
     // Render full-screen quad
     glBindVertexArray(vao);
@@ -1022,6 +1130,10 @@ void keyboardSpecial(int key, int x, int y) {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // Clear collision texture
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
         break;
     }
 }
@@ -1036,6 +1148,7 @@ void keyboard(unsigned char key, int x, int y) {
         glDeleteTextures(2, densityTexture);
         glDeleteTextures(1, &divergenceTexture);
         glDeleteTextures(1, &obstacleTexture);
+        glDeleteTextures(1, &collisionTexture);
         glDeleteFramebuffers(1, &fbo);
         glDeleteVertexArrays(1, &vao);
         glDeleteBuffers(1, &vbo);
@@ -1047,6 +1160,7 @@ void keyboard(unsigned char key, int x, int y) {
         glDeleteProgram(addDensityProgram);
         glDeleteProgram(diffuseDensityProgram);
         glDeleteProgram(addObstacleProgram);
+        glDeleteProgram(detectCollisionProgram);
         exit(0);
         break;
     }
@@ -1056,6 +1170,8 @@ void keyboard(unsigned char key, int x, int y) {
 void reshape(int w, int h) {
     glViewport(0, 0, w, h);
 }
+
+
 
 int main(int argc, char** argv) {
     // Initialize GLUT
@@ -1083,6 +1199,7 @@ int main(int argc, char** argv) {
     std::cout << "Right Mouse Button: Add obstacles" << std::endl;
     std::cout << "F1: Reset simulation" << std::endl;
     std::cout << "ESC: Exit" << std::endl;
+    std::cout << "Orange highlights show density-obstacle collisions" << std::endl;
 
     // Main loop
     glutMainLoop();
