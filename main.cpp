@@ -22,12 +22,13 @@ using namespace std;
 
 // TODO: redo textures when window size changes
 
+
 // Simulation parameters
 const int WIDTH = 800;
 const int HEIGHT = 800;
 const float DT = 0.1f;            // Time step
-const float VISCOSITY = 0.1f;     // Fluid viscosity
-const float DIFFUSION = 0.1f;    // Density diffusion rate
+const float VISCOSITY = 0.001f;     // Fluid viscosity
+const float DIFFUSION = 1.0f;    // Density diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
