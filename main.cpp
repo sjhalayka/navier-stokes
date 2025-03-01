@@ -1,6 +1,4 @@
-// Claude AI:
-// C++ Navier stokes solver using OpenGL. accept mouse input using GLUT
-// solve for obstacles too
+// https://claude.ai/chat/150e7512-37b3-4a6d-aa2a-05072caface4
 
 
 #include <GL/glew.h>
@@ -14,533 +12,1080 @@ using namespace std;
 
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
-
-
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cmath>
 
 // Simulation parameters
-const int N = 64;                // Grid size
-const float dt = 0.001f;            // Time step
-const float diff = 0.01f;          // Diffusion rate
-const float visc = 0.0f;          // Viscosity
-const float force = 50.0f;         // Force multiplier
-const float source = 100.0f;      // Density source
-const int iterations = 200;        // Gauss-Seidel iterations
-const int FLUID = 0;              // Cell type for fluid
-const int OBSTACLE = 1;           // Cell type for obstacle
+const int WIDTH = 768;
+const int HEIGHT = 768;
+const float DT = 0.1f;        // Time step
+const float VISCOSITY = 0.01f;  // Fluid viscosity
+const float DIFFUSION = 1.0f; // Density diffusion rate
+const float FORCE = 50.0f;      // Force applied by mouse
+const float DENSITY_AMOUNT = 1.0f; // Density added with force
+const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 
-// Display parameters
-const int windowSize = 512;
-float cellSize;
+// OpenGL variables
+GLuint velocityTexture[2];
+GLuint pressureTexture[2];
+GLuint densityTexture[2];
+GLuint divergenceTexture;
+GLuint obstacleTexture;
 
-// Arrays for velocity, density, and sources
-std::vector<float> u, v, u_prev, v_prev;
-std::vector<float> dens, dens_prev;
-std::vector<int> obstacles;       // Grid to track obstacle cells
+GLuint advectProgram;
+GLuint divergenceProgram;
+GLuint pressureProgram;
+GLuint gradientSubtractProgram;
+GLuint addForceProgram;
+GLuint addDensityProgram;
+GLuint diffuseDensityProgram;
+GLuint addObstacleProgram;
+
+GLuint vao, vbo;
+GLuint fbo;
+
+// Mouse state
 int mouseX = 0, mouseY = 0;
-bool mouseDown[3] = { false, false, false };
-bool addingObstacle = false;      // Flag for obstacle creation mode
+int prevMouseX = 0, prevMouseY = 0;
+bool mouseDown = false;
+bool rightMouseDown = false;
 
-// Utility function to convert 2D indices to 1D
-int IX(int i, int j) {
-	return std::max(0, std::min(N - 1, i)) + std::max(0, std::min(N - 1, j)) * N;
+// Texture swap utilities
+int velocityIndex = 0;
+int pressureIndex = 0;
+int densityIndex = 0;
+
+// Inline GLSL shaders
+const char* vertexShaderSource = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+void main() {
+    gl_Position = vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
+}
+)";
+
+const char* advectFragmentShader = R"(
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D sourceTexture;
+uniform sampler2D obstacleTexture;
+uniform float dt;
+uniform float gridScale;
+uniform vec2 texelSize;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    // Advection
+    vec2 vel = texture(velocityTexture, TexCoord).xy;
+    vec2 pos = TexCoord - dt * vel * texelSize;
+    
+    // Sample the source texture at the back-traced position
+    vec4 result = texture(sourceTexture, pos);
+    
+    // Boundary handling - don't advect from obstacles
+    vec2 samplePos = pos;
+    float obstacleSample = texture(obstacleTexture, samplePos).r;
+    
+    if (obstacleSample > 0.0) {
+        // If we sampled from an obstacle, reflect the velocity
+        result = vec4(-vel, 0.0, 1.0);
+    }
+    
+    FragColor = result;
+}
+)";
+
+const char* divergenceFragmentShader = R"(
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+    // Calculate divergence using central differences
+    vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
+    vec2 left = texture(velocityTexture, TexCoord - vec2(texelSize.x, 0.0)).xy;
+    vec2 top = texture(velocityTexture, TexCoord + vec2(0.0, texelSize.y)).xy;
+    vec2 bottom = texture(velocityTexture, TexCoord - vec2(0.0, texelSize.y)).xy;
+    
+    // Check for obstacles in samples
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    
+    // Apply boundary conditions at obstacles
+    if (oRight > 0.0) right = vec2(0.0, 0.0);
+    if (oLeft > 0.0) left = vec2(0.0, 0.0);
+    if (oTop > 0.0) top = vec2(0.0, 0.0);
+    if (oBottom > 0.0) bottom = vec2(0.0, 0.0);
+    
+    float div = 0.5 * ((right.x - left.x) + (top.y - bottom.y));
+    FragColor = div;
+}
+)";
+
+const char* pressureFragmentShader = R"(
+#version 330 core
+uniform sampler2D pressureTexture;
+uniform sampler2D divergenceTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float alpha;
+uniform float rBeta;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+    // Get pressure at neighboring cells
+    float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float pLeft = texture(pressureTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float pTop = texture(pressureTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    float pBottom = texture(pressureTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    
+    // Check for obstacles in samples
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    
+    // Apply Neumann boundary conditions at obstacles
+    if (oRight > 0.0) pRight = texture(pressureTexture, TexCoord).r;
+    if (oLeft > 0.0) pLeft = texture(pressureTexture, TexCoord).r;
+    if (oTop > 0.0) pTop = texture(pressureTexture, TexCoord).r;
+    if (oBottom > 0.0) pBottom = texture(pressureTexture, TexCoord).r;
+    
+    // Divergence
+    float div = texture(divergenceTexture, TexCoord).r;
+    
+    // Jacobi iteration step
+    float pressure = (pLeft + pRight + pBottom + pTop + alpha * div) * rBeta;
+    FragColor = pressure;
+}
+)";
+
+const char* gradientSubtractFragmentShader = R"(
+#version 330 core
+uniform sampler2D pressureTexture;
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float scale;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    // Compute pressure gradient
+    float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float pLeft = texture(pressureTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float pTop = texture(pressureTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    float pBottom = texture(pressureTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    
+    // Check for obstacles in samples
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    
+    // Apply boundary conditions at obstacles
+    if (oRight > 0.0) pRight = texture(pressureTexture, TexCoord).r;
+    if (oLeft > 0.0) pLeft = texture(pressureTexture, TexCoord).r;
+    if (oTop > 0.0) pTop = texture(pressureTexture, TexCoord).r;
+    if (oBottom > 0.0) pBottom = texture(pressureTexture, TexCoord).r;
+    
+    // Calculate gradient
+    vec2 gradient = vec2(pRight - pLeft, pTop - pBottom) * 0.5;
+    
+    // Get current velocity
+    vec2 velocity = texture(velocityTexture, TexCoord).xy;
+    
+    // Subtract gradient from velocity
+    vec2 result = velocity - scale * gradient;
+    
+    FragColor = vec4(result, 0.0, 1.0);
+}
+)";
+
+const char* addForceFragmentShader = R"(
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 point;
+uniform vec2 direction;
+uniform float radius;
+uniform float strength;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    // Get current velocity
+    vec2 velocity = texture(velocityTexture, TexCoord).xy;
+    
+    // Calculate distance to force application point
+    float distance = length(TexCoord - point);
+    
+    // Apply force based on radius
+    if (distance < radius) {
+        // Apply force with smooth falloff
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
+        
+        // Add force to velocity
+        velocity += direction * strength * falloff;
+    }
+    
+    FragColor = vec4(velocity, 0.0, 1.0);
+}
+)";
+
+const char* addDensityFragmentShader = R"(
+#version 330 core
+uniform sampler2D densityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 point;
+uniform float radius;
+uniform float amount;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+    // Get current density
+    float density = texture(densityTexture, TexCoord).r;
+    
+    // Calculate distance to density application point
+    float distance = length(TexCoord - point);
+    
+    // Apply density based on radius
+    if (distance < radius) {
+        // Apply density with smooth falloff
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
+        
+        // Add density
+        density += amount * falloff;
+    }
+    
+    // Clamp density to [0, 1] range
+    FragColor = clamp(density, 0.0, 1.0);
+}
+)";
+
+const char* diffuseDensityFragmentShader = R"(
+#version 330 core
+uniform sampler2D densityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float diffusionRate;
+uniform float dt;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+    // Simple diffusion using 5-point stencil
+    float center = texture(densityTexture, TexCoord).r;
+    float left = texture(densityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float right = texture(densityTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float bottom = texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float top = texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    
+    // Check if sampling from obstacles
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    
+    if (oLeft > 0.0) left = center;
+    if (oRight > 0.0) right = center;
+    if (oBottom > 0.0) bottom = center;
+    if (oTop > 0.0) top = center;
+    
+    // Compute Laplacian
+    float laplacian = (left + right + bottom + top - 4.0 * center);
+    
+    // Apply diffusion
+    float result = center + diffusionRate * dt * laplacian;
+    
+    // Clamp result to [0, 1]
+    FragColor = clamp(result, 0.0, 1.0);
+}
+)";
+
+const char* addObstacleFragmentShader = R"(
+#version 330 core
+uniform sampler2D obstacleTexture;
+uniform vec2 point;
+uniform float radius;
+uniform bool addObstacle;
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Get current obstacle value
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    
+    // Calculate distance to obstacle point
+    float distance = length(TexCoord - point);
+    
+    // Apply obstacle based on radius
+    if (distance < radius) {
+        if (addObstacle) {
+            obstacle = 1.0;
+        } else {
+            obstacle = 0.0;
+        }
+    }
+    
+    FragColor = obstacle;
+}
+)";
+
+const char* renderFragmentShader = R"(
+#version 330 core
+uniform sampler2D densityTexture;
+uniform sampler2D obstacleTexture;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+// Function to map density to color
+vec3 densityToColor(float density) {
+    // Use a blue-to-red color map
+    vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
+    vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
+    vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
+    vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
+    
+    if (density < 0.25) {
+        return mix(color1, color2, density * 4.0);
+    } else if (density < 0.5) {
+        return mix(color2, color3, (density - 0.25) * 4.0);
+    } else if (density < 0.75) {
+        return mix(color3, color4, (density - 0.5) * 4.0);
+    } else {
+        return color4;
+    }
 }
 
-// Boundary condition handling with obstacles
-void setBoundary(int b, std::vector<float>& x) {
-	// Set boundary conditions for domain edges
+void main() {
+    // Check for obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        // Render obstacles as white
+        FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+        return;
+    }
+    
+    // Get density at current position
+    float density = texture(densityTexture, TexCoord).r;
+    
+    // Convert density to color
+    vec3 color = densityToColor(density);
+    
+    FragColor = vec4(color, 1.0);
+}
+)";
 
-	//for (int i = 1; i < N - 1; i++) {
-	//	x[IX(i, 0)] = b == 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
-	//	x[IX(i, N - 1)] = b == 2 ? -x[IX(i, N - 2)] : x[IX(i, N - 2)];
-	//}
-	//for (int j = 1; j < N - 1; j++) {
-	//	x[IX(0, j)] = b == 1 ? -x[IX(1, j)] : x[IX(1, j)];
-	//	x[IX(N - 1, j)] = b == 1 ? -x[IX(N - 2, j)] : x[IX(N - 2, j)];
-	//}
+// Utility function to create and compile shaders
+GLuint compileShader(GLenum type, const char* source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
 
-	//x[IX(0, 0)] = 0.5f * (x[IX(1, 0)] + x[IX(0, 1)]);
-	//x[IX(0, N - 1)] = 0.5f * (x[IX(1, N - 1)] + x[IX(0, N - 2)]);
-	//x[IX(N - 1, 0)] = 0.5f * (x[IX(N - 2, 0)] + x[IX(N - 1, 1)]);
-	//x[IX(N - 1, N - 1)] = 0.5f * (x[IX(N - 2, N - 1)] + x[IX(N - 1, N - 2)]);
+    // Check for compilation errors
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLchar infoLog[512];
+        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        std::cerr << "Shader compilation error: " << infoLog << std::endl;
+    }
 
-	// Set boundary conditions for internal obstacles
-	for (int j = 1; j < N - 1; j++) {
-		for (int i = 1; i < N - 1; i++) {
-			if (obstacles[IX(i, j)] == OBSTACLE) {
-				// For each obstacle cell, apply boundary conditions
-				// based on neighboring fluid cells
-
-				// For velocities: no-slip condition (zero velocity at boundaries)
-				if (b == 1) { // x-velocity component
-					float sum = 0.0f;
-					int count = 0;
-
-					// Average from fluid neighbors
-					if (i > 1 && obstacles[IX(i - 1, j)] != OBSTACLE) {
-						sum += x[IX(i - 1, j)];
-						count++;
-					}
-					if (i < N - 2 && obstacles[IX(i + 1, j)] != OBSTACLE) {
-						sum += x[IX(i + 1, j)];
-						count++;
-					}
-
-					x[IX(i, j)] = count > 0 ? -sum / count : 0;
-				}
-				else if (b == 2) { // y-velocity component
-					float sum = 0.0f;
-					int count = 0;
-
-					if (j > 1 && obstacles[IX(i, j - 1)] != OBSTACLE) {
-						sum += x[IX(i, j - 1)];
-						count++;
-					}
-					if (j < N - 2 && obstacles[IX(i, j + 1)] != OBSTACLE) {
-						sum += x[IX(i, j + 1)];
-						count++;
-					}
-
-					x[IX(i, j)] = count > 0 ? -sum / count : 0;
-				}
-				else { // For scalar quantities like density or pressure
-					float sum = 0.0f;
-					int count = 0;
-
-					// Average from fluid neighbors
-					if (i > 1 && obstacles[IX(i - 1, j)] != OBSTACLE) {
-						sum += x[IX(i - 1, j)];
-						count++;
-					}
-					if (i < N - 2 && obstacles[IX(i + 1, j)] != OBSTACLE) {
-						sum += x[IX(i + 1, j)];
-						count++;
-					}
-					if (j > 1 && obstacles[IX(i, j - 1)] != OBSTACLE) {
-						sum += x[IX(i, j - 1)];
-						count++;
-					}
-					if (j < N - 2 && obstacles[IX(i, j + 1)] != OBSTACLE) {
-						sum += x[IX(i, j + 1)];
-						count++;
-					}
-
-					x[IX(i, j)] = count > 0 ? sum / count : 0;
-				}
-			}
-		}
-	}
+    return shader;
 }
 
-// Linear solver using Gauss-Seidel relaxation
-void linearSolve(int b, std::vector<float>& x, std::vector<float>& x0, float a, float c) {
-	float cRecip = 1.0f / c;
-	for (int k = 0; k < iterations; k++) {
-		for (int j = 1; j < N - 1; j++) {
-			for (int i = 1; i < N - 1; i++) {
-				// Skip obstacle cells in the solver
-				if (obstacles[IX(i, j)] == OBSTACLE) {
-					continue;
-				}
+// Utility function to create and link a shader program
+GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource) {
+    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
 
-				x[IX(i, j)] = (x0[IX(i, j)] + a * (
-					x[IX(i + 1, j)] + x[IX(i - 1, j)] +
-					x[IX(i, j + 1)] + x[IX(i, j - 1)]
-					)) * cRecip;
-			}
-		}
-		setBoundary(b, x);
-	}
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    // Check for linking errors
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLchar infoLog[512];
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "Shader program linking error: " << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return program;
 }
 
-// Diffusion step
-void diffuse(int b, std::vector<float>& x, std::vector<float>& x0, float diff) {
-	float a = dt * diff * (N - 2) * (N - 2);
-	linearSolve(b, x, x0, a, 1 + 4 * a);
+// Create a texture for simulation
+GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Set texture parameters
+    if (filtering) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    }
+    else {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Allocate texture memory
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, WIDTH, HEIGHT, 0, format, GL_FLOAT, nullptr);
+
+    return texture;
 }
 
-// Advection step with obstacles
-void advect(int b, std::vector<float>& d, std::vector<float>& d0, std::vector<float>& u, std::vector<float>& v) {
-	float dt0 = dt * (N - 2);
-	for (int j = 1; j < N - 1; j++) {
-		for (int i = 1; i < N - 1; i++) {
-			// Skip obstacle cells
-			if (obstacles[IX(i, j)] == OBSTACLE) {
-				continue;
-			}
+// Initialize OpenGL resources
+void initGL() {
+    // Initialize GLEW
+    glewExperimental = GL_TRUE;
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+        exit(1);
+    }
 
-			float x = i - dt0 * u[IX(i, j)];
-			float y = j - dt0 * v[IX(i, j)];
+    // Create shader programs
+    advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
+    divergenceProgram = createShaderProgram(vertexShaderSource, divergenceFragmentShader);
+    pressureProgram = createShaderProgram(vertexShaderSource, pressureFragmentShader);
+    gradientSubtractProgram = createShaderProgram(vertexShaderSource, gradientSubtractFragmentShader);
+    addForceProgram = createShaderProgram(vertexShaderSource, addForceFragmentShader);
+    addDensityProgram = createShaderProgram(vertexShaderSource, addDensityFragmentShader);
+    diffuseDensityProgram = createShaderProgram(vertexShaderSource, diffuseDensityFragmentShader);
+    addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
 
-			if (x < 0.5f) x = 0.5f;
-			if (x > N - 1.5f) x = N - 1.5f;
-			int i0 = static_cast<int>(x);
-			int i1 = i0 + 1;
+    // Create textures for simulation
+    for (int i = 0; i < 2; i++) {
+        velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
+        pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
+        densityTexture[i] = createTexture(GL_R32F, GL_RED, true);
+    }
 
-			if (y < 0.5f) y = 0.5f;
-			if (y > N - 1.5f) y = N - 1.5f;
-			int j0 = static_cast<int>(y);
-			int j1 = j0 + 1;
+    divergenceTexture = createTexture(GL_R32F, GL_RED, true);
+    obstacleTexture = createTexture(GL_R32F, GL_RED, false);
 
-			float s1 = x - i0;
-			float s0 = 1 - s1;
-			float t1 = y - j0;
-			float t0 = 1 - t1;
+    // Create framebuffer object
+    glGenFramebuffers(1, &fbo);
 
-			d[IX(i, j)] = s0 * (t0 * d0[IX(i0, j0)] + t1 * d0[IX(i0, j1)]) +
-				s1 * (t0 * d0[IX(i1, j0)] + t1 * d0[IX(i1, j1)]);
-		}
-	}
-	setBoundary(b, d);
+    // Create a full-screen quad for rendering
+    float vertices[] = {
+        // Position (x, y, z)    // Texture coords (u, v)
+        -1.0f, -1.0f, 0.0f,      0.0f, 0.0f,
+         1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
+         1.0f,  1.0f, 0.0f,      1.0f, 1.0f,
+        -1.0f,  1.0f, 0.0f,      0.0f, 1.0f
+    };
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Clear the obstacle texture
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Reset all textures to initial state
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-// Project velocities to conserve mass with obstacles
-void project(std::vector<float>& u, std::vector<float>& v, std::vector<float>& p, std::vector<float>& div) {
-	for (int j = 1; j < N - 1; j++) {
-		for (int i = 1; i < N - 1; i++) {
-			// Skip obstacle cells
-			if (obstacles[IX(i, j)] == OBSTACLE) {
-				div[IX(i, j)] = 0;
-				p[IX(i, j)] = 0;
-				continue;
-			}
+// Apply the advection step
+void advectVelocity() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-			div[IX(i, j)] = -0.5f * (
-				u[IX(i + 1, j)] - u[IX(i - 1, j)] +
-				v[IX(i, j + 1)] - v[IX(i, j - 1)]
-				) / N;
-			p[IX(i, j)] = 0;
-		}
-	}
-	setBoundary(0, div);
-	setBoundary(0, p);
+    glUseProgram(advectProgram);
 
-	linearSolve(0, p, div, 1, 4);
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	for (int j = 1; j < N - 1; j++) {
-		for (int i = 1; i < N - 1; i++) {
-			// Skip obstacle cells
-			if (obstacles[IX(i, j)] == OBSTACLE) {
-				continue;
-			}
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-			u[IX(i, j)] -= 0.5f * (p[IX(i + 1, j)] - p[IX(i - 1, j)]) * N;
-			v[IX(i, j)] -= 0.5f * (p[IX(i, j + 1)] - p[IX(i, j - 1)]) * N;
-		}
-	}
-	setBoundary(1, u);
-	setBoundary(2, v);
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    velocityIndex = 1 - velocityIndex;
 }
 
-// Main velocity step
-void velocityStep() {
-	// Add forces
-	for (int i = 0; i < u.size(); i++) {
-		u_prev[i] = u[i];
-		v_prev[i] = v[i];
-	}
+// Compute the velocity divergence
+void computeDivergence() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
 
-	diffuse(1, u, u_prev, visc);
-	diffuse(2, v, v_prev, visc);
+    glUseProgram(divergenceProgram);
 
-	project(u, v, u_prev, v_prev);
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(divergenceProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(divergenceProgram, "obstacleTexture"), 1);
+    glUniform2f(glGetUniformLocation(divergenceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	for (int i = 0; i < u.size(); i++) {
-		u_prev[i] = u[i];
-		v_prev[i] = v[i];
-	}
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-	advect(1, u, u_prev, u_prev, v_prev);
-	advect(2, v, v_prev, u_prev, v_prev);
-
-	project(u, v, u_prev, v_prev);
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
-// Main density step
-void densityStep() {
-	// Add sources from mouse interaction
-	for (int i = 0; i < dens.size(); i++) {
-		dens_prev[i] = dens[i];
-	}
+// Solve for pressure using Jacobi iteration
+void solvePressure(int iterations) {
+    // Clear pressure textures
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-	diffuse(0, dens, dens_prev, diff);
+    pressureIndex = 0;
 
-	for (int i = 0; i < dens.size(); i++) {
-		dens_prev[i] = dens[i];
-	}
+    // Jacobi iteration
+    for (int i = 0; i < iterations; i++) {
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1 - pressureIndex], 0);
 
-	advect(0, dens, dens_prev, u, v);
+        glUseProgram(pressureProgram);
+
+        // Set uniforms
+        float alpha = -1.0f;  // Central coefficient
+        float rBeta = 0.25f;  // Reciprocal of sum of neighboring coefficients
+
+        glUniform1i(glGetUniformLocation(pressureProgram, "pressureTexture"), 0);
+        glUniform1i(glGetUniformLocation(pressureProgram, "divergenceTexture"), 1);
+        glUniform1i(glGetUniformLocation(pressureProgram, "obstacleTexture"), 2);
+        glUniform2f(glGetUniformLocation(pressureProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+        glUniform1f(glGetUniformLocation(pressureProgram, "alpha"), alpha);
+        glUniform1f(glGetUniformLocation(pressureProgram, "rBeta"), rBeta);
+
+        // Bind textures
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, divergenceTexture);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+        // Render full-screen quad
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+        // Swap texture indices
+        pressureIndex = 1 - pressureIndex;
+    }
 }
 
-// Add density source from mouse
-void addDensity(int x, int y, float amount)
-{
-	int i = static_cast<int>(x / cellSize);
-	int j = static_cast<int>(y / cellSize);
+// Subtract pressure gradient from velocity
+void subtractPressureGradient() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-	if (i <= 1 || j <= 1 || i >= N - 1 || j >= N - 1)
-		return;
+    glUseProgram(gradientSubtractProgram);
 
-	// Don't add density to obstacle cells
-	if (obstacles[IX(i, j)] != OBSTACLE) {
-		dens[IX(i, j)] += amount;
-	}
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "pressureTexture"), 0);
+    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "velocityTexture"), 1);
+    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "obstacleTexture"), 2);
+    glUniform2f(glGetUniformLocation(gradientSubtractProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+    glUniform1f(glGetUniformLocation(gradientSubtractProgram, "scale"), 1.0f);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    velocityIndex = 1 - velocityIndex;
 }
 
-// Add velocity force from mouse
-void addVelocity(int x, int y, float amountX, float amountY) {
-	int i = static_cast<int>(x / cellSize);
-	int j = static_cast<int>(y / cellSize);
+// Add force to the velocity field
+void addForce() {
+    if (!mouseDown) return;
 
-	if (i <= 1 || j <= 1 || i >= N - 1 || j >= N - 1)
-		return;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-	// Don't add velocity to obstacle cells
-	if (obstacles[IX(i, j)] != OBSTACLE) {
-		u[IX(i, j)] += amountX;
-		v[IX(i, j)] += amountY;
-	}
+    glUseProgram(addForceProgram);
+
+    // Calculate force direction from mouse movement
+    float mouseVelX = (mouseX - prevMouseX) * 0.01f;
+    float mouseVelY = -(mouseY - prevMouseY) * 0.01f;  // Invert Y direction
+
+    // Get normalized mouse position
+    float mousePosX = mouseX / (float)WIDTH;
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
+    glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
+    glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+    glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
+    glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    velocityIndex = 1 - velocityIndex;
+
+    // Update previous mouse position
+    prevMouseX = mouseX;
+    prevMouseY = mouseY;
 }
 
-// Add or remove obstacle at mouse position
-void toggleObstacle(int x, int y) {
-	int i = static_cast<int>(x / cellSize);
-	int j = static_cast<int>(y / cellSize);
+// Add density to the fluid
+void addDensity() {
+    if (!mouseDown) return;
 
-	// Don't add obstacles at the boundary
-	if (i > 0 && i < N - 1 && j > 0 && j < N - 1) {
-		// Toggle the obstacle state
-		if (obstacles[IX(i, j)] == OBSTACLE) {
-			obstacles[IX(i, j)] = FLUID;
-		}
-		else {
-			obstacles[IX(i, j)] = OBSTACLE;
-			// Reset any velocity or density in this cell
-			u[IX(i, j)] = 0;
-			v[IX(i, j)] = 0;
-			dens[IX(i, j)] = 0;
-		}
-	}
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+
+    glUseProgram(addDensityProgram);
+
+    // Get normalized mouse position
+    float mousePosX = mouseX / (float)WIDTH;
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(addDensityProgram, "densityTexture"), 0);
+    glUniform1i(glGetUniformLocation(addDensityProgram, "obstacleTexture"), 1);
+    glUniform2f(glGetUniformLocation(addDensityProgram, "point"), mousePosX, mousePosY);
+    glUniform1f(glGetUniformLocation(addDensityProgram, "radius"), 0.05f);
+    glUniform1f(glGetUniformLocation(addDensityProgram, "amount"), DENSITY_AMOUNT);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    densityIndex = 1 - densityIndex;
 }
 
-// GLUT drawing function
+// Diffuse density
+void diffuseDensity() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+
+    glUseProgram(diffuseDensityProgram);
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(diffuseDensityProgram, "densityTexture"), 0);
+    glUniform1i(glGetUniformLocation(diffuseDensityProgram, "obstacleTexture"), 1);
+    glUniform2f(glGetUniformLocation(diffuseDensityProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+    glUniform1f(glGetUniformLocation(diffuseDensityProgram, "diffusionRate"), DIFFUSION);
+    glUniform1f(glGetUniformLocation(diffuseDensityProgram, "dt"), DT);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    densityIndex = 1 - densityIndex;
+}
+
+// Add or remove obstacles
+void updateObstacle() {
+    if (!rightMouseDown) return;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+
+    glUseProgram(addObstacleProgram);
+
+    // Get normalized mouse position
+    float mousePosX = mouseX / (float)WIDTH;
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
+    glUniform2f(glGetUniformLocation(addObstacleProgram, "point"), mousePosX, mousePosY);
+    glUniform1f(glGetUniformLocation(addObstacleProgram, "radius"), OBSTACLE_RADIUS);
+    glUniform1i(glGetUniformLocation(addObstacleProgram, "addObstacle"), true);  // Always add obstacles for simplicity
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+}
+
+
+void advectDensity() {
+    // Target the next density texture
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+
+    // Use the advection shader program
+    glUseProgram(advectProgram);
+
+    // Configure the shader with parameters
+    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+    // Bind the required textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);  // Current velocity field
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);    // Current density field
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);                 // Obstacle field
+
+    // Execute the advection shader on a full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap to use the newly computed density field in the next step
+    densityIndex = 1 - densityIndex;
+}
+
+
+// Perform one simulation step
+void simulationStep() {
+    // Add force from mouse interaction
+    addForce();
+
+    // Add density from mouse interaction
+    addDensity();
+
+    // Update obstacles from mouse interaction
+    updateObstacle();
+
+    // Advect velocity
+    advectVelocity();
+
+    // Advect density
+    advectDensity();
+
+    // Diffuse density
+    diffuseDensity();
+
+    // Project velocity to be divergence-free
+    computeDivergence();
+    solvePressure(20);  // 20 iterations of Jacobi method
+    subtractPressureGradient();
+}
+
+
+// Render the simulation to the screen
+void renderToScreen() {
+    // Bind default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Clear the screen
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Use a render shader program
+    GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
+    glUseProgram(renderProgram);
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
+    glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Cleanup
+    glDeleteProgram(renderProgram);
+}
+
+// GLUT display callback
 void display() {
-	glClear(GL_COLOR_BUFFER_BIT);
+    // Perform simulation step
+    simulationStep();
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+    // Render to screen
+    renderToScreen();
 
-	// Draw density
-	for (int j = 0; j < N; j++) {
-		for (int i = 0; i < N; i++) {
-			float x = i * cellSize;
-			float y = j * cellSize;
-
-			if (obstacles[IX(i, j)] == OBSTACLE) {
-				// Draw obstacles as solid red blocks
-				glColor3f(0.7f, 0.2f, 0.2f);
-				glBegin(GL_QUADS);
-				glVertex2f(x, y);
-				glVertex2f(x + cellSize, y);
-				glVertex2f(x + cellSize, y + cellSize);
-				glVertex2f(x, y + cellSize);
-				glEnd();
-			}
-			else {
-				// Draw fluid density
-				float d_ = dens[IX(i, j)];
-				float u_ = u[IX(i, j)];
-				float v_ = v[IX(i, j)];
-
-
-				float r = d_;
-				float g = d_ * 0.5f + std::sqrt(u_ * u_ + v_ * v_) * 0.2f;
-				float b = d_ * 0.25f + std::sqrt(u_ * u_ + v_ * v_) * 0.5f;
-
-				glColor4f(r, g, b, d_);
-				glBegin(GL_QUADS);
-				glVertex2f(x, y);
-				glVertex2f(x + cellSize, y);
-				glVertex2f(x + cellSize, y + cellSize);
-				glVertex2f(x, y + cellSize);
-				glEnd();
-			}
-		}
-	}
-
-	// Draw a small indicator for the current mode (obstacle or fluid)
-	glColor3f(addingObstacle ? 1.0f : 0.0f, addingObstacle ? 0.0f : 1.0f, 0.0f);
-	glBegin(GL_QUADS);
-	glVertex2f(windowSize - 20, windowSize - 20);
-	glVertex2f(windowSize - 5, windowSize - 20);
-	glVertex2f(windowSize - 5, windowSize - 5);
-	glVertex2f(windowSize - 20, windowSize - 5);
-	glEnd();
-
-	glutSwapBuffers();
+    // Swap buffers
+    glutSwapBuffers();
 }
 
-// Updates the simulation
-void update() {
-	static int lastX = 0, lastY = 0;
-
-	// Process mouse input
-	if (mouseDown[0]) {
-		if (addingObstacle) {
-			// Right-click: add/remove obstacles
-			toggleObstacle(mouseX, mouseY);
-		}
-		else {
-			// Left-click: add fluid and velocity
-			int dx = mouseX - lastX;
-			int dy = mouseY - lastY;
-			addVelocity(mouseX, mouseY, dx * force, dy * force);
-			addDensity(mouseX, mouseY, source);
-		}
-	}
-
-	lastX = mouseX;
-	lastY = mouseY;
-
-	velocityStep();
-	densityStep();
-
-	glutPostRedisplay();
+// GLUT idle callback
+void idle() {
+    glutPostRedisplay();
 }
 
-// Timer callback for animation
-void timer(int) {
-	update();
-	glutTimerFunc(16, timer, 0); // ~60 FPS
+// GLUT mouse button callback
+void mouseButton(int button, int state, int x, int y) {
+    mouseX = x;
+    mouseY = y;
+    prevMouseX = x;
+    prevMouseY = y;
+
+    if (button == GLUT_LEFT_BUTTON) {
+        mouseDown = (state == GLUT_DOWN);
+    }
+    else if (button == GLUT_RIGHT_BUTTON) {
+        rightMouseDown = (state == GLUT_DOWN);
+    }
 }
 
-// Mouse button callback
-void mouseFunc(int button, int state, int x, int y) {
-	mouseDown[button] = state == GLUT_DOWN;
-	mouseX = x;
-	mouseY = y;
-
-	// Right mouse button toggles obstacle creation mode
-	if (button == 2 && state == GLUT_DOWN) {
-		addingObstacle = !addingObstacle;
-	}
+// GLUT mouse motion callback
+void mouseMotion(int x, int y) {
+    mouseX = x;
+    mouseY = y;
 }
 
-// Mouse motion callback
-void motionFunc(int x, int y) {
-	mouseX = x;
-	mouseY = y;
+// GLUT special key callback
+void keyboardSpecial(int key, int x, int y) {
+    switch (key) {
+    case GLUT_KEY_F1:
+        // Reset simulation
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+        // Clear velocity textures
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Clear density textures
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Clear obstacle texture
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        break;
+    }
 }
 
-// Keyboard callback
-void keyboardFunc(unsigned char key, int x, int y) {
-	if (key == 'c' || key == 'C') {
-		// Clear the simulation (but keep obstacles)
-		std::fill(u.begin(), u.end(), 0.0f);
-		std::fill(v.begin(), v.end(), 0.0f);
-		std::fill(dens.begin(), dens.end(), 0.0f);
-	}
-	if (key == 'x' || key == 'X') {
-		// Clear everything including obstacles
-		std::fill(u.begin(), u.end(), 0.0f);
-		std::fill(v.begin(), v.end(), 0.0f);
-		std::fill(dens.begin(), dens.end(), 0.0f);
-		std::fill(obstacles.begin(), obstacles.end(), FLUID);
-	}
-	if (key == 'o' || key == 'O') {
-		// Toggle obstacle creation mode
-		addingObstacle = !addingObstacle;
-	}
-	if (key == 27) { // ESC key
-		exit(0);
-	}
+// GLUT keyboard callback
+void keyboard(unsigned char key, int x, int y) {
+    switch (key) {
+    case 27:  // ESC key
+        // Clean up and exit
+        glDeleteTextures(2, velocityTexture);
+        glDeleteTextures(2, pressureTexture);
+        glDeleteTextures(2, densityTexture);
+        glDeleteTextures(1, &divergenceTexture);
+        glDeleteTextures(1, &obstacleTexture);
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(1, &vbo);
+        glDeleteProgram(advectProgram);
+        glDeleteProgram(divergenceProgram);
+        glDeleteProgram(pressureProgram);
+        glDeleteProgram(gradientSubtractProgram);
+        glDeleteProgram(addForceProgram);
+        glDeleteProgram(addDensityProgram);
+        glDeleteProgram(diffuseDensityProgram);
+        glDeleteProgram(addObstacleProgram);
+        exit(0);
+        break;
+    }
 }
 
-// Initialization
-void init() {
-	// Initialize arrays
-	int size = N * N;
-	u.resize(size, 0.0f);
-	v.resize(size, 0.0f);
-	u_prev.resize(size, 0.0f);
-	v_prev.resize(size, 0.0f);
-	dens.resize(size, 0.0f);
-	dens_prev.resize(size, 0.0f);
-	obstacles.resize(size, FLUID);
-
-	// Set up OpenGL
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glOrtho(0, windowSize, windowSize, 0, -1, 1);
-
-	cellSize = static_cast<float>(windowSize) / N;
-}
-// Create a preset obstacle pattern
-void createPresetObstacles()
-{
-	// Clear any existing obstacles
-	std::fill(obstacles.begin(), obstacles.end(), FLUID);
-
-	// Create a circular obstacle in the center
-	int centerX = N / 2;
-	int centerY = N / 2;
-	int radius = N / 8;
-
-	for (int j = 1; j < N - 1; j++) {
-		for (int i = 1; i < N - 1; i++) {
-			float dx = i - centerX;
-			float dy = j - centerY;
-			float distSq = dx * dx + dy * dy;
-
-			if (distSq < radius * radius) {
-				obstacles[IX(i, j)] = OBSTACLE;
-			}
-		}
-	}
-
-	// Create some rectangular obstacles
-	const int blockSize = N / 16;
-
-	// Left side obstacle
-	for (int j = N / 4; j < N / 4 + N / 8; j++) {
-		for (int i = N / 8; i < N / 8 + blockSize; i++) {
-			obstacles[IX(i, j)] = OBSTACLE;
-		}
-	}
-
-	// Right side obstacle
-	for (int j = N / 2; j < N / 2 + N / 8; j++) {
-		for (int i = N - N / 4; i < N - N / 4 + blockSize; i++) {
-			obstacles[IX(i, j)] = OBSTACLE;
-		}
-	}
+// GLUT reshape callback
+void reshape(int w, int h) {
+    glViewport(0, 0, w, h);
 }
 
 int main(int argc, char** argv) {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-	glutInitWindowSize(windowSize, windowSize);
-	glutCreateWindow("Navier-Stokes Fluid Simulation with Obstacles");
+    // Initialize GLUT
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+    glutInitWindowSize(WIDTH, HEIGHT);
+    glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
-	glutDisplayFunc(display);
-	glutTimerFunc(0, timer, 0);
-	glutMouseFunc(mouseFunc);
-	glutMotionFunc(motionFunc);
-	glutKeyboardFunc(keyboardFunc);
+    // Initialize OpenGL
+    initGL();
 
-	init();
+    // Register callbacks
+    glutDisplayFunc(display);
+    glutIdleFunc(idle);
+    glutMouseFunc(mouseButton);
+    glutMotionFunc(mouseMotion);
+    glutSpecialFunc(keyboardSpecial);
+    glutKeyboardFunc(keyboard);
+    glutReshapeFunc(reshape);
 
-	// Create some initial obstacles
-	createPresetObstacles();
+    // Print instructions
+    std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
+    std::cout << "-----------------------------------" << std::endl;
+    std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
+    std::cout << "Right Mouse Button: Add obstacles" << std::endl;
+    std::cout << "F1: Reset simulation" << std::endl;
+    std::cout << "ESC: Exit" << std::endl;
 
-	std::cout << "Navier-Stokes Fluid Simulation with Obstacles" << std::endl;
-	std::cout << "----------------------------------------" << std::endl;
-	std::cout << "Left click and drag to add fluid and velocity" << std::endl;
-	std::cout << "Press 'o' or right-click to toggle obstacle creation mode" << std::endl;
-	std::cout << "  - When in obstacle mode (red indicator), click to add/remove obstacles" << std::endl;
-	std::cout << "  - When in fluid mode (green indicator), click to add fluid" << std::endl;
-	std::cout << "Press 'c' to clear fluid (keeping obstacles)" << std::endl;
-	std::cout << "Press 'x' to clear everything including obstacles" << std::endl;
-	std::cout << "Press 'ESC' to exit" << std::endl;
+    // Main loop
+    glutMainLoop();
 
-	glutMainLoop();
-	return 0;
+    return 0;
 }
