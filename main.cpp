@@ -101,7 +101,7 @@ uniform vec2 texelSize;
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
-float aspect_ratio = WIDTH/HEIGHT;
+float aspect_ratio = 1;//WIDTH/HEIGHT;
 
 out vec4 FragColor;
 
@@ -955,19 +955,19 @@ void addForce() {
 
     glUseProgram(addForceProgram);
 
-    //// Calculate force direction from mouse movement
-    //float mouseVelX = (mouseX - prevMouseX) * 0.01f;// *aspect_ratio;
-    //float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
-    //// Get normalized mouse position
     //float mousePosX = mouseX / (float)WIDTH;
-    //float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+    //float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 
+    float aspect = HEIGHT / float(WIDTH);
+
+    // Get normalized mouse position
     float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    // When applying forces, adjust for aspect ratio:
-    // In addForce():
+    mousePosY *= aspect;
+    mousePosY += 0.25;
+
     float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT/(float(WIDTH)));
     float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
@@ -1008,8 +1008,17 @@ void addDensity() {
     glUseProgram(addDensityProgram);
 
     // Get normalized mouse position
+//    float mousePosX = mouseX / (float)WIDTH;
+//   float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    float aspect = HEIGHT / float(WIDTH);
+
+    // Get normalized mouse position
     float mousePosX = mouseX / (float)WIDTH;
     float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    mousePosY *= aspect;
+    mousePosY += 0.25;
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addDensityProgram, "densityTexture"), 0);
@@ -1061,7 +1070,8 @@ void diffuseDensity() {
 }
 
 // Add or remove obstacles
-void updateObstacle() {
+void updateObstacle() 
+{
     if (!rightMouseDown) return;
 
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -1069,9 +1079,14 @@ void updateObstacle() {
 
     glUseProgram(addObstacleProgram);
 
+    float aspect = HEIGHT / float(WIDTH);
+
     // Get normalized mouse position
     float mousePosX = mouseX / (float)WIDTH;
     float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    mousePosY *= aspect;
+    mousePosY += 0.25;
 
     // Set uniforms
     glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
