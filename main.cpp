@@ -22,15 +22,15 @@ using namespace std;
 #include <cmath>
 
 // Simulation parameters
-const int WIDTH = 768;
-const int HEIGHT = 768;
+const int WIDTH = 512;
+const int HEIGHT = 512;
 const float DT = 1.0f;            // Time step
 const float VISCOSITY = 0.0f;     // Fluid viscosity
 const float DIFFUSION = 0.0f;    // Density diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float DENSITY_AMOUNT = 1.0f; // Density added with force
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.0f; // Threshold for density-obstacle collision
+const float COLLISION_THRESHOLD = 0.5; // Threshold for density-obstacle collision
 
 // OpenGL variables
 GLuint velocityTexture[2];
@@ -480,21 +480,26 @@ in vec2 TexCoord;
 
 // Function to map density to color
 vec3 densityToColor(float density) {
-    // Use a blue-to-red color map
-    vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
-    vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
-    vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
-    vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
-    
-    if (density < 0.25) {
-        return mix(color1, color2, density * 4.0);
-    } else if (density < 0.5) {
-        return mix(color2, color3, (density - 0.25) * 4.0);
-    } else if (density < 0.75) {
-        return mix(color3, color4, (density - 0.5) * 4.0);
-    } else {
-        return color4;
-    }
+
+    vec3 colour = vec3(density, density, density);
+    return colour;
+
+
+    //// Use a blue-to-red color map
+    //vec3 color1 = vec3(0.0, 0.0, 0.8); // Dark blue for low density
+    //vec3 color2 = vec3(0.0, 0.8, 0.8); // Cyan for medium-low density
+    //vec3 color3 = vec3(0.8, 0.8, 0.0); // Yellow for medium-high density
+    //vec3 color4 = vec3(0.8, 0.0, 0.0); // Red for high density
+    //
+    //if (density < 0.25) {
+    //    return mix(color1, color2, density * 4.0);
+    //} else if (density < 0.5) {
+    //    return mix(color2, color3, (density - 0.25) * 4.0);
+    //} else if (density < 0.75) {
+    //    return mix(color3, color4, (density - 0.5) * 4.0);
+    //} else {
+    //    return color4;
+    //}
 }
 
 void main() {
@@ -502,7 +507,7 @@ void main() {
     float collision = texture(collisionTexture, TexCoord).r;
     if (collision > 0.0) {
         // Show collision as bright orange
-        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+        FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         return;
     }
     
