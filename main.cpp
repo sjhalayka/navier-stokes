@@ -1,4 +1,4 @@
-// https://claude.ai/chat/150e7512-37b3-4a6d-aa2a-05072caface4
+﻿// https://claude.ai/chat/150e7512-37b3-4a6d-aa2a-05072caface4
 
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -41,6 +41,8 @@ GLuint densityTexture[2];
 GLuint divergenceTexture;
 GLuint obstacleTexture;
 GLuint collisionTexture;
+GLuint colorTexture[2];  // Ping-pong buffers for color
+int colorIndex = 0;      // Index for current color texture
 
 GLuint advectProgram;
 GLuint divergenceProgram;
@@ -51,6 +53,7 @@ GLuint addDensityProgram;
 GLuint diffuseDensityProgram;
 GLuint addObstacleProgram;
 GLuint detectCollisionProgram;
+GLuint addColorProgram;
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -70,6 +73,49 @@ int densityIndex = 0;
 int frameCount = 0;
 bool reportCollisions = false;
 std::vector<std::pair<int, int>> collisionLocations;
+
+
+
+// Add to the start of the file where other shaders are defined
+const char* addColorFragmentShader = R"(
+#version 330 core
+uniform sampler2D colorTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 point;
+uniform float radius;
+uniform vec3 color;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+
+    // Get current color
+    vec4 currentColor = texture(colorTexture, TexCoord);
+    
+    // Calculate distance to application point
+    float distance = length(TexCoord - point);
+    
+    // Apply color based on radius
+    if (distance < radius) {
+        // Apply with smooth falloff
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
+        
+        // Blend new color with existing color
+        vec4 newColor = vec4(color * falloff, falloff);
+        FragColor = currentColor + newColor;
+    } else {
+        FragColor = currentColor;
+    }
+}
+)";
 
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
@@ -498,7 +544,7 @@ const char* renderFragmentShader = R"(
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
-
+uniform sampler2D colorTexture;  // Add this line
 uniform vec2 texelSize;
 
 float WIDTH = texelSize.x;
@@ -562,12 +608,26 @@ void main() {
     }
     
     // Get density at adjusted position
+    // Get density and color at adjusted position
     float density = texture(densityTexture, adjustedCoord).r;
+    vec4 fluidColor = texture(colorTexture, adjustedCoord);
     
+    // Apply density as alpha to color, or use default color map for areas with no color
+    if (fluidColor.a > 0.01) {
+        // Use the fluid color where it exists, modulated by density
+        vec3 color = fluidColor.rgb * min(1.0, density * 2.0);
+        FragColor = vec4(color, 1.0);
+    } else {
+        // Default color mapping based on density where no color exists
+        vec3 color = densityToColor(density);
+        FragColor = vec4(color, 1.0);
+    }
+
+
     // Convert density to color
-    vec3 color = densityToColor(density);
+   // vec3 color = densityToColor(density);
     
-    FragColor = vec4(color, 1.0);
+    //FragColor = vec4(color, 1.0);
 }
 )";
 
@@ -747,6 +807,15 @@ void initGL() {
     diffuseDensityProgram = createShaderProgram(vertexShaderSource, diffuseDensityFragmentShader);
     addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
     detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
+    addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
+
+
+    for (int i = 0; i < 2; i++) {
+        colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+    }
+
+
+
 
     // Create textures for simulation
     for (int i = 0; i < 2; i++) {
@@ -811,9 +880,46 @@ void initGL() {
     glClear(GL_COLOR_BUFFER_BIT);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-
+    // Also in initGL(), clear the color textures
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[0], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
+
+
+void advectColor() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+
+    glUseProgram(advectProgram);
+
+    // Set uniforms for the shader
+    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    colorIndex = 1 - colorIndex;
+}
+
+
 
 // Apply the advection step
 void advectVelocity() {
@@ -1128,13 +1234,62 @@ void advectDensity()
     densityIndex = 1 - densityIndex;
 }
 
-// Perform one simulation step
+
+
+void addColor() {
+    if (!mouseDown) return;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+
+    glUseProgram(addColorProgram);
+
+    float aspect = HEIGHT / float(WIDTH);
+
+    // Get normalized mouse position (0 to 1 range)
+    float mousePosX = mouseX / (float)WIDTH;
+    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+    // Center the Y coordinate, apply aspect ratio, then un-center
+    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+    // Generate a rainbow color based on time
+    float time = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    float r = 0.5f + 0.5f * sin(time);
+    float g = 0.5f + 0.5f * sin(time + 2.094f);  // 2π/3
+    float b = 0.5f + 0.5f * sin(time + 4.189f);  // 4π/3
+
+    // Set uniforms
+    glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
+    glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
+    glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+    glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
+    glUniform3f(glGetUniformLocation(addColorProgram, "color"), r, g, b);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    colorIndex = 1 - colorIndex;
+}
+
+
 void simulationStep() {
     // Add force from mouse interaction
     addForce();
 
     // Add density from mouse interaction
     addDensity();
+
+    // Add color from mouse interaction
+    addColor();
 
     // Update obstacles from mouse interaction
     updateObstacle();
@@ -1144,6 +1299,9 @@ void simulationStep() {
 
     // Advect density
     advectDensity();
+
+    // Advect color
+    advectColor();
 
     // Diffuse density
     diffuseDensity();
@@ -1174,6 +1332,7 @@ void renderToScreen() {
     glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
     glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+    glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);  // Add this line
     glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
     // Bind textures
@@ -1183,6 +1342,8 @@ void renderToScreen() {
     glBindTexture(GL_TEXTURE_2D, obstacleTexture);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, collisionTexture);
+    glActiveTexture(GL_TEXTURE3);  // Add this line
+    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);  // Add this line
 
     // Render full-screen quad
     glBindVertexArray(vao);
@@ -1281,6 +1442,7 @@ void keyboard(unsigned char key, int x, int y) {
         glDeleteTextures(1, &divergenceTexture);
         glDeleteTextures(1, &obstacleTexture);
         glDeleteTextures(1, &collisionTexture);
+        glDeleteTextures(2, colorTexture);
         glDeleteFramebuffers(1, &fbo);
         glDeleteVertexArrays(1, &vao);
         glDeleteBuffers(1, &vbo);
@@ -1318,6 +1480,7 @@ void reshape(int w, int h) {
     glDeleteTextures(1, &divergenceTexture);
     glDeleteTextures(1, &obstacleTexture);
     glDeleteTextures(1, &collisionTexture);
+    glDeleteTextures(2, colorTexture);
     glDeleteFramebuffers(1, &fbo);
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
