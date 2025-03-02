@@ -19,7 +19,7 @@ using namespace std;
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
 
-
+// TODO: add second colour texture for friendly fire... keep them separate
 
 // Simulation parameters
 int WIDTH = 1000;
@@ -659,15 +659,34 @@ void main() {
     vec4 fluidColor = texture(colorTexture, adjustedCoord);
     
     // Apply density as alpha to color, or use default color map for areas with no color
-    if (fluidColor.a > 0.01) {
-        // Use the fluid color where it exists, modulated by density
-        vec3 color = fluidColor.rgb * min(1.0, density * 2.0);
-        FragColor = vec4(color, 1.0);
+    //if (fluidColor.a > 0.01) {
+    //    // Use the fluid color where it exists, modulated by density
+    //    vec3 color = fluidColor.rgb * min(1.0, density * 2.0);
+    //    //FragColor = vec4(color, 1.0);
+    //} else {
+    //    // Default color mapping based on density where no color exists
+    //    vec3 color = densityToColor(density);
+    //   // FragColor = vec4(color, 1.0);
+    //}
+
+
+    vec3 fluidColor_rgb = fluidColor.rgb;
+
+    vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0); // Dark blue for low density
+    vec4 color2 = vec4(0.25, 0.125, 0.0, 1.0); // Cyan for medium-low density
+    vec4 color3 = fluidColor;//vec3(0.5, 0.25, 0.0, 1.0); // Yellow for medium-high density
+    vec4 color4 = vec4(1.0, 0.5, 0.0, 1.0); // Red for high density
+    
+    if (density < 0.25) {
+        FragColor = mix(color1, color2, density * 4.0);
+    } else if (density < 0.5) {
+        FragColor = mix(color2, color3, (density - 0.25) * 4.0);
+    } else if (density < 0.75) {
+        FragColor = mix(color3, color4, (density - 0.5) * 4.0);
     } else {
-        // Default color mapping based on density where no color exists
-        vec3 color = densityToColor(density);
-        FragColor = vec4(color, 1.0);
+       FragColor = color4;
     }
+
 
 
     // Convert density to color
