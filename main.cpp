@@ -757,8 +757,15 @@ void main() {
     vec4 color1 = texture(backgroundTexture, TexCoord);//vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
-    vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
-    
+    vec4 color4;
+
+
+	if(length(redFluidColor.r) > 0.5)
+		color4 = vec4(0.0, 0.0, 0.0, 0.0);
+    else
+		color4 = vec4(1.0, 1.0, 1.0, 0.0);
+
+
 ///	FragColor = color3;
 
     if (density < 0.25) {
