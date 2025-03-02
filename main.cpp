@@ -39,7 +39,7 @@ const float TARGET_COLOR_R = 1.0f;  // Red component
 const float TARGET_COLOR_G = 0.0f;  // Green component
 const float TARGET_COLOR_B = 0.0f;  // Blue component
 
-
+bool red_mode = true;
 
 
 
@@ -672,10 +672,10 @@ void main() {
 
     vec3 fluidColor_rgb = fluidColor.rgb;
 
-    vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0); // Dark blue for low density
-    vec4 color2 = vec4(0.25, 0.125, 0.0, 1.0); // Cyan for medium-low density
-    vec4 color3 = fluidColor;//vec3(0.5, 0.25, 0.0, 1.0); // Yellow for medium-high density
-    vec4 color4 = vec4(1.0, 0.5, 0.0, 1.0); // Red for high density
+    vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 color2 = vec4(0.25, 0.125, 0.0, 1.0);
+    vec4 color3 = fluidColor;//vec3(0.5, 0.25, 0.0, 1.0);
+    vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
     
     if (density < 0.25) {
         FragColor = mix(color1, color2, density * 4.0);
@@ -1333,6 +1333,13 @@ void addColor() {
     float g = 0.0;// 0.5f + 0.5f * sin(time + 2.094f);  // 2π/3
     float b = 0.0;// 0.5f + 0.5f * sin(time + 4.189f);  // 4π/3
 
+    if (red_mode == false)
+    {
+        r = 0.0;
+        g = 0.0;
+        b = 1.0;
+    }
+
     // Set uniforms
     glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
     glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
@@ -1509,28 +1516,32 @@ void keyboardSpecial(int key, int x, int y) {
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
     switch (key) {
-    case 27:  // ESC key
-        // Clean up and exit
-        glDeleteTextures(2, velocityTexture);
-        glDeleteTextures(2, pressureTexture);
-        glDeleteTextures(2, densityTexture);
-        glDeleteTextures(1, &divergenceTexture);
-        glDeleteTextures(1, &obstacleTexture);
-        glDeleteTextures(1, &collisionTexture);
-        glDeleteTextures(2, colorTexture);
-        glDeleteFramebuffers(1, &fbo);
-        glDeleteVertexArrays(1, &vao);
-        glDeleteBuffers(1, &vbo);
-        glDeleteProgram(advectProgram);
-        glDeleteProgram(divergenceProgram);
-        glDeleteProgram(pressureProgram);
-        glDeleteProgram(gradientSubtractProgram);
-        glDeleteProgram(addForceProgram);
-        glDeleteProgram(addDensityProgram);
-        glDeleteProgram(diffuseDensityProgram);
-        glDeleteProgram(addObstacleProgram);
-        glDeleteProgram(detectCollisionProgram);
-        exit(0);
+    //case 27:  // ESC key
+    //    // Clean up and exit
+    //    glDeleteTextures(2, velocityTexture);
+    //    glDeleteTextures(2, pressureTexture);
+    //    glDeleteTextures(2, densityTexture);
+    //    glDeleteTextures(1, &divergenceTexture);
+    //    glDeleteTextures(1, &obstacleTexture);
+    //    glDeleteTextures(1, &collisionTexture);
+    //    glDeleteTextures(2, colorTexture);
+    //    glDeleteFramebuffers(1, &fbo);
+    //    glDeleteVertexArrays(1, &vao);
+    //    glDeleteBuffers(1, &vbo);
+    //    glDeleteProgram(advectProgram);
+    //    glDeleteProgram(divergenceProgram);
+    //    glDeleteProgram(pressureProgram);
+    //    glDeleteProgram(gradientSubtractProgram);
+    //    glDeleteProgram(addForceProgram);
+    //    glDeleteProgram(addDensityProgram);
+    //    glDeleteProgram(diffuseDensityProgram);
+    //    glDeleteProgram(addObstacleProgram);
+    //    glDeleteProgram(detectCollisionProgram);
+    //    exit(0);
+    //    break;
+
+    case 'r':
+        red_mode = !red_mode;
         break;
 
     case 'c':  // Report collisions immediately
