@@ -52,6 +52,11 @@ GLuint obstacleTexture;
 GLuint collisionTexture;
 GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
+GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
+int friendlyColorIndex = 0;      // Index for current friendly color texture
+bool blue_mode = false;
+
+
 
 GLuint advectProgram;
 GLuint divergenceProgram;
@@ -497,8 +502,10 @@ const char* detectCollisionFragmentShader = R"(
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
 uniform sampler2D colorTexture;
+uniform sampler2D friendlyColorTexture;
 uniform float collisionThreshold;
 uniform vec3 targetColor;      // The specific color to detect (e.g., red)
+uniform vec3 friendlyColor;    // The friendly color to detect (e.g., blue)
 uniform float colorThreshold;  // Threshold for color detection
 out float FragColor;
 
@@ -506,14 +513,25 @@ in vec2 TexCoord;
 
 // Checks if a color is close to the target color
 bool isTargetColor(vec4 color) {
-    // Check if there's enough alpha to consider the color
-    //if (color.a < 0.1) return false;
-
+    if (color.a < 0.1) return false;
+    
     color.a = 0;
     color = normalize(color);
 
     // Calculate how close this color is to the target color
     float colorDiff = distance(color.rgb, targetColor);
+    return colorDiff < colorThreshold;
+}
+
+// Checks if a color is close to the friendly color
+bool isFriendlyColor(vec4 color) {
+    if (color.a < 0.1) return false;
+    
+    color.a = 0;
+    color = normalize(color);
+
+    // Calculate how close this color is to the friendly color
+    float colorDiff = distance(color.rgb, friendlyColor);
     return colorDiff < colorThreshold;
 }
 
@@ -530,6 +548,11 @@ void main() {
         vec4 rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0));
         vec4 bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y));
         vec4 topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y));
+        
+        vec4 leftFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(texelSize.x, 0.0));
+        vec4 rightFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(texelSize.x, 0.0));
+        vec4 bottomFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(0.0, texelSize.y));
+        vec4 topFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(0.0, texelSize.y));
         
         // Check for obstacles in neighboring cells
         float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
@@ -553,8 +576,15 @@ void main() {
         if (bottomObstacle < 0.5 && isTargetColor(bottomColor)) targetColorCollision = true;
         if (topObstacle < 0.5 && isTargetColor(topColor)) targetColorCollision = true;
         
-        // Set collision flag if either density or target color collision occurred
-        FragColor = (densityCollision && targetColorCollision) ? 1.0 : 0.0;
+        // Check for friendly color collision
+        bool friendlyColorCollision = false;
+        if (leftObstacle < 0.5 && isFriendlyColor(leftFriendlyColor)) friendlyColorCollision = true;
+        if (rightObstacle < 0.5 && isFriendlyColor(rightFriendlyColor)) friendlyColorCollision = true;
+        if (bottomObstacle < 0.5 && isFriendlyColor(bottomFriendlyColor)) friendlyColorCollision = true;
+        if (topObstacle < 0.5 && isFriendlyColor(topFriendlyColor)) friendlyColorCollision = true;
+        
+        // Set collision flag if density and either color collided
+        FragColor = (densityCollision && (targetColorCollision || friendlyColorCollision)) ? 1.0 : 0.0;
     } else {
         // Not in an obstacle - no collision
         FragColor = 0.0;
@@ -563,13 +593,13 @@ void main() {
 )";
 
 
-
 const char* renderFragmentShader = R"(
 #version 330 core
 uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
-uniform sampler2D colorTexture;  // Add this line
+uniform sampler2D colorTexture;
+uniform sampler2D friendlyColorTexture;
 uniform vec2 texelSize;
 
 float WIDTH = texelSize.x;
@@ -580,71 +610,26 @@ out vec4 FragColor;
 
 in vec2 TexCoord;
 
-// Function to map density to color
-vec3 densityToColor(float density) 
-{
-    vec3 gray = vec3(density, density, density);
 
-    // Use a blue-to-red color map
-    vec3 color1 = vec3(0.0, 0.0, 0.0); // Dark blue for low density
-    vec3 color2 = vec3(0.25, 0.125, 0.0); // Cyan for medium-low density
-    vec3 color3 = vec3(0.5, 0.25, 0.0); // Yellow for medium-high density
-    vec3 color4 = vec3(1.0, 0.5, 0.0); // Red for high density
-    
-    if (density < 0.25) {
-        return gray + mix(color1, color2, density * 4.0);
-    } else if (density < 0.5) {
-        return gray + mix(color2, color3, (density - 0.25) * 4.0);
-    } else if (density < 0.75) {
-        return gray + mix(color3, color4, (density - 0.5) * 4.0);
-    } else {
-        return gray + color4;
-    }
-}
 
 void main() {
     // Adjust texture coordinates based on aspect ratio
     vec2 adjustedCoord = TexCoord;
     
     // For non-square textures, adjust sampling to prevent stretching
-    // This keeps the simulation visually correct regardless of window shape
     if (aspect_ratio > 1.0) {
-        // Wide screen - adjust x coordinate
         adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
     } else if (aspect_ratio < 1.0) {
-        // Tall screen - adjust y coordinate
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }
     
-    // Check for collision at obstacle boundaries using adjusted coordinates
+    // Check for collision at obstacle boundaries
     float collision = texture(collisionTexture, adjustedCoord).r;
     if (collision > 0.0) {
-        // Show collision as bright orange
         FragColor = vec4(1.0, 0.6, 0.0, 1.0);
         return;
     }
     
-
-    // Check for collision at obstacle boundaries using adjusted coordinates
-    //float collision = texture(collisionTexture, adjustedCoord).r;
-    //if (collision > 0.0) {
-    //    // Get the color that's colliding
-    //    vec4 fluidColor = texture(colorTexture, adjustedCoord);
-    //    
-    //    if (fluidColor.a > 0.1) {
-    //        // If there's color, use a brightened version of that color for the collision
-    //        vec3 brightColor = fluidColor.rgb * 1.5 + vec3(0.3);
-    //        FragColor = vec4(brightColor, 1.0);
-    //    } else {
-    //        // Default orange for density-only collisions
-    //        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
-    //    }
-    //    return;
-    //}
-
-
-
-
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
     if (obstacle > 0.0) {
@@ -653,28 +638,18 @@ void main() {
         return;
     }
     
-    // Get density at adjusted position
-    // Get density and color at adjusted position
+    // Get density and colors at adjusted position
     float density = texture(densityTexture, adjustedCoord).r;
-    vec4 fluidColor = texture(colorTexture, adjustedCoord);
+    vec4 redFluidColor = texture(colorTexture, adjustedCoord);
+    vec4 blueFluidColor = texture(friendlyColorTexture, adjustedCoord);
     
-    // Apply density as alpha to color, or use default color map for areas with no color
-    //if (fluidColor.a > 0.01) {
-    //    // Use the fluid color where it exists, modulated by density
-    //    vec3 color = fluidColor.rgb * min(1.0, density * 2.0);
-    //    //FragColor = vec4(color, 1.0);
-    //} else {
-    //    // Default color mapping based on density where no color exists
-    //    vec3 color = densityToColor(density);
-    //   // FragColor = vec4(color, 1.0);
-    //}
-
-
-    vec3 fluidColor_rgb = fluidColor.rgb;
-
+    // Combine both colors
+    vec4 combinedColor = redFluidColor + blueFluidColor;
+    
+    // Use the color mapping logic as before, but with the combined color
     vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.25, 0.125, 0.0, 1.0);
-    vec4 color3 = fluidColor;//vec3(0.5, 0.25, 0.0, 1.0);
+    vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
     
     if (density < 0.25) {
@@ -686,46 +661,45 @@ void main() {
     } else {
        FragColor = color4;
     }
-
-
-
-    // Convert density to color
-   // vec3 color = densityToColor(density);
-    
-    //FragColor = vec4(color, 1.0);
 }
 )";
 
 
-void detectCollisions() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+        void detectCollisions() {
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-    glUseProgram(detectCollisionProgram);
+            glUseProgram(detectCollisionProgram);
 
-    // Standard uniforms
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
-    glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
-    glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
+            // Standard uniforms
+            glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
+            glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+            glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
+            glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 3);
+            glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
 
-    // Set the color we want to detect (red in this example)
-    glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), TARGET_COLOR_R, TARGET_COLOR_G, TARGET_COLOR_B);
+            // Set the target color (red)
+            glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), 1.0, 0.0, 0.0);
 
-    // How close a color needs to be to match the target (adjust as needed)
-    glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), 0.1f);
+            // Set the friendly color (blue)
+            glUniform3f(glGetUniformLocation(detectCollisionProgram, "friendlyColor"), 0.0, 0.0, 1.0);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+            // How close a color needs to be to match the target
+            glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+            // Bind textures
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+            // Render full-screen quad
+            glBindVertexArray(vao);
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     // If reporting is enabled, read back collision data
     if (reportCollisions) {
@@ -889,7 +863,9 @@ void initGL() {
     }
 
 
-
+    for (int i = 0; i < 2; i++) {
+        friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+    }
 
     // Create textures for simulation
     for (int i = 0; i < 2; i++) {
@@ -960,6 +936,12 @@ void initGL() {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
     glClear(GL_COLOR_BUFFER_BIT);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[0], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1], 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
 }
 
 
@@ -991,6 +973,38 @@ void advectColor() {
 
     // Swap texture indices
     colorIndex = 1 - colorIndex;
+}
+
+
+
+void advectFriendlyColor() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
+
+    glUseProgram(advectProgram);
+
+    // Set uniforms for the shader
+    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+    // Bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+    // Render full-screen quad
+    glBindVertexArray(vao);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    // Swap texture indices
+    friendlyColorIndex = 1 - friendlyColorIndex;
 }
 
 
@@ -1309,12 +1323,34 @@ void advectDensity()
 }
 
 
-
 void addColor() {
     if (!mouseDown) return;
 
+    // Determine which color texture to modify based on the active mode
+    GLuint targetTexture;
+    int* targetIndex;
+    float r, g, b;
+
+    if (red_mode) {
+        targetTexture = colorTexture[1 - colorIndex];
+        targetIndex = &colorIndex;
+        r = 1.0;
+        g = 0.0;
+        b = 0.0;
+    }
+    else if (blue_mode) {
+        targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
+        targetIndex = &friendlyColorIndex;
+        r = 0.0;
+        g = 0.0;
+        b = 1.0;
+    }
+    else {
+        return; // No valid mode selected
+    }
+
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
 
     glUseProgram(addColorProgram);
 
@@ -1327,19 +1363,6 @@ void addColor() {
     // Center the Y coordinate, apply aspect ratio, then un-center
     mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-    // Generate a rainbow color based on time
-    float time = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-    float r = 1.0;// 0.5f + 0.5f * sin(time);
-    float g = 0.0;// 0.5f + 0.5f * sin(time + 2.094f);  // 2π/3
-    float b = 0.0;// 0.5f + 0.5f * sin(time + 4.189f);  // 4π/3
-
-    if (red_mode == false)
-    {
-        r = 0.0;
-        g = 0.0;
-        b = 1.0;
-    }
-
     // Set uniforms
     glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
     glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
@@ -1347,9 +1370,15 @@ void addColor() {
     glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
     glUniform3f(glGetUniformLocation(addColorProgram, "color"), r, g, b);
 
-    // Bind textures
+    // Bind the appropriate texture based on mode
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+    if (red_mode) {
+        glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+    }
+    else if (blue_mode) {
+        glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+    }
+
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
@@ -1357,12 +1386,18 @@ void addColor() {
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    colorIndex = 1 - colorIndex;
+    // Swap the appropriate texture index
+    if (red_mode) {
+        colorIndex = 1 - colorIndex;
+    }
+    else if (blue_mode) {
+        friendlyColorIndex = 1 - friendlyColorIndex;
+    }
 }
 
 
-void simulationStep() {
+void simulationStep() 
+{
     // Add force from mouse interaction
     addForce();
 
@@ -1381,8 +1416,10 @@ void simulationStep() {
     // Advect density
     advectDensity();
 
-    // Advect color
+    // Advect both color sets
     advectColor();
+    advectFriendlyColor();
+
 
     // Diffuse density
     diffuseDensity();
@@ -1396,7 +1433,6 @@ void simulationStep() {
     detectCollisions();
 }
 
-// Render the simulation to the screen
 void renderToScreen() {
     // Bind default framebuffer (the screen)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1413,8 +1449,8 @@ void renderToScreen() {
     glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
     glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
     glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
-
-    glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);  // Add this line
+    glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
+    glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
     glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
     // Bind textures
@@ -1424,8 +1460,10 @@ void renderToScreen() {
     glBindTexture(GL_TEXTURE_2D, obstacleTexture);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, collisionTexture);
-    glActiveTexture(GL_TEXTURE3);  // Add this line
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);  // Add this line
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 
     // Render full-screen quad
     glBindVertexArray(vao);
@@ -1434,6 +1472,9 @@ void renderToScreen() {
     // Cleanup
     glDeleteProgram(renderProgram);
 }
+
+
+
 
 // GLUT display callback
 void display() {
@@ -1541,8 +1582,14 @@ void keyboard(unsigned char key, int x, int y) {
     //    break;
 
     case 'r':
-        red_mode = !red_mode;
+        red_mode = true;
+        blue_mode = false;
         break;
+    case 'b':
+        blue_mode = true;
+        red_mode = false;
+        break;
+
 
     case 'c':  // Report collisions immediately
     case 'C':
@@ -1567,6 +1614,7 @@ void reshape(int w, int h) {
     glDeleteTextures(1, &obstacleTexture);
     glDeleteTextures(1, &collisionTexture);
     glDeleteTextures(2, colorTexture);
+    glDeleteTextures(2, friendlyColorTexture);
     glDeleteFramebuffers(1, &fbo);
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
