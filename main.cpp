@@ -684,21 +684,21 @@ void main() {
     
     // Use the color mapping logic as before, but with the combined color
     vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0);
-    vec4 color2 = vec4(0.25, 0.125, 0.0, 1.0);
+    vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
     
-	FragColor = color3;
+///	FragColor = color3;
 
-    //if (density < 0.25) {
-    //    FragColor = mix(color1, color2, density * 4.0);
-    //} else if (density < 0.5) {
-    //    FragColor = mix(color2, color3, (density - 0.25) * 4.0);
-    //} else if (density < 0.75) {
-    //    FragColor = mix(color3, color4, (density - 0.5) * 4.0);
-    //} else {
-    //   FragColor = color4;
-    //}
+    if (density < 0.25) {
+        FragColor = mix(color1, color2, density * 4.0);
+    } else if (density < 0.5) {
+        FragColor = mix(color2, color3, (density - 0.25) * 4.0);
+    } else if (density < 0.75) {
+        FragColor = mix(color3, color4, (density - 0.5) * 4.0);
+    } else {
+       FragColor = color4;
+    }
 }
 )";
 
