@@ -22,7 +22,7 @@ using namespace std;
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
 
-// TODO: add second colour texture for friendly fire... keep them separate
+
 
 // Simulation parameters
 int WIDTH = 1000;
@@ -72,6 +72,7 @@ GLuint diffuseDensityProgram;
 GLuint addObstacleProgram;
 GLuint detectCollisionProgram;
 GLuint addColorProgram;
+GLuint diffuseColorProgram;
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -170,6 +171,61 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 //std::vector<std::pair<int, int>> collisionLocations;
 
 
+
+
+const char* diffuseColorFragmentShader = R"(
+#version 330 core
+uniform sampler2D colorTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float diffusionRate;
+uniform float dt;
+out float FragColor;
+
+in vec2 TexCoord;
+const float fake_dispersion = 0.99;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+
+
+    // Simple diffusion using 5-point stencil
+    float center = texture(colorTexture, TexCoord).r;
+    float left = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float right = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float bottom = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float top = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    
+    // Check if sampling from obstacles
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    
+    if (oLeft > 0.0) left = center;
+    if (oRight > 0.0) right = center;
+    if (oBottom > 0.0) bottom = center;
+    if (oTop > 0.0) top = center;
+    
+    // Compute Laplacian
+    float laplacian = (left + right + bottom + top - 4.0 * center);
+    
+    // Apply diffusion
+    float result = center + diffusionRate * dt * laplacian;
+    
+    // Clamp result to [0, 1]
+    FragColor = fake_dispersion*clamp(result, 0.0, 1.0);
+}
+)";
+
+
+
 // Add to the start of the file where other shaders are defined
 const char* addColorFragmentShader = R"(
 #version 330 core
@@ -178,7 +234,7 @@ uniform sampler2D obstacleTexture;
 uniform vec2 point;
 uniform float radius;
 uniform vec3 color;
-out vec4 FragColor;
+out float FragColor;
 
 in vec2 TexCoord;
 
@@ -186,12 +242,12 @@ void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        FragColor = 0.0;
         return;
     }
 
-    // Get current color
-    vec4 currentColor = texture(colorTexture, TexCoord);
+    // Get current color intensity
+    float currentValue = texture(colorTexture, TexCoord).r;
     
     // Calculate distance to application point
     float distance = length(TexCoord - point);
@@ -202,14 +258,16 @@ void main() {
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
-        // Blend new color with existing color
-        vec4 newColor = vec4(color * falloff, falloff);
-        FragColor = currentColor + newColor;
+        // Add intensity with falloff
+        float newValue = falloff;
+        FragColor = currentValue + newValue;
     } else {
-        FragColor = currentColor;
+        FragColor = currentValue;
     }
 }
 )";
+
+
 
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
@@ -591,27 +649,15 @@ out vec4 FragColor;           // Changed from float to vec4
 in vec2 TexCoord;
 
 // Checks if a color is close to the target color
-bool isTargetColor(vec4 color) {
-    if (color.a < 0.1) return false;
-    
-    color.a = 0;
-    color = normalize(color);
-
-    // Calculate how close this color is to the target color
-    float colorDiff = distance(color.rgb, targetColor);
-    return colorDiff < colorThreshold;
+bool isTargetColor(float intensity) {
+    // Now we're just checking if there's significant intensity in the red texture
+    return intensity > colorThreshold;
 }
 
 // Checks if a color is close to the friendly color
-bool isFriendlyColor(vec4 color) {
-    if (color.a < 0.1) return false;
-    
-    color.a = 0;
-    color = normalize(color);
-
-    // Calculate how close this color is to the friendly color
-    float colorDiff = distance(color.rgb, friendlyColor);
-    return colorDiff < colorThreshold;
+bool isFriendlyColor(float intensity) {
+    // Now we're just checking if there's significant intensity in the blue texture
+    return intensity > colorThreshold;
 }
 
 void main() {
@@ -649,19 +695,19 @@ void main() {
         bool densityCollision = (maxDensity > collisionThreshold);
         
         // Check for target color collision
-        bool targetColorCollision = false;
-        if (leftObstacle < 0.5 && isTargetColor(leftColor)) targetColorCollision = true;
-        if (rightObstacle < 0.5 && isTargetColor(rightColor)) targetColorCollision = true;
-        if (bottomObstacle < 0.5 && isTargetColor(bottomColor)) targetColorCollision = true;
-        if (topObstacle < 0.5 && isTargetColor(topColor)) targetColorCollision = true;
-        
-        // Check for friendly color collision
-        bool friendlyColorCollision = false;
-        if (leftObstacle < 0.5 && isFriendlyColor(leftFriendlyColor)) friendlyColorCollision = true;
-        if (rightObstacle < 0.5 && isFriendlyColor(rightFriendlyColor)) friendlyColorCollision = true;
-        if (bottomObstacle < 0.5 && isFriendlyColor(bottomFriendlyColor)) friendlyColorCollision = true;
-        if (topObstacle < 0.5 && isFriendlyColor(topFriendlyColor)) friendlyColorCollision = true;
-        
+		bool targetColorCollision = false;
+		if (leftObstacle < 0.5 && isTargetColor(leftColor.r)) targetColorCollision = true;
+		if (rightObstacle < 0.5 && isTargetColor(rightColor.r)) targetColorCollision = true;
+		if (bottomObstacle < 0.5 && isTargetColor(bottomColor.r)) targetColorCollision = true;
+		if (topObstacle < 0.5 && isTargetColor(topColor.r)) targetColorCollision = true;
+
+		// Check for friendly color collision
+		bool friendlyColorCollision = false;
+		if (leftObstacle < 0.5 && isFriendlyColor(leftFriendlyColor.r)) friendlyColorCollision = true;
+		if (rightObstacle < 0.5 && isFriendlyColor(rightFriendlyColor.r)) friendlyColorCollision = true;
+		if (bottomObstacle < 0.5 && isFriendlyColor(bottomFriendlyColor.r)) friendlyColorCollision = true;
+		if (topObstacle < 0.5 && isFriendlyColor(topFriendlyColor.r)) friendlyColorCollision = true;
+
         // Set collision with specific type information
         if (densityCollision) {
             if (targetColorCollision && friendlyColorCollision) {
@@ -746,19 +792,22 @@ void main() {
     }
     
     // Get density and colors at adjusted position
-    float density = texture(densityTexture, adjustedCoord).r;
-    vec4 redFluidColor = texture(colorTexture, adjustedCoord);
-    vec4 blueFluidColor = texture(friendlyColorTexture, adjustedCoord);
-    
-    // Combine both colors
-    vec4 combinedColor = redFluidColor + blueFluidColor;
+	float density = texture(densityTexture, adjustedCoord).r;
+	float redIntensity = texture(colorTexture, adjustedCoord).r;
+	float blueIntensity = texture(friendlyColorTexture, adjustedCoord).r;
+
+	// Create color vectors based on intensity
+	vec4 redFluidColor = vec4(redIntensity, 0.0, 0.0, redIntensity);
+	vec4 blueFluidColor = vec4(0.0, 0.0, blueIntensity, blueIntensity);
+
+	// Combine both colors
+	vec4 combinedColor = redFluidColor + blueFluidColor;
     
     // Use the color mapping logic as before, but with the combined color
     vec4 color1 = texture(backgroundTexture, TexCoord);//vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
-    vec4 color4;
-
+    vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
 
 	if(length(redFluidColor.r) > 0.5)
 		color4 = vec4(0.0, 0.0, 0.0, 0.0);
@@ -782,7 +831,60 @@ void main() {
 
 
 
+void diffuseColor() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
 
+	glUseProgram(diffuseColorProgram);
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
+	glUniform1i(glGetUniformLocation(diffuseColorProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(diffuseColorProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(diffuseColorProgram, "diffusionRate"), DIFFUSION);
+	glUniform1f(glGetUniformLocation(diffuseColorProgram, "dt"), DT);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap texture indices
+	colorIndex = 1 - colorIndex;
+}
+
+// Function to diffuse friendly color
+void diffuseFriendlyColor() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
+
+	glUseProgram(diffuseColorProgram);
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
+	glUniform1i(glGetUniformLocation(diffuseColorProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(diffuseColorProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(diffuseColorProgram, "diffusionRate"), DIFFUSION);
+	glUniform1f(glGetUniformLocation(diffuseColorProgram, "dt"), DT);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap texture indices
+	friendlyColorIndex = 1 - friendlyColorIndex;
+}
 
 
 void detectCollisions() {
@@ -996,16 +1098,27 @@ void initGL() {
 	addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
 	detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
 	addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
+	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
+
+	//for (int i = 0; i < 2; i++) {
+	//	colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+	//}
+
+
+	//for (int i = 0; i < 2; i++) {
+	//	friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+	//}
+
 
 
 	for (int i = 0; i < 2; i++) {
-		colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+		colorTexture[i] = createTexture(GL_R32F, GL_RED, true);
 	}
-
 
 	for (int i = 0; i < 2; i++) {
-		friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+		friendlyColorTexture[i] = createTexture(GL_R32F, GL_RED, true);
 	}
+
 
 	// Create textures for simulation
 	for (int i = 0; i < 2; i++) {
@@ -1476,8 +1589,8 @@ void addColor() {
 		targetTexture = colorTexture[1 - colorIndex];
 		targetIndex = &colorIndex;
 		r = 1.0;
-		g = 0.0;
-		b = 0.0;
+		g = 1.0;
+		b = 1.0;
 	}
 	else if (blue_mode) {
 		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
@@ -1536,7 +1649,6 @@ void addColor() {
 	}
 }
 
-
 void simulationStep()
 {
 	// Add force from mouse interaction
@@ -1561,9 +1673,12 @@ void simulationStep()
 	advectColor();
 	advectFriendlyColor();
 
-
 	// Diffuse density
 	diffuseDensity();
+
+	// Diffuse both color sets
+	diffuseColor();
+	diffuseFriendlyColor();
 
 	// Project velocity to be divergence-free
 	computeDivergence();
@@ -1748,6 +1863,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(diffuseDensityProgram);
 	glDeleteProgram(addObstacleProgram);
 	glDeleteProgram(detectCollisionProgram);
+	glDeleteProgram(diffuseColorProgram);
 
 	initGL();
 
