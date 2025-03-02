@@ -86,8 +86,18 @@ int densityIndex = 0;
 // Collision tracking
 int frameCount = 0;
 bool reportCollisions = false;
-std::vector<std::pair<int, int>> collisionLocations;
 
+// Define a struct for collision data
+struct CollisionPoint {
+	int x, y;
+	enum Type { RED, BLUE, BOTH, OTHER } type;
+
+	CollisionPoint(int _x, int _y, Type _type) : x(_x), y(_y), type(_type) {}
+};
+
+
+std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
+//std::vector<std::pair<int, int>> collisionLocations;
 
 
 // Add to the start of the file where other shaders are defined
@@ -496,7 +506,6 @@ void main() {
     FragColor = obstacle;
 }
 )";
-
 const char* detectCollisionFragmentShader = R"(
 #version 330 core
 uniform sampler2D densityTexture;
@@ -507,7 +516,7 @@ uniform float collisionThreshold;
 uniform vec3 targetColor;      // The specific color to detect (e.g., red)
 uniform vec3 friendlyColor;    // The friendly color to detect (e.g., blue)
 uniform float colorThreshold;  // Threshold for color detection
-out float FragColor;
+out vec4 FragColor;           // Changed from float to vec4
 
 in vec2 TexCoord;
 
@@ -583,11 +592,28 @@ void main() {
         if (bottomObstacle < 0.5 && isFriendlyColor(bottomFriendlyColor)) friendlyColorCollision = true;
         if (topObstacle < 0.5 && isFriendlyColor(topFriendlyColor)) friendlyColorCollision = true;
         
-        // Set collision flag if density and either color collided
-        FragColor = (densityCollision && (targetColorCollision || friendlyColorCollision)) ? 1.0 : 0.0;
+        // Set collision with specific type information
+        if (densityCollision) {
+            if (targetColorCollision && friendlyColorCollision) {
+                // Both red and blue collided
+                FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Magenta for both
+            } else if (targetColorCollision) {
+                // Only red collided
+                FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red
+            } else if (friendlyColorCollision) {
+                // Only blue collided
+                FragColor = vec4(0.0, 0.0, 1.0, 1.0); // Blue
+            } else {
+                // Density but no specific color (shouldn't happen with your logic)
+                FragColor = vec4(0.5, 0.5, 0.5, 1.0); // Gray
+            }
+        } else {
+            // No collision
+            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
     } else {
         // Not in an obstacle - no collision
-        FragColor = 0.0;
+        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     }
 }
 )";
@@ -610,8 +636,6 @@ out vec4 FragColor;
 
 in vec2 TexCoord;
 
-
-
 void main() {
     // Adjust texture coordinates based on aspect ratio
     vec2 adjustedCoord = TexCoord;
@@ -624,9 +648,21 @@ void main() {
     }
     
     // Check for collision at obstacle boundaries
-    float collision = texture(collisionTexture, adjustedCoord).r;
-    if (collision > 0.0) {
-        FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+    vec4 collision = texture(collisionTexture, adjustedCoord);
+    if (collision.a > 0.0) {
+        if (collision.r > 0.5 && collision.b > 0.5) {
+            // Both red and blue collided - display as magenta
+            FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+        } else if (collision.r > 0.5) {
+            // Only red collided - display as orange (original color)
+            FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+        } else if (collision.b > 0.5) {
+            // Only blue collided - display as cyan
+            FragColor = vec4(0.0, 0.8, 1.0, 1.0);
+        } else {
+            // Generic collision (shouldn't happen with your logic)
+            FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
+        }
         return;
     }
     
@@ -652,825 +688,851 @@ void main() {
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
     
-    if (density < 0.25) {
-        FragColor = mix(color1, color2, density * 4.0);
-    } else if (density < 0.5) {
-        FragColor = mix(color2, color3, (density - 0.25) * 4.0);
-    } else if (density < 0.75) {
-        FragColor = mix(color3, color4, (density - 0.5) * 4.0);
-    } else {
-       FragColor = color4;
-    }
+	FragColor = color3;
+
+    //if (density < 0.25) {
+    //    FragColor = mix(color1, color2, density * 4.0);
+    //} else if (density < 0.5) {
+    //    FragColor = mix(color2, color3, (density - 0.25) * 4.0);
+    //} else if (density < 0.75) {
+    //    FragColor = mix(color3, color4, (density - 0.5) * 4.0);
+    //} else {
+    //   FragColor = color4;
+    //}
 }
 )";
 
 
-        void detectCollisions() {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-            glUseProgram(detectCollisionProgram);
 
-            // Standard uniforms
-            glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
-            glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
-            glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
-            glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 3);
-            glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
 
-            // Set the target color (red)
-            glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), 1.0, 0.0, 0.0);
 
-            // Set the friendly color (blue)
-            glUniform3f(glGetUniformLocation(detectCollisionProgram, "friendlyColor"), 0.0, 0.0, 1.0);
+void detectCollisions() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-            // How close a color needs to be to match the target
-            glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+	glUseProgram(detectCollisionProgram);
 
-            // Bind textures
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-            glActiveTexture(GL_TEXTURE2);
-            glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-            glActiveTexture(GL_TEXTURE3);
-            glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	// Standard uniforms
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "densityTexture"), 0);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 1);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 3);
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
 
-            // Render full-screen quad
-            glBindVertexArray(vao);
-            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Set the target color (red)
+	glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), 1.0, 0.0, 0.0);
 
-    // If reporting is enabled, read back collision data
-    if (reportCollisions) {
-        // Allocate buffer for collision data
-        std::vector<float> collisionData(WIDTH * HEIGHT);
+	// Set the friendly color (blue)
+	glUniform3f(glGetUniformLocation(detectCollisionProgram, "friendlyColor"), 0.0, 0.0, 1.0);
 
-        // Read back collision texture data from GPU
-        glReadPixels(0, 0, WIDTH, HEIGHT, GL_RED, GL_FLOAT, collisionData.data());
+	// How close a color needs to be to match the target
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
 
-        // Clear previous collision locations
-        collisionLocations.clear();
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 
-        // Find collision locations
-        for (int y = 0; y < HEIGHT; ++y) {
-            for (int x = 0; x < WIDTH; ++x) {
-                int index = y * WIDTH + x;
-                if (collisionData[index] > 0.5f) {
-                    collisionLocations.push_back(std::make_pair(x, y));
-                }
-            }
-        }
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-        // Output collision report
-        std::cout << "===== Collision Report =====" << std::endl;
-        std::cout << "Found " << collisionLocations.size() << " collision points" << std::endl;
+	// If reporting is enabled, read back collision data
+	if (reportCollisions) {
+		// Allocate buffer for collision data - RGBA now instead of just R
+		std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 
-        // Output first few collision locations
-        const int MAX_REPORT_LOCATIONS = 10;
-        int locationsToReport = std::min((int)collisionLocations.size(), MAX_REPORT_LOCATIONS);
+		// Read back collision texture data from GPU
+		glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
 
-        for (int i = 0; i < locationsToReport; ++i) {
-            std::cout << "Collision at (" << collisionLocations[i].first << ", "
-                << collisionLocations[i].second << ")" << std::endl;
-        }
+		// Clear previous collision locations
+		collisionPoints.clear();
 
-        if (collisionLocations.size() > MAX_REPORT_LOCATIONS) {
-            std::cout << "... and " << (collisionLocations.size() - MAX_REPORT_LOCATIONS)
-                << " more locations" << std::endl;
-        }
+		// Find collision locations and categorize them
+		for (int y = 0; y < HEIGHT; ++y) {
+			for (int x = 0; x < WIDTH; ++x) {
+				int index = (y * WIDTH + x) * 4;
+				float r = collisionData[index];
+				float b = collisionData[index + 2];
+				float a = collisionData[index + 3];
 
-        // Write complete collision data to file if there are any collisions    
-        //if (!collisionLocations.empty()) {
-        //    std::stringstream filename;
-        //    filename << "collision_data_" << frameCount << ".csv";
-        //    std::ofstream outFile(filename.str());
+				if (a > 0.0) {
+					CollisionPoint::Type type;
+					if (r > 0.5 && b > 0.5) type = CollisionPoint::BOTH;
+					else if (r > 0.5) type = CollisionPoint::RED;
+					else if (b > 0.5) type = CollisionPoint::BLUE;
+					else type = CollisionPoint::OTHER;
 
-        //    if (outFile.is_open()) {
-        //        outFile << "x,y" << std::endl;
-        //        for (const auto& loc : collisionLocations) {
-        //            outFile << loc.first << "," << loc.second << std::endl;
-        //        }
-        //        outFile.close();
-        //        std::cout << "Complete collision data written to " << filename.str() << std::endl;
-        //    }
-        //    else {
-        //        std::cerr << "Could not open file for writing collision data" << std::endl;
-        //    }
-        //}
+					collisionPoints.push_back(CollisionPoint(x, y, type));
+				}
+			}
+		}
 
-        std::cout << "===========================" << std::endl;
 
-        // Reset reporting flag
-        reportCollisions = false;
-    }
+
+
+		size_t red_count = 0;
+		size_t blue_count = 0;
+
+		for (int i = 0; i < collisionPoints.size(); ++i)
+		{
+			// Get the pixel data for this collision point
+			int x = collisionPoints[i].x;
+			int y = collisionPoints[i].y;
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+
+			// Determine collision type
+			std::string collisionType;
+			if (r > 0.5 && b > 0.5)
+			{
+				collisionType = "both";
+				red_count++;
+				blue_count++;
+			}
+			else if (r > 0.5)
+			{
+				collisionType = "red";
+				red_count++;
+			}
+			else if (b > 0.5)
+			{
+				collisionType = "blue";
+				blue_count++;
+			}
+			else
+			{
+				collisionType = "other";
+			}
+
+			std::cout << "Collision at (" << x << ", " << y << ") - Type: " << collisionType << std::endl;
+		}
+
+		// Output collision report
+		std::cout << "===== Collision Report =====" << std::endl;
+		std::cout << "Found " << collisionPoints.size() << " collision points" << std::endl;
+		std::cout << "Red collisions: " << red_count++ << std::endl;
+		std::cout << "Blue collisions: " << blue_count++ << std::endl;
+		std::cout << "===========================" << std::endl;
+
+		// Reset reporting flag
+		reportCollisions = false;
+	}
 }
+
 
 
 // Utility function to create and compile shaders
 GLuint compileShader(GLenum type, const char* source) {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
+	GLuint shader = glCreateShader(type);
+	glShaderSource(shader, 1, &source, nullptr);
+	glCompileShader(shader);
 
-    // Check for compilation errors
-    GLint success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        GLchar infoLog[512];
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        std::cerr << "Shader compilation error: " << infoLog << std::endl;
-    }
+	// Check for compilation errors
+	GLint success;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		GLchar infoLog[512];
+		glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+		std::cerr << "Shader compilation error: " << infoLog << std::endl;
+	}
 
-    return shader;
+	return shader;
 }
 
 // Utility function to create and link a shader program
 GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource) {
-    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+	GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+	GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
 
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, fragmentShader);
+	glLinkProgram(program);
 
-    // Check for linking errors
-    GLint success;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
-        GLchar infoLog[512];
-        glGetProgramInfoLog(program, 512, nullptr, infoLog);
-        std::cerr << "Shader program linking error: " << infoLog << std::endl;
-    }
+	// Check for linking errors
+	GLint success;
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+	if (!success) {
+		GLchar infoLog[512];
+		glGetProgramInfoLog(program, 512, nullptr, infoLog);
+		std::cerr << "Shader program linking error: " << infoLog << std::endl;
+	}
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
 
-    return program;
+	return program;
 }
 
 // Create a texture for simulation
 GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+	GLuint texture;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
 
-    // Set texture parameters
-    if (filtering) {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    }
-    else {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    }
+	// Set texture parameters
+	if (filtering) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+	else {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Allocate texture memory
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, WIDTH, HEIGHT, 0, format, GL_FLOAT, nullptr);
+	// Allocate texture memory
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, WIDTH, HEIGHT, 0, format, GL_FLOAT, nullptr);
 
-    return texture;
+	return texture;
 }
 
 // Initialize OpenGL resources
 void initGL() {
-    // Initialize GLEW
-    glewExperimental = GL_TRUE;
-    GLenum err = glewInit();
-    if (err != GLEW_OK) {
-        std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
-        exit(1);
-    }
+	// Initialize GLEW
+	glewExperimental = GL_TRUE;
+	GLenum err = glewInit();
+	if (err != GLEW_OK) {
+		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+		exit(1);
+	}
 
-    // Create shader programs
-    advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
-    divergenceProgram = createShaderProgram(vertexShaderSource, divergenceFragmentShader);
-    pressureProgram = createShaderProgram(vertexShaderSource, pressureFragmentShader);
-    gradientSubtractProgram = createShaderProgram(vertexShaderSource, gradientSubtractFragmentShader);
-    addForceProgram = createShaderProgram(vertexShaderSource, addForceFragmentShader);
-    addDensityProgram = createShaderProgram(vertexShaderSource, addDensityFragmentShader);
-    diffuseDensityProgram = createShaderProgram(vertexShaderSource, diffuseDensityFragmentShader);
-    addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
-    detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
-    addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
-
-
-    for (int i = 0; i < 2; i++) {
-        colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
-    }
+	// Create shader programs
+	advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
+	divergenceProgram = createShaderProgram(vertexShaderSource, divergenceFragmentShader);
+	pressureProgram = createShaderProgram(vertexShaderSource, pressureFragmentShader);
+	gradientSubtractProgram = createShaderProgram(vertexShaderSource, gradientSubtractFragmentShader);
+	addForceProgram = createShaderProgram(vertexShaderSource, addForceFragmentShader);
+	addDensityProgram = createShaderProgram(vertexShaderSource, addDensityFragmentShader);
+	diffuseDensityProgram = createShaderProgram(vertexShaderSource, diffuseDensityFragmentShader);
+	addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
+	detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
+	addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
 
 
-    for (int i = 0; i < 2; i++) {
-        friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
-    }
+	for (int i = 0; i < 2; i++) {
+		colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+	}
 
-    // Create textures for simulation
-    for (int i = 0; i < 2; i++) {
-        velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
-        pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
-        densityTexture[i] = createTexture(GL_R32F, GL_RED, true);
-    }
 
-    divergenceTexture = createTexture(GL_R32F, GL_RED, true);
-    obstacleTexture = createTexture(GL_R32F, GL_RED, false);
-    collisionTexture = createTexture(GL_R32F, GL_RED, false);
+	for (int i = 0; i < 2; i++) {
+		friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
+	}
 
-    // Create framebuffer object
-    glGenFramebuffers(1, &fbo);
+	// Create textures for simulation
+	for (int i = 0; i < 2; i++) {
+		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
+		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
+		densityTexture[i] = createTexture(GL_R32F, GL_RED, true);
+	}
 
-    // Create a full-screen quad for rendering
-    float vertices[] = {
-        // Position (x, y, z)    // Texture coords (u, v)
-        -1.0f, -1.0f, 0.0f,      0.0f, 0.0f,
-         1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
-         1.0f,  1.0f, 0.0f,      1.0f, 1.0f,
-        -1.0f,  1.0f, 0.0f,      0.0f, 1.0f
-    };
+	divergenceTexture = createTexture(GL_R32F, GL_RED, true);
+	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
+	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false); //collisionTexture = createTexture(GL_R32F, GL_RED, false);
 
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
+	// Create framebuffer object
+	glGenFramebuffers(1, &fbo);
 
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	// Create a full-screen quad for rendering
+	float vertices[] = {
+		// Position (x, y, z)    // Texture coords (u, v)
+		-1.0f, -1.0f, 0.0f,      0.0f, 0.0f,
+		 1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
+		 1.0f,  1.0f, 0.0f,      1.0f, 1.0f,
+		-1.0f,  1.0f, 0.0f,      0.0f, 1.0f
+	};
 
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
 
-    // Texture coordinate attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // Clear the obstacle and collision textures
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	// Position attribute
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+	// Texture coordinate attribute
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+	// Clear the obstacle and collision textures
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-    // Reset all textures to initial state
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    // Also in initGL(), clear the color textures
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[0], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[0], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// Reset all textures to initial state
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	// Also in initGL(), clear the color textures
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[0], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[0], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
 
 }
 
 
 void advectColor() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
 
-    glUseProgram(advectProgram);
+	glUseProgram(advectProgram);
 
-    // Set uniforms for the shader
-    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
-    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
-    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
-    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
-    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms for the shader
+	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+	glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    colorIndex = 1 - colorIndex;
+	// Swap texture indices
+	colorIndex = 1 - colorIndex;
 }
 
 
 
 void advectFriendlyColor() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
 
-    glUseProgram(advectProgram);
+	glUseProgram(advectProgram);
 
-    // Set uniforms for the shader
-    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
-    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
-    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
-    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
-    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms for the shader
+	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+	glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    friendlyColorIndex = 1 - friendlyColorIndex;
+	// Swap texture indices
+	friendlyColorIndex = 1 - friendlyColorIndex;
 }
 
 
 
 // Apply the advection step
 void advectVelocity() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-    glUseProgram(advectProgram);
+	glUseProgram(advectProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
-    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
-    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
-    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
-    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+	glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    velocityIndex = 1 - velocityIndex;
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
 }
 
 // Compute the velocity divergence
 void computeDivergence() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
 
-    glUseProgram(divergenceProgram);
+	glUseProgram(divergenceProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(divergenceProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(divergenceProgram, "obstacleTexture"), 1);
-    glUniform2f(glGetUniformLocation(divergenceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(divergenceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(divergenceProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(divergenceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
 // Solve for pressure using Jacobi iteration
 void solvePressure(int iterations) {
-    // Clear pressure textures
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+	// Clear pressure textures
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[0], 0);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1], 0);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-    pressureIndex = 0;
+	pressureIndex = 0;
 
-    // Jacobi iteration
-    for (int i = 0; i < iterations; i++) {
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1 - pressureIndex], 0);
+	// Jacobi iteration
+	for (int i = 0; i < iterations; i++) {
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1 - pressureIndex], 0);
 
-        glUseProgram(pressureProgram);
+		glUseProgram(pressureProgram);
 
-        // Set uniforms
-        float alpha = -1.0f;  // Central coefficient
-        float rBeta = 0.25f;  // Reciprocal of sum of neighboring coefficients
+		// Set uniforms
+		float alpha = -1.0f;  // Central coefficient
+		float rBeta = 0.25f;  // Reciprocal of sum of neighboring coefficients
 
-        glUniform1i(glGetUniformLocation(pressureProgram, "pressureTexture"), 0);
-        glUniform1i(glGetUniformLocation(pressureProgram, "divergenceTexture"), 1);
-        glUniform1i(glGetUniformLocation(pressureProgram, "obstacleTexture"), 2);
-        glUniform2f(glGetUniformLocation(pressureProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-        glUniform1f(glGetUniformLocation(pressureProgram, "alpha"), alpha);
-        glUniform1f(glGetUniformLocation(pressureProgram, "rBeta"), rBeta);
+		glUniform1i(glGetUniformLocation(pressureProgram, "pressureTexture"), 0);
+		glUniform1i(glGetUniformLocation(pressureProgram, "divergenceTexture"), 1);
+		glUniform1i(glGetUniformLocation(pressureProgram, "obstacleTexture"), 2);
+		glUniform2f(glGetUniformLocation(pressureProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+		glUniform1f(glGetUniformLocation(pressureProgram, "alpha"), alpha);
+		glUniform1f(glGetUniformLocation(pressureProgram, "rBeta"), rBeta);
 
-        // Bind textures
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, divergenceTexture);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+		// Bind textures
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, divergenceTexture);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-        // Render full-screen quad
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		// Render full-screen quad
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-        // Swap texture indices
-        pressureIndex = 1 - pressureIndex;
-    }
+		// Swap texture indices
+		pressureIndex = 1 - pressureIndex;
+	}
 }
 
 // Subtract pressure gradient from velocity
 void subtractPressureGradient() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-    glUseProgram(gradientSubtractProgram);
+	glUseProgram(gradientSubtractProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "pressureTexture"), 0);
-    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "velocityTexture"), 1);
-    glUniform1i(glGetUniformLocation(gradientSubtractProgram, "obstacleTexture"), 2);
-    glUniform2f(glGetUniformLocation(gradientSubtractProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-    glUniform1f(glGetUniformLocation(gradientSubtractProgram, "scale"), 1.0f);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "pressureTexture"), 0);
+	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "velocityTexture"), 1);
+	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "obstacleTexture"), 2);
+	glUniform2f(glGetUniformLocation(gradientSubtractProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(gradientSubtractProgram, "scale"), 1.0f);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    velocityIndex = 1 - velocityIndex;
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
 }
 
 // Add force to the velocity field
 void addForce() {
-    if (!mouseDown) return;
+	if (!mouseDown) return;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
-    glUseProgram(addForceProgram);
+	glUseProgram(addForceProgram);
 
-    float aspect = HEIGHT / float(WIDTH);
+	float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position (0 to 1 range)
-    float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    // Center the Y coordinate, apply aspect ratio, then un-center
-    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-    float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-    float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-    glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-    glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-    glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-    glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    velocityIndex = 1 - velocityIndex;
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
 
-    // Update previous mouse position
-    prevMouseX = mouseX;
-    prevMouseY = mouseY;
+	// Update previous mouse position
+	prevMouseX = mouseX;
+	prevMouseY = mouseY;
 }
 
 // Add density to the fluid
 void addDensity() {
-    if (!mouseDown) return;
+	if (!mouseDown) return;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
 
-    glUseProgram(addDensityProgram);
+	glUseProgram(addDensityProgram);
 
-    float aspect = HEIGHT / float(WIDTH);
+	float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position (0 to 1 range)
-    float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    // Center the Y coordinate, apply aspect ratio, then un-center
-    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(addDensityProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(addDensityProgram, "obstacleTexture"), 1);
-    glUniform2f(glGetUniformLocation(addDensityProgram, "point"), mousePosX, mousePosY);
-    glUniform1f(glGetUniformLocation(addDensityProgram, "radius"), 0.05f);
-    glUniform1f(glGetUniformLocation(addDensityProgram, "amount"), DENSITY_AMOUNT);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addDensityProgram, "densityTexture"), 0);
+	glUniform1i(glGetUniformLocation(addDensityProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addDensityProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addDensityProgram, "radius"), 0.05f);
+	glUniform1f(glGetUniformLocation(addDensityProgram, "amount"), DENSITY_AMOUNT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    densityIndex = 1 - densityIndex;
+	// Swap texture indices
+	densityIndex = 1 - densityIndex;
 }
 
 // Diffuse density
 void diffuseDensity() {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
 
-    glUseProgram(diffuseDensityProgram);
+	glUseProgram(diffuseDensityProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(diffuseDensityProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(diffuseDensityProgram, "obstacleTexture"), 1);
-    glUniform2f(glGetUniformLocation(diffuseDensityProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-    glUniform1f(glGetUniformLocation(diffuseDensityProgram, "diffusionRate"), DIFFUSION);
-    glUniform1f(glGetUniformLocation(diffuseDensityProgram, "dt"), DT);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(diffuseDensityProgram, "densityTexture"), 0);
+	glUniform1i(glGetUniformLocation(diffuseDensityProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(diffuseDensityProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(diffuseDensityProgram, "diffusionRate"), DIFFUSION);
+	glUniform1f(glGetUniformLocation(diffuseDensityProgram, "dt"), DT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap texture indices
-    densityIndex = 1 - densityIndex;
+	// Swap texture indices
+	densityIndex = 1 - densityIndex;
 }
 
 // Add or remove obstacles
 void updateObstacle()
 {
-    if (!rightMouseDown) return;
+	if (!rightMouseDown) return;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
 
-    glUseProgram(addObstacleProgram);
+	glUseProgram(addObstacleProgram);
 
-    float aspect = HEIGHT / float(WIDTH);
+	float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position (0 to 1 range)
-    float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    // Center the Y coordinate, apply aspect ratio, then un-center
-    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
-    glUniform2f(glGetUniformLocation(addObstacleProgram, "point"), mousePosX, mousePosY);
-    glUniform1f(glGetUniformLocation(addObstacleProgram, "radius"), OBSTACLE_RADIUS);
-    glUniform1i(glGetUniformLocation(addObstacleProgram, "addObstacle"), true);  // Always add obstacles for simplicity
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
+	glUniform2f(glGetUniformLocation(addObstacleProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addObstacleProgram, "radius"), OBSTACLE_RADIUS);
+	glUniform1i(glGetUniformLocation(addObstacleProgram, "addObstacle"), true);  // Always add obstacles for simplicity
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
 void advectDensity()
 {
-    // Target the next density texture (ping-pong buffers)
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
+	// Target the next density texture (ping-pong buffers)
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1 - densityIndex], 0);
 
-    // Use the advection shader program
-    glUseProgram(advectProgram);
+	// Use the advection shader program
+	glUseProgram(advectProgram);
 
-    // Set uniforms for the shader
-    glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
-    glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
-    glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
-    glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
-    glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
-    glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms for the shader
+	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
+	glUniform1i(glGetUniformLocation(advectProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
+	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
+	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind all required textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);  // Current velocity field
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);    // Current density field
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);                 // Obstacle field
+	// Bind all required textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);  // Current velocity field
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);    // Current density field
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);                 // Obstacle field
 
-    // Execute the advection shader on a full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Execute the advection shader on a full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap to use the newly computed density field in the next step
-    densityIndex = 1 - densityIndex;
+	// Swap to use the newly computed density field in the next step
+	densityIndex = 1 - densityIndex;
 }
 
 
 void addColor() {
-    if (!mouseDown) return;
+	if (!mouseDown) return;
 
-    // Determine which color texture to modify based on the active mode
-    GLuint targetTexture;
-    int* targetIndex;
-    float r, g, b;
+	// Determine which color texture to modify based on the active mode
+	GLuint targetTexture;
+	int* targetIndex;
+	float r, g, b;
 
-    if (red_mode) {
-        targetTexture = colorTexture[1 - colorIndex];
-        targetIndex = &colorIndex;
-        r = 1.0;
-        g = 0.0;
-        b = 0.0;
-    }
-    else if (blue_mode) {
-        targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
-        targetIndex = &friendlyColorIndex;
-        r = 0.0;
-        g = 0.0;
-        b = 1.0;
-    }
-    else {
-        return; // No valid mode selected
-    }
+	if (red_mode) {
+		targetTexture = colorTexture[1 - colorIndex];
+		targetIndex = &colorIndex;
+		r = 1.0;
+		g = 0.0;
+		b = 0.0;
+	}
+	else if (blue_mode) {
+		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
+		targetIndex = &friendlyColorIndex;
+		r = 0.0;
+		g = 0.0;
+		b = 1.0;
+	}
+	else {
+		return; // No valid mode selected
+	}
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
 
-    glUseProgram(addColorProgram);
+	glUseProgram(addColorProgram);
 
-    float aspect = HEIGHT / float(WIDTH);
+	float aspect = HEIGHT / float(WIDTH);
 
-    // Get normalized mouse position (0 to 1 range)
-    float mousePosX = mouseX / (float)WIDTH;
-    float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-    // Center the Y coordinate, apply aspect ratio, then un-center
-    mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
-    glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
-    glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
-    glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
-    glUniform3f(glGetUniformLocation(addColorProgram, "color"), r, g, b);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
+	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
+	glUniform3f(glGetUniformLocation(addColorProgram, "color"), r, g, b);
 
-    // Bind the appropriate texture based on mode
-    glActiveTexture(GL_TEXTURE0);
-    if (red_mode) {
-        glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-    }
-    else if (blue_mode) {
-        glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-    }
+	// Bind the appropriate texture based on mode
+	glActiveTexture(GL_TEXTURE0);
+	if (red_mode) {
+		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	}
+	else if (blue_mode) {
+		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	}
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Swap the appropriate texture index
-    if (red_mode) {
-        colorIndex = 1 - colorIndex;
-    }
-    else if (blue_mode) {
-        friendlyColorIndex = 1 - friendlyColorIndex;
-    }
+	// Swap the appropriate texture index
+	if (red_mode) {
+		colorIndex = 1 - colorIndex;
+	}
+	else if (blue_mode) {
+		friendlyColorIndex = 1 - friendlyColorIndex;
+	}
 }
 
 
-void simulationStep() 
+void simulationStep()
 {
-    // Add force from mouse interaction
-    addForce();
+	// Add force from mouse interaction
+	addForce();
 
-    // Add density from mouse interaction
-    addDensity();
+	// Add density from mouse interaction
+	addDensity();
 
-    // Add color from mouse interaction
-    addColor();
+	// Add color from mouse interaction
+	addColor();
 
-    // Update obstacles from mouse interaction
-    updateObstacle();
+	// Update obstacles from mouse interaction
+	updateObstacle();
 
-    // Advect velocity
-    advectVelocity();
+	// Advect velocity
+	advectVelocity();
 
-    // Advect density
-    advectDensity();
+	// Advect density
+	advectDensity();
 
-    // Advect both color sets
-    advectColor();
-    advectFriendlyColor();
+	// Advect both color sets
+	advectColor();
+	advectFriendlyColor();
 
 
-    // Diffuse density
-    diffuseDensity();
+	// Diffuse density
+	diffuseDensity();
 
-    // Project velocity to be divergence-free
-    computeDivergence();
-    solvePressure(20);  // 20 iterations of Jacobi method
-    subtractPressureGradient();
+	// Project velocity to be divergence-free
+	computeDivergence();
+	solvePressure(20);  // 20 iterations of Jacobi method
+	subtractPressureGradient();
 
-    // Detect collisions between density and obstacles
-    detectCollisions();
+	// Detect collisions between density and obstacles
+	detectCollisions();
 }
 
 void renderToScreen() {
-    // Bind default framebuffer (the screen)
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// Bind default framebuffer (the screen)
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    // Clear the screen
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+	// Clear the screen
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-    // Use a render shader program
-    GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
-    glUseProgram(renderProgram);
+	// Use a render shader program
+	GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
+	glUseProgram(renderProgram);
 
-    // Set uniforms
-    glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
-    glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
-    glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
-    glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
-    glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
-    glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(renderProgram, "densityTexture"), 0);
+	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
+	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+	glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
+	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
+	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-    // Bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, collisionTexture);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, densityTexture[densityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, collisionTexture);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 
-    // Render full-screen quad
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-    // Cleanup
-    glDeleteProgram(renderProgram);
+	// Cleanup
+	glDeleteProgram(renderProgram);
 }
 
 
@@ -1478,193 +1540,170 @@ void renderToScreen() {
 
 // GLUT display callback
 void display() {
-    // Increment frame counter
-    frameCount++;
+	// Increment frame counter
+	frameCount++;
 
-    // Check if it's time to report collisions
-    if (frameCount % REPORT_INTERVAL == 0) {
-        reportCollisions = true;
-    }
+	// Check if it's time to report collisions
+	if (frameCount % REPORT_INTERVAL == 0) {
+		reportCollisions = true;
+	}
 
-    // Perform simulation step
-    simulationStep();
+	// Perform simulation step
+	simulationStep();
 
-    // Render to screen
-    renderToScreen();
+	// Render to screen
+	renderToScreen();
 
-    // Swap buffers
-    glutSwapBuffers();
+	// Swap buffers
+	glutSwapBuffers();
 }
 
 // GLUT idle callback
 void idle() {
-    glutPostRedisplay();
+	glutPostRedisplay();
 }
 
 // GLUT mouse button callback
 void mouseButton(int button, int state, int x, int y) {
-    mouseX = x;
-    mouseY = y;
-    prevMouseX = x;
-    prevMouseY = y;
+	mouseX = x;
+	mouseY = y;
+	prevMouseX = x;
+	prevMouseY = y;
 
-    if (button == GLUT_LEFT_BUTTON) {
-        mouseDown = (state == GLUT_DOWN);
-    }
-    else if (button == GLUT_RIGHT_BUTTON) {
-        rightMouseDown = (state == GLUT_DOWN);
-    }
+	if (button == GLUT_LEFT_BUTTON) {
+		mouseDown = (state == GLUT_DOWN);
+	}
+	else if (button == GLUT_RIGHT_BUTTON) {
+		rightMouseDown = (state == GLUT_DOWN);
+	}
 }
 
 // GLUT mouse motion callback
 void mouseMotion(int x, int y) {
-    mouseX = x;
-    mouseY = y;
+	mouseX = x;
+	mouseY = y;
 }
 
 // GLUT special key callback
 void keyboardSpecial(int key, int x, int y) {
-    switch (key) {
-    case GLUT_KEY_F1:
-        // Reset simulation
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	switch (key) {
+	case GLUT_KEY_F1:
+		// Reset simulation
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-        // Clear velocity textures
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
-        glClear(GL_COLOR_BUFFER_BIT);
+		// Clear velocity textures
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-        // Clear density textures
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
-        glClear(GL_COLOR_BUFFER_BIT);
+		// Clear density textures
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[0], 0);
+		glClear(GL_COLOR_BUFFER_BIT);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, densityTexture[1], 0);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-        // Clear obstacle texture
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
+		// Clear obstacle texture
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-        // Clear collision texture
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
+		// Clear collision texture
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-        break;
-    }
+		break;
+	}
 }
 
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
-    switch (key) {
-    //case 27:  // ESC key
-    //    // Clean up and exit
-    //    glDeleteTextures(2, velocityTexture);
-    //    glDeleteTextures(2, pressureTexture);
-    //    glDeleteTextures(2, densityTexture);
-    //    glDeleteTextures(1, &divergenceTexture);
-    //    glDeleteTextures(1, &obstacleTexture);
-    //    glDeleteTextures(1, &collisionTexture);
-    //    glDeleteTextures(2, colorTexture);
-    //    glDeleteFramebuffers(1, &fbo);
-    //    glDeleteVertexArrays(1, &vao);
-    //    glDeleteBuffers(1, &vbo);
-    //    glDeleteProgram(advectProgram);
-    //    glDeleteProgram(divergenceProgram);
-    //    glDeleteProgram(pressureProgram);
-    //    glDeleteProgram(gradientSubtractProgram);
-    //    glDeleteProgram(addForceProgram);
-    //    glDeleteProgram(addDensityProgram);
-    //    glDeleteProgram(diffuseDensityProgram);
-    //    glDeleteProgram(addObstacleProgram);
-    //    glDeleteProgram(detectCollisionProgram);
-    //    exit(0);
-    //    break;
+	switch (key) {
 
-    case 'r':
-        red_mode = true;
-        blue_mode = false;
-        break;
-    case 'b':
-        blue_mode = true;
-        red_mode = false;
-        break;
+	case 'r':
+		red_mode = true;
+		blue_mode = false;
+		break;
+	case 'b':
+		blue_mode = true;
+		red_mode = false;
+		break;
 
 
-    case 'c':  // Report collisions immediately
-    case 'C':
-        reportCollisions = true;
-        std::cout << "Generating collision report on next frame..." << std::endl;
-        break;
-    }
+	case 'c':  // Report collisions immediately
+	case 'C':
+		reportCollisions = true;
+		std::cout << "Generating collision report on next frame..." << std::endl;
+		break;
+	}
 }
 
 // GLUT reshape callback
 void reshape(int w, int h) {
 
-    glViewport(0, 0, w, h);
+	glViewport(0, 0, w, h);
 
-    WIDTH = w;
-    HEIGHT = h;
+	WIDTH = w;
+	HEIGHT = h;
 
-    glDeleteTextures(2, velocityTexture);
-    glDeleteTextures(2, pressureTexture);
-    glDeleteTextures(2, densityTexture);
-    glDeleteTextures(1, &divergenceTexture);
-    glDeleteTextures(1, &obstacleTexture);
-    glDeleteTextures(1, &collisionTexture);
-    glDeleteTextures(2, colorTexture);
-    glDeleteTextures(2, friendlyColorTexture);
-    glDeleteFramebuffers(1, &fbo);
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
-    glDeleteProgram(advectProgram);
-    glDeleteProgram(divergenceProgram);
-    glDeleteProgram(pressureProgram);
-    glDeleteProgram(gradientSubtractProgram);
-    glDeleteProgram(addForceProgram);
-    glDeleteProgram(addDensityProgram);
-    glDeleteProgram(diffuseDensityProgram);
-    glDeleteProgram(addObstacleProgram);
-    glDeleteProgram(detectCollisionProgram);
+	glDeleteTextures(2, velocityTexture);
+	glDeleteTextures(2, pressureTexture);
+	glDeleteTextures(2, densityTexture);
+	glDeleteTextures(1, &divergenceTexture);
+	glDeleteTextures(1, &obstacleTexture);
+	glDeleteTextures(1, &collisionTexture);
+	glDeleteTextures(2, colorTexture);
+	glDeleteTextures(2, friendlyColorTexture);
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteBuffers(1, &vbo);
+	glDeleteProgram(advectProgram);
+	glDeleteProgram(divergenceProgram);
+	glDeleteProgram(pressureProgram);
+	glDeleteProgram(gradientSubtractProgram);
+	glDeleteProgram(addForceProgram);
+	glDeleteProgram(addDensityProgram);
+	glDeleteProgram(diffuseDensityProgram);
+	glDeleteProgram(addObstacleProgram);
+	glDeleteProgram(detectCollisionProgram);
 
-    initGL();
+	initGL();
 
 
 }
 
 int main(int argc, char** argv) {
-    // Initialize GLUT
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
-    glutInitWindowSize(WIDTH, HEIGHT);
-    glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
+	// Initialize GLUT
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+	glutInitWindowSize(WIDTH, HEIGHT);
+	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
-    // Initialize OpenGL
-    initGL();
+	// Initialize OpenGL
+	initGL();
 
-    // Register callbacks
-    glutDisplayFunc(display);
-    glutIdleFunc(idle);
-    glutMouseFunc(mouseButton);
-    glutMotionFunc(mouseMotion);
-    glutSpecialFunc(keyboardSpecial);
-    glutKeyboardFunc(keyboard);
-    glutReshapeFunc(reshape);
+	// Register callbacks
+	glutDisplayFunc(display);
+	glutIdleFunc(idle);
+	glutMouseFunc(mouseButton);
+	glutMotionFunc(mouseMotion);
+	glutSpecialFunc(keyboardSpecial);
+	glutKeyboardFunc(keyboard);
+	glutReshapeFunc(reshape);
 
-    // Print instructions
-    std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
-    std::cout << "Right Mouse Button: Add obstacles" << std::endl;
-    std::cout << "F1: Reset simulation" << std::endl;
-    std::cout << "C: Generate collision report immediately" << std::endl;
-    std::cout << "ESC: Exit" << std::endl;
-    std::cout << "Orange highlights show density-obstacle collisions" << std::endl;
-    std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
+	// Print instructions
+	std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
+	std::cout << "-----------------------------------" << std::endl;
+	std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
+	std::cout << "Right Mouse Button: Add obstacles" << std::endl;
+	std::cout << "F1: Reset simulation" << std::endl;
+	std::cout << "C: Generate collision report immediately" << std::endl;
+	std::cout << "ESC: Exit" << std::endl;
+	std::cout << "Orange highlights show density-obstacle collisions" << std::endl;
+	std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
 
-    // Main loop
-    glutMainLoop();
+	// Main loop
+	glutMainLoop();
 
-    return 0;
+	return 0;
 }
