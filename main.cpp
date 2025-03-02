@@ -3,6 +3,9 @@
 #include <GL/glew.h>
 #include <GL/glut.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -56,6 +59,7 @@ GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fi
 int friendlyColorIndex = 0;      // Index for current friendly color texture
 bool blue_mode = false;
 
+GLuint backgroundTexture;
 
 
 GLuint advectProgram;
@@ -94,6 +98,72 @@ struct CollisionPoint {
 
 	CollisionPoint(int _x, int _y, Type _type) : x(_x), y(_y), type(_type) {}
 };
+
+
+GLuint loadTexture(const char* filename) {
+	GLuint textureID;
+	glGenTextures(1, &textureID);
+
+	// Load image using stb_image
+	int width, height, channels;
+	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
+
+	if (!data) {
+		std::cerr << "Failed to load texture: " << filename << std::endl;
+		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+
+		//// Create a default checkerboard pattern as fallback
+		//width = 256;
+		//height = 256;
+		//channels = 3;
+		//unsigned char* fallback = new unsigned char[width * height * channels];
+		//for (int y = 0; y < height; y++) {
+		//	for (int x = 0; x < width; x++) {
+		//		int idx = (y * width + x) * channels;
+		//		bool isEven = ((x / 32) + (y / 32)) % 2 == 0;
+		//		fallback[idx] = isEven ? 200 : 50;     // R
+		//		fallback[idx + 1] = isEven ? 200 : 50; // G
+		//		fallback[idx + 2] = isEven ? 200 : 50; // B
+		//	}
+		//}
+		//data = fallback;
+	}
+
+	// Bind and set texture parameters
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Determine format based on channels
+	GLenum format;
+	switch (channels) {
+	case 1: format = GL_RED; break;
+	case 3: format = GL_RGB; break;
+	case 4: format = GL_RGBA; break;
+	default:
+		format = GL_RGB;
+		std::cerr << "Unsupported number of channels: " << channels << std::endl;
+	}
+
+	// Load texture data to GPU
+	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+	// Generate mipmaps
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	// Free image data
+	if (stbi_failure_reason()) {
+		delete[] data; // Free our fallback data
+	}
+	else {
+		stbi_image_free(data); // Free stb_image data
+	}
+
+	return textureID;
+}
+
 
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
@@ -626,6 +696,7 @@ uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
 uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
+uniform sampler2D backgroundTexture;
 uniform vec2 texelSize;
 
 float WIDTH = texelSize.x;
@@ -683,7 +754,7 @@ void main() {
     vec4 combinedColor = redFluidColor + blueFluidColor;
     
     // Use the color mapping logic as before, but with the combined color
-    vec4 color1 = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 color1 = texture(backgroundTexture, TexCoord);//vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -939,6 +1010,7 @@ void initGL() {
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true);
 	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false); //collisionTexture = createTexture(GL_R32F, GL_RED, false);
+	backgroundTexture = loadTexture("grid.png");
 
 	// Create framebuffer object
 	glGenFramebuffers(1, &fbo);
@@ -1513,6 +1585,7 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
 	glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
+	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
 	// Bind textures
@@ -1526,6 +1599,8 @@ void renderToScreen() {
 	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
 	glActiveTexture(GL_TEXTURE4);
 	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, backgroundTexture);
 
 	// Render full-screen quad
 	glBindVertexArray(vao);
@@ -1534,7 +1609,6 @@ void renderToScreen() {
 	// Cleanup
 	glDeleteProgram(renderProgram);
 }
-
 
 
 
@@ -1654,6 +1728,7 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &collisionTexture);
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
+	glDeleteTextures(1, &backgroundTexture);
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
