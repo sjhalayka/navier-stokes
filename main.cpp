@@ -1003,17 +1003,15 @@ void initGL() {
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	// Clear the obstacle and collision textures
+	// Reset all textures to initial state
+
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
-
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
-	// Reset all textures to initial state
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
@@ -1024,17 +1022,17 @@ void initGL() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, divergenceTexture, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-	// Also in initGL(), clear the color textures
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 }
 
@@ -1555,26 +1553,28 @@ void reshape(int w, int h) {
 	WIDTH = w;
 	HEIGHT = h;
 
-	//glDeleteTextures(2, velocityTexture);
-	//glDeleteTextures(2, pressureTexture);
-	//glDeleteTextures(1, &divergenceTexture);
-	//glDeleteTextures(1, &obstacleTexture);
-	//glDeleteTextures(1, &collisionTexture);
-	//glDeleteTextures(2, colorTexture);
-	//glDeleteTextures(2, friendlyColorTexture);
-	//glDeleteTextures(1, &backgroundTexture);
+	glDeleteProgram(advectProgram);
+	glDeleteProgram(divergenceProgram);
+	glDeleteProgram(pressureProgram);
+	glDeleteProgram(gradientSubtractProgram);
+	glDeleteProgram(addForceProgram);
+	glDeleteProgram(addObstacleProgram);
+	glDeleteProgram(detectCollisionProgram);
+	glDeleteProgram(diffuseColorProgram);
+	glDeleteProgram(addColorProgram);
+
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
-	//glDeleteProgram(advectProgram);
-	//glDeleteProgram(divergenceProgram);
-	//glDeleteProgram(pressureProgram);
-	//glDeleteProgram(gradientSubtractProgram);
-	//glDeleteProgram(addForceProgram);
-	//glDeleteProgram(addObstacleProgram);
-	//glDeleteProgram(detectCollisionProgram);
-	//glDeleteProgram(diffuseColorProgram);
-	//glDeleteProgram(addColorProgram);
+
+	glDeleteTextures(2, velocityTexture);
+	glDeleteTextures(2, pressureTexture);
+	glDeleteTextures(1, &divergenceTexture);
+	glDeleteTextures(1, &obstacleTexture);
+	glDeleteTextures(1, &collisionTexture);
+	glDeleteTextures(2, colorTexture);
+	glDeleteTextures(2, friendlyColorTexture);
+	glDeleteTextures(1, &backgroundTexture);
 
 	initGL();
 
