@@ -38,9 +38,7 @@ const float COLLISION_THRESHOLD = 0.5f; // Threshold for density-obstacle collis
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.1f;  // How strict the color matching should be
-const float TARGET_COLOR_R = 1.0f;  // Red component
-const float TARGET_COLOR_G = 0.0f;  // Green component
-const float TARGET_COLOR_B = 0.0f;  // Blue component
+
 
 bool red_mode = true;
 
