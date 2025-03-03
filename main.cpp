@@ -1577,8 +1577,6 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &backgroundTexture);
 
 	initGL();
-
-
 }
 
 int main(int argc, char** argv) {
