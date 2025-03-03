@@ -631,30 +631,19 @@ void main() {
     FragColor = obstacle;
 }
 )";
+
+
+
+
 const char* detectCollisionFragmentShader = R"(
 #version 330 core
-uniform sampler2D densityTexture;
 uniform sampler2D obstacleTexture;
 uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
-uniform float collisionThreshold;
-
 uniform float colorThreshold;  // Threshold for color detection
-out vec4 FragColor;           // Changed from float to vec4
+out vec4 FragColor;
 
 in vec2 TexCoord;
-
-// Checks if a color is close to the target color
-bool isTargetColor(float intensity) {
-    // Now we're just checking if there's significant intensity in the red texture
-    return intensity > colorThreshold;
-}
-
-// Checks if a color is close to the friendly color
-bool isFriendlyColor(float intensity) {
-    // Now we're just checking if there's significant intensity in the blue texture
-    return intensity > colorThreshold;
-}
 
 void main() {
     // Get current obstacle value
@@ -662,18 +651,18 @@ void main() {
     
     if (obstacle > 0.0) {
         // We're in an obstacle - check neighboring pixels
-        vec2 texelSize = 1.0 / vec2(textureSize(densityTexture, 0));
+        vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
         
         // Check neighboring cells
-        vec4 leftColor = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0));
-        vec4 rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0));
-        vec4 bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y));
-        vec4 topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y));
+        float leftColor = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightColor = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomColor = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topColor = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y)).r;
         
-        vec4 leftFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(texelSize.x, 0.0));
-        vec4 rightFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(texelSize.x, 0.0));
-        vec4 bottomFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(0.0, texelSize.y));
-        vec4 topFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(0.0, texelSize.y));
+        float leftFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomFriendlyColor = texture(friendlyColorTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topFriendlyColor = texture(friendlyColorTexture, TexCoord + vec2(0.0, texelSize.y)).r;
         
         // Check for obstacles in neighboring cells
         float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
@@ -681,44 +670,30 @@ void main() {
         float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
         float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
         
-        // Original density-based collision detection
-        float leftDensity = (leftObstacle < 0.5) ? texture(densityTexture, TexCoord - vec2(texelSize.x, 0.0)).r : 0.0;
-        float rightDensity = (rightObstacle < 0.5) ? texture(densityTexture, TexCoord + vec2(texelSize.x, 0.0)).r : 0.0;
-        float bottomDensity = (bottomObstacle < 0.5) ? texture(densityTexture, TexCoord - vec2(0.0, texelSize.y)).r : 0.0;
-        float topDensity = (topObstacle < 0.5) ? texture(densityTexture, TexCoord + vec2(0.0, texelSize.y)).r : 0.0;
-        
-        float maxDensity = max(max(leftDensity, rightDensity), max(bottomDensity, topDensity));
-        bool densityCollision = (maxDensity > collisionThreshold);
-        
         // Check for target color collision
-		bool targetColorCollision = false;
-		if (leftObstacle < 0.5 && isTargetColor(leftColor.r)) targetColorCollision = true;
-		if (rightObstacle < 0.5 && isTargetColor(rightColor.r)) targetColorCollision = true;
-		if (bottomObstacle < 0.5 && isTargetColor(bottomColor.r)) targetColorCollision = true;
-		if (topObstacle < 0.5 && isTargetColor(topColor.r)) targetColorCollision = true;
+        bool targetColorCollision = false;
+        if (leftObstacle < 0.5 && leftColor > colorThreshold) targetColorCollision = true;
+        if (rightObstacle < 0.5 && rightColor > colorThreshold) targetColorCollision = true;
+        if (bottomObstacle < 0.5 && bottomColor > colorThreshold) targetColorCollision = true;
+        if (topObstacle < 0.5 && topColor > colorThreshold) targetColorCollision = true;
 
-		// Check for friendly color collision
-		bool friendlyColorCollision = false;
-		if (leftObstacle < 0.5 && isFriendlyColor(leftFriendlyColor.r)) friendlyColorCollision = true;
-		if (rightObstacle < 0.5 && isFriendlyColor(rightFriendlyColor.r)) friendlyColorCollision = true;
-		if (bottomObstacle < 0.5 && isFriendlyColor(bottomFriendlyColor.r)) friendlyColorCollision = true;
-		if (topObstacle < 0.5 && isFriendlyColor(topFriendlyColor.r)) friendlyColorCollision = true;
+        // Check for friendly color collision
+        bool friendlyColorCollision = false;
+        if (leftObstacle < 0.5 && leftFriendlyColor > colorThreshold) friendlyColorCollision = true;
+        if (rightObstacle < 0.5 && rightFriendlyColor > colorThreshold) friendlyColorCollision = true;
+        if (bottomObstacle < 0.5 && bottomFriendlyColor > colorThreshold) friendlyColorCollision = true;
+        if (topObstacle < 0.5 && topFriendlyColor > colorThreshold) friendlyColorCollision = true;
 
         // Set collision with specific type information
-        if (densityCollision) {
-            if (targetColorCollision && friendlyColorCollision) {
-                // Both red and blue collided
-                FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Magenta for both
-            } else if (targetColorCollision) {
-                // Only red collided
-                FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red
-            } else if (friendlyColorCollision) {
-                // Only blue collided
-                FragColor = vec4(0.0, 0.0, 1.0, 1.0); // Blue
-            } else {
-                // Density but no specific color (shouldn't happen with your logic)
-                FragColor = vec4(0.5, 0.5, 0.5, 1.0); // Gray
-            }
+        if (targetColorCollision && friendlyColorCollision) {
+            // Both red and blue collided
+            FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Magenta for both
+        } else if (targetColorCollision) {
+            // Only red collided
+            FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red
+        } else if (friendlyColorCollision) {
+            // Only blue collided
+            FragColor = vec4(0.0, 0.0, 1.0, 1.0); // Blue
         } else {
             // No collision
             FragColor = vec4(0.0, 0.0, 0.0, 0.0);
