@@ -233,7 +233,7 @@ uniform sampler2D colorTexture;
 uniform sampler2D obstacleTexture;
 uniform vec2 point;
 uniform float radius;
-uniform vec3 color;
+
 out float FragColor;
 
 in vec2 TexCoord;
@@ -1583,21 +1583,14 @@ void addColor() {
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
 	int* targetIndex;
-	float r, g, b;
 
 	if (red_mode) {
 		targetTexture = colorTexture[1 - colorIndex];
 		targetIndex = &colorIndex;
-		r = 1.0;
-		g = 1.0;
-		b = 1.0;
 	}
 	else if (blue_mode) {
 		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
 		targetIndex = &friendlyColorIndex;
-		r = 0.0;
-		g = 0.0;
-		b = 1.0;
 	}
 	else {
 		return; // No valid mode selected
@@ -1622,7 +1615,6 @@ void addColor() {
 	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
 	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
-	glUniform3f(glGetUniformLocation(addColorProgram, "color"), r, g, b);
 
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
