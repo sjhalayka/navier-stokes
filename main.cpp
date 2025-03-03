@@ -1076,7 +1076,8 @@ void initGL() {
 	// Initialize GLEW
 	glewExperimental = GL_TRUE;
 	GLenum err = glewInit();
-	if (err != GLEW_OK) {
+	if (err != GLEW_OK) 
+	{
 		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
 		exit(1);
 	}
@@ -1105,7 +1106,8 @@ void initGL() {
 
 
 	// Create textures for simulation
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 2; i++) 
+	{
 		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
 		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
 		densityTexture[i] = createTexture(GL_R32F, GL_RED, true);
