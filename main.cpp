@@ -1576,25 +1576,24 @@ void advectDensity()
 }
 
 
-void addColor() {
+void addColor() 
+{
 	if (!mouseDown) return;
 
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
 	int* targetIndex;
 
-	if (red_mode) {
+	if (red_mode) 
+	{
 		targetTexture = colorTexture[1 - colorIndex];
 		targetIndex = &colorIndex;
 	}
-	else //if (blue_mode)
+	else
 	{
 		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
 		targetIndex = &friendlyColorIndex;
 	}
-	//else {
-	//	return; // No valid mode selected
-	//}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
@@ -1623,7 +1622,7 @@ void addColor() {
 	{
 		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
 	}
-	else// if (blue_mode) 
+	else
 	{
 		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 	}
@@ -1640,7 +1639,7 @@ void addColor() {
 	{
 		colorIndex = 1 - colorIndex;
 	}
-	else// if (blue_mode) 
+	else
 	{
 		friendlyColorIndex = 1 - friendlyColorIndex;
 	}
