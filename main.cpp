@@ -1563,9 +1563,9 @@ void reshape(int w, int h) {
 	//glDeleteTextures(2, colorTexture);
 	//glDeleteTextures(2, friendlyColorTexture);
 	//glDeleteTextures(1, &backgroundTexture);
-	//glDeleteFramebuffers(1, &fbo);
-	//glDeleteVertexArrays(1, &vao);
-	//glDeleteBuffers(1, &vbo);
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteBuffers(1, &vbo);
 	//glDeleteProgram(advectProgram);
 	//glDeleteProgram(divergenceProgram);
 	//glDeleteProgram(pressureProgram);
@@ -1576,7 +1576,7 @@ void reshape(int w, int h) {
 	//glDeleteProgram(diffuseColorProgram);
 	//glDeleteProgram(addColorProgram);
 
-	//initGL();
+	initGL();
 
 
 }
