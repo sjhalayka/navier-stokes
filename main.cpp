@@ -1051,11 +1051,13 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
 	glBindTexture(GL_TEXTURE_2D, texture);
 
 	// Set texture parameters
-	if (filtering) {
+	if (filtering) 
+	{
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
-	else {
+	else 
+	{
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
@@ -1091,16 +1093,6 @@ void initGL() {
 	detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
 	addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
 	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
-
-	//for (int i = 0; i < 2; i++) {
-	//	colorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
-	//}
-
-
-	//for (int i = 0; i < 2; i++) {
-	//	friendlyColorTexture[i] = createTexture(GL_RGBA32F, GL_RGBA, true);
-	//}
-
 
 
 	for (int i = 0; i < 2; i++) {
