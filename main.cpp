@@ -1555,27 +1555,28 @@ void reshape(int w, int h) {
 	WIDTH = w;
 	HEIGHT = h;
 
-	glDeleteTextures(2, velocityTexture);
-	glDeleteTextures(2, pressureTexture);
-	glDeleteTextures(1, &divergenceTexture);
-	glDeleteTextures(1, &obstacleTexture);
-	glDeleteTextures(1, &collisionTexture);
-	glDeleteTextures(2, colorTexture);
-	glDeleteTextures(2, friendlyColorTexture);
-	glDeleteTextures(1, &backgroundTexture);
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteVertexArrays(1, &vao);
-	glDeleteBuffers(1, &vbo);
-	glDeleteProgram(advectProgram);
-	glDeleteProgram(divergenceProgram);
-	glDeleteProgram(pressureProgram);
-	glDeleteProgram(gradientSubtractProgram);
-	glDeleteProgram(addForceProgram);
-	glDeleteProgram(addObstacleProgram);
-	glDeleteProgram(detectCollisionProgram);
-	glDeleteProgram(diffuseColorProgram);
+	//glDeleteTextures(2, velocityTexture);
+	//glDeleteTextures(2, pressureTexture);
+	//glDeleteTextures(1, &divergenceTexture);
+	//glDeleteTextures(1, &obstacleTexture);
+	//glDeleteTextures(1, &collisionTexture);
+	//glDeleteTextures(2, colorTexture);
+	//glDeleteTextures(2, friendlyColorTexture);
+	//glDeleteTextures(1, &backgroundTexture);
+	//glDeleteFramebuffers(1, &fbo);
+	//glDeleteVertexArrays(1, &vao);
+	//glDeleteBuffers(1, &vbo);
+	//glDeleteProgram(advectProgram);
+	//glDeleteProgram(divergenceProgram);
+	//glDeleteProgram(pressureProgram);
+	//glDeleteProgram(gradientSubtractProgram);
+	//glDeleteProgram(addForceProgram);
+	//glDeleteProgram(addObstacleProgram);
+	//glDeleteProgram(detectCollisionProgram);
+	//glDeleteProgram(diffuseColorProgram);
+	//glDeleteProgram(addColorProgram);
 
-	initGL();
+	//initGL();
 
 
 }
