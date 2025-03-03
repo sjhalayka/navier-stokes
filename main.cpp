@@ -667,8 +667,7 @@ void main() {
 	float redIntensity = texture(colorTexture, adjustedCoord).r;
 	float blueIntensity = texture(friendlyColorTexture, adjustedCoord).r;
 
-	float density = redIntensity + blueIntensity;//texture(densityTexture, adjustedCoord).r;
-
+	float density = redIntensity + blueIntensity;
 
 	// Create color vectors based on intensity
 	vec4 redFluidColor = vec4(redIntensity, 0.0, 0.0, redIntensity);
