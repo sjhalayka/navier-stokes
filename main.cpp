@@ -677,7 +677,7 @@ void main() {
 	vec4 combinedColor = redFluidColor + blueFluidColor;
     
     // Use the color mapping logic as before, but with the combined color
-    vec4 color1 = texture(backgroundTexture, TexCoord);//vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 color1 = texture(backgroundTexture, adjustedCoord);//vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -973,8 +973,8 @@ void initGL() {
 
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true);
 	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
-	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false); //collisionTexture = createTexture(GL_R32F, GL_RED, false);
-	backgroundTexture = loadTexture("grid.png");
+	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false);
+	backgroundTexture = loadTexture("grid_wide.png");
 
 	// Create framebuffer object
 	glGenFramebuffers(1, &fbo);
@@ -1026,7 +1026,6 @@ void initGL() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1], 0);
