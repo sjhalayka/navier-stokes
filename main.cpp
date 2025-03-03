@@ -25,8 +25,8 @@ using namespace std;
 
 
 // Simulation parameters
-int WIDTH = 1000;
-int HEIGHT = 500;
+int WIDTH = 960;
+int HEIGHT = 540;
 
 const float DT = 0.1f;            // Time step
 const float VISCOSITY = 10.0f;     // Fluid viscosity
@@ -640,8 +640,7 @@ uniform sampler2D obstacleTexture;
 uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
 uniform float collisionThreshold;
-uniform vec3 targetColor;      // The specific color to detect (e.g., red)
-uniform vec3 friendlyColor;    // The friendly color to detect (e.g., blue)
+
 uniform float colorThreshold;  // Threshold for color detection
 out vec4 FragColor;           // Changed from float to vec4
 
@@ -898,12 +897,6 @@ void detectCollisions() {
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 2);
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 3);
 	glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
-
-	// Set the target color (red)
-	glUniform3f(glGetUniformLocation(detectCollisionProgram, "targetColor"), 1.0, 0.0, 0.0);
-
-	// Set the friendly color (blue)
-	glUniform3f(glGetUniformLocation(detectCollisionProgram, "friendlyColor"), 0.0, 0.0, 1.0);
 
 	// How close a color needs to be to match the target
 	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
