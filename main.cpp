@@ -57,7 +57,6 @@ GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
 int friendlyColorIndex = 0;      // Index for current friendly color texture
-bool blue_mode = false;
 
 GLuint backgroundTexture;
 
@@ -1588,13 +1587,14 @@ void addColor() {
 		targetTexture = colorTexture[1 - colorIndex];
 		targetIndex = &colorIndex;
 	}
-	else if (blue_mode) {
+	else //if (blue_mode)
+	{
 		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
 		targetIndex = &friendlyColorIndex;
 	}
-	else {
-		return; // No valid mode selected
-	}
+	//else {
+	//	return; // No valid mode selected
+	//}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
@@ -1618,10 +1618,13 @@ void addColor() {
 
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
-	if (red_mode) {
+
+	if (red_mode) 
+	{
 		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
 	}
-	else if (blue_mode) {
+	else// if (blue_mode) 
+	{
 		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 	}
 
@@ -1633,10 +1636,12 @@ void addColor() {
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 	// Swap the appropriate texture index
-	if (red_mode) {
+	if (red_mode) 
+	{
 		colorIndex = 1 - colorIndex;
 	}
-	else if (blue_mode) {
+	else// if (blue_mode) 
+	{
 		friendlyColorIndex = 1 - friendlyColorIndex;
 	}
 }
@@ -1809,12 +1814,7 @@ void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 
 	case 'r':
-		red_mode = true;
-		blue_mode = false;
-		break;
-	case 'b':
-		blue_mode = true;
-		red_mode = false;
+		red_mode = !red_mode;
 		break;
 
 
