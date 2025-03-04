@@ -42,6 +42,18 @@ const float COLOR_DETECTION_THRESHOLD = 0.1f;  // How strict the color matching 
 bool red_mode = true;
 
 
+struct StampInfo {
+	bool active;
+	float posX, posY;  // Normalized position (0-1)
+	float width, height;  // In pixels
+
+	StampInfo() : active(false), posX(0), posY(0), width(0), height(0) {}
+};
+
+// Add this to the other global variables
+StampInfo currentStamp;
+
+
 
 // OpenGL variables
 GLuint velocityTexture[2];
@@ -84,7 +96,7 @@ int pressureIndex = 0;
 
 // Collision tracking
 int frameCount = 0;
-bool reportCollisions = false;
+bool reportCollisions = true;
 
 // Define a struct for collision data
 struct CollisionPoint {
@@ -848,7 +860,6 @@ void main() {
 
 
 
-
 bool loadStampTexture(const char* filename) {
 	// Clear previous texture if it exists
 	if (stampTexture != 0) {
@@ -895,10 +906,112 @@ bool loadStampTexture(const char* filename) {
 	stbi_image_free(data);
 
 	stampTextureLoaded = true;
+
+	// Initialize stamp information but don't set it active yet
+	// It will become active when the user places it
+	currentStamp.width = stampWidth;
+	currentStamp.height = stampHeight;
+
 	return true;
 }
 
-void applyBitmapObstacle() 
+
+bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
+	if (!stamp.active) return false;
+
+	float aspect = HEIGHT / float(WIDTH);
+
+	// Convert pixel coordinates to normalized coordinates (0-1)
+	float pointX = point.x / (float)WIDTH;
+	float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
+
+	// Apply aspect ratio correction to y-coordinate
+	pointY = (pointY - 0.5f) * aspect + 0.5f;
+
+	// Calculate stamp bounds in normalized coordinates
+	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+	float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+
+	float stampMinX = stamp.posX - halfWidthNorm;
+	float stampMaxX = stamp.posX + halfWidthNorm;
+	float stampMinY = stamp.posY - halfHeightNorm;
+	float stampMaxY = stamp.posY + halfHeightNorm;
+
+	// Check if point is within stamp bounds (with a small margin)
+	const float margin = 0.02f; // Add a small margin to detect collisions near the stamp
+	return (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
+		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
+}
+
+void reportStampCollisions() {
+	if (collisionPoints.empty()) return;
+
+	// Count stamp-related collisions
+	int stampCollisions = 0;
+	int redStampCollisions = 0;
+	int blueStampCollisions = 0;
+	int bothStampCollisions = 0;
+
+	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
+
+	if (!currentStamp.active) {
+		std::cout << "No active stamp found. Use right mouse button to place a stamp." << std::endl;
+	}
+	else {
+		// Analyze all collision points
+		for (const auto& point : collisionPoints) {
+			if (isCollisionInStamp(point, currentStamp)) {
+				stampCollisions++;
+
+				// Count by type
+				switch (point.type) {
+				case CollisionPoint::RED:
+					redStampCollisions++;
+					break;
+				case CollisionPoint::BLUE:
+					blueStampCollisions++;
+					break;
+				case CollisionPoint::BOTH:
+					bothStampCollisions++;
+					break;
+				default:
+					break;
+				}
+
+				// Output detailed information for each stamp collision (optional)
+				std::cout << "Stamp collision at (" << point.x << ", " << point.y
+					<< ") - Type: ";
+
+				switch (point.type) {
+				case CollisionPoint::RED:
+					std::cout << "red";
+					break;
+				case CollisionPoint::BLUE:
+					std::cout << "blue";
+					break;
+				case CollisionPoint::BOTH:
+					std::cout << "both";
+					break;
+				default:
+					std::cout << "other";
+					break;
+				}
+				std::cout << std::endl;
+			}
+		}
+
+		// Output summary
+		std::cout << "Stamp position: (" << currentStamp.posX << ", " << currentStamp.posY << ")" << std::endl;
+		std::cout << "Stamp size: " << currentStamp.width << "x" << currentStamp.height << " pixels" << std::endl;
+		std::cout << "Total stamp collisions: " << stampCollisions << std::endl;
+		std::cout << "Red collisions: " << redStampCollisions << std::endl;
+		std::cout << "Blue collisions: " << blueStampCollisions << std::endl;
+		std::cout << "Both colors collisions: " << bothStampCollisions << std::endl;
+	}
+
+	std::cout << "=================================" << std::endl;
+}
+void applyBitmapObstacle()
 {
 	if (!rightMouseDown || !stampTextureLoaded) return;
 
@@ -921,8 +1034,15 @@ void applyBitmapObstacle()
 	float stampTexHeight = static_cast<float>(stampHeight) / HEIGHT * aspect;
 
 	// Adjust position to center stamp on mouse
-	float posX = mousePosX;// -(stampTexWidth / 2.0f);
-	float posY = mousePosY;// -(stampTexHeight / 2.0f);
+	float posX = mousePosX;
+	float posY = mousePosY;
+
+	// Store current stamp information
+	currentStamp.active = true;
+	currentStamp.posX = posX;
+	currentStamp.posY = posY;
+	currentStamp.width = stampWidth;
+	currentStamp.height = stampHeight;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
@@ -1027,6 +1147,8 @@ void diffuseFriendlyColor() {
 	friendlyColorIndex = 1 - friendlyColorIndex;
 }
 
+
+
 void detectCollisions() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
@@ -1082,38 +1204,28 @@ void detectCollisions() {
 			}
 		}
 
-		// Output collision report if needed
+		// Output collision report
 		size_t red_count = 0;
 		size_t blue_count = 0;
+		size_t both_count = 0;
 
 		for (int i = 0; i < collisionPoints.size(); ++i) {
-			// Get the pixel data for this collision point
-			int x = collisionPoints[i].x;
-			int y = collisionPoints[i].y;
-			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-
 			// Determine collision type
-			std::string collisionType;
-			if (r > 0.5 && b > 0.5) {
-				collisionType = "both";
+			switch (collisionPoints[i].type) {
+			case CollisionPoint::RED:
+				red_count++;
+				break;
+			case CollisionPoint::BLUE:
+				blue_count++;
+				break;
+			case CollisionPoint::BOTH:
+				both_count++;
 				red_count++;
 				blue_count++;
+				break;
+			default:
+				break;
 			}
-			else if (r > 0.5) {
-				collisionType = "red";
-				red_count++;
-			}
-			else if (b > 0.5) {
-				collisionType = "blue";
-				blue_count++;
-			}
-			else {
-				collisionType = "other";
-			}
-
-			std::cout << "Collision at (" << x << ", " << y << ") - Type: " << collisionType << std::endl;
 		}
 
 		// Output collision report
@@ -1121,12 +1233,18 @@ void detectCollisions() {
 		std::cout << "Found " << collisionPoints.size() << " collision points" << std::endl;
 		std::cout << "Red collisions: " << red_count << std::endl;
 		std::cout << "Blue collisions: " << blue_count << std::endl;
+		std::cout << "Both colors: " << both_count << std::endl;
 		std::cout << "===========================" << std::endl;
+
+		// Generate report for stamp-related collisions
+		reportStampCollisions();
 
 		// Reset reporting flag
 		reportCollisions = false;
 	}
 }
+
+
 
 
 
@@ -1791,30 +1909,37 @@ void mouseMotion(int x, int y) {
 
 
 // GLUT keyboard callback
-void keyboard(unsigned char key, int x, int y) {
-	switch (key) {
-	case 'r':
-		red_mode = !red_mode;
-		break;
+void keyboard(unsigned char key, int x, int y) 
+{
+switch (key) {
+case 'r':
+	red_mode = !red_mode;
+	break;
 
-	case 'c':  // Report collisions immediately
-	case 'C':
-		reportCollisions = true;
-		std::cout << "Generating collision report on next frame..." << std::endl;
-		break;
+case 'c':  // Report collisions immediately
+case 'C':
+	reportCollisions = true;
+	std::cout << "Generating collision report on next frame..." << std::endl;
+	break;
 
-	case 'l':  // Load bitmap as stamp
-	case 'L':
-		if (loadStampTexture("obstacle.png")) 
-		{
-			std::cout << "Loaded bitmap as obstacle stamp" << std::endl;
-		}
-		else 
-		{
-			std::cout << "Failed to load bitmap stamp" << std::endl;
-		}
-		break;
+case 'l':  // Load bitmap as stamp
+case 'L':
+	if (loadStampTexture("obstacle.png"))
+	{
+		std::cout << "Loaded bitmap as obstacle stamp" << std::endl;
 	}
+	else
+	{
+		std::cout << "Failed to load bitmap stamp" << std::endl;
+	}
+	break;
+
+case 's':  // Clear current stamp info
+case 'S':
+	currentStamp.active = false;
+	std::cout << "Cleared current stamp information" << std::endl;
+	break;
+}
 }
 
 // GLUT reshape callback
