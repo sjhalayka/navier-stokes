@@ -623,7 +623,6 @@ uniform float time;
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
 float aspect_ratio = WIDTH/HEIGHT;
-float aspect_ratio2 = HEIGHT/WIDTH;
 
 
 
@@ -688,16 +687,18 @@ void main() {
     vec2 adjustedCoord2 = TexCoord;
     
     // For non-square textures, adjust sampling to prevent stretching
-    if (aspect_ratio2 > 1.0) {
-        adjustedCoord2.x = (adjustedCoord2.x - 0.5) / aspect_ratio2 + 0.5;
-    } else if (aspect_ratio2 < 1.0) {
-        adjustedCoord2.y = (adjustedCoord2.y - 0.5) * aspect_ratio2 + 0.5;
+    if (1.0/aspect_ratio > 1.0) {
+        adjustedCoord2.x = (adjustedCoord2.x - 0.5) * aspect_ratio + 0.5;
+    } else if (1.0/aspect_ratio < 1.0) {
+        adjustedCoord2.y = (adjustedCoord2.y - 0.5) / aspect_ratio + 0.5;
     }
 
 
 	vec2 scrolledCoord = adjustedCoord2;
-	scrolledCoord.x += time * 0.05; // Horizontal scrolling - adjust speed as needed
-	// scrolledCoord.y += time * 0.02; // Uncomment for vertical scrolling too
+	scrolledCoord.x += time * 0.01;
+
+
+
 
 	vec4 color1 = texture(backgroundTexture, scrolledCoord);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
@@ -1460,7 +1461,7 @@ void renderToScreen() {
 	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
 
 
-	
+
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -1529,31 +1530,7 @@ void mouseMotion(int x, int y) {
 	mouseY = y;
 }
 
-// GLUT special key callback
-void keyboardSpecial(int key, int x, int y) {
-	switch (key) {
-	case GLUT_KEY_F1:
-		// Reset simulation
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-		// Clear velocity textures
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		// Clear obstacle texture
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		// Clear collision texture
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		break;
-	}
-}
 
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
@@ -1621,7 +1598,6 @@ int main(int argc, char** argv) {
 	glutIdleFunc(idle);
 	glutMouseFunc(mouseButton);
 	glutMotionFunc(mouseMotion);
-	glutSpecialFunc(keyboardSpecial);
 	glutKeyboardFunc(keyboard);
 	glutReshapeFunc(reshape);
 
