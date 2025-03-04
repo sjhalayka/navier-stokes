@@ -28,10 +28,10 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float DT = 1.0f / 60.0f;// 0.1f;            // Time step
+const float DT = 1.0f / 60.0f;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
-const float FORCE = 500.0f;         // Force applied by mouse
+const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
