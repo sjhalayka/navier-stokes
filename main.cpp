@@ -189,7 +189,22 @@ void main() {
     
     // Calculate coordinates in stamp texture
     vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stampSize + vec2(0.5);
-    
+
+    vec2 adjustedCoord = stampCoord;
+
+	ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
+
+	float aspect_ratio = float(obstacle_tex_size.x) / float(obstacle_tex_size.y);
+
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio > 1.0) {
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }    
+
+	stampCoord = adjustedCoord;
+
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
@@ -821,8 +836,6 @@ bool loadStampTexture(const char* filename) {
 	stampTextureLoaded = true;
 	return true;
 }
-
-// Add this function to apply a bitmap stamp to the obstacle texture
 void applyBitmapObstacle() {
 	if (!rightMouseDown || !stampTextureLoaded) return;
 
@@ -831,13 +844,18 @@ void applyBitmapObstacle() {
 
 	glUseProgram(stampObstacleProgram);
 
+	float aspect = HEIGHT / float(WIDTH);
+
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
 
-	// Calculate stamp size in texture coordinates
+	// Apply aspect ratio correction
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+	// Calculate stamp size in texture coordinates, accounting for aspect ratio
 	float stampTexWidth = static_cast<float>(stampWidth) / WIDTH;
-	float stampTexHeight = static_cast<float>(stampHeight) / HEIGHT;
+	float stampTexHeight = static_cast<float>(stampHeight) / HEIGHT * aspect;
 
 	// Adjust position to center stamp on mouse
 	float posX = mousePosX - (stampTexWidth / 2.0f);
@@ -848,7 +866,7 @@ void applyBitmapObstacle() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), posX, posY);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampWidth, stampHeight);
-	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f); // Adjust threshold as needed
+	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
