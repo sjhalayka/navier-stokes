@@ -640,20 +640,6 @@ void main() {
     } else if (aspect_ratio < 1.0) {
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }
-
-    vec2 adjustedCoord2 = TexCoord;
-    
-    // For non-square textures, adjust sampling to prevent stretching
-    if (aspect_ratio2 > 1.0) {
-        adjustedCoord2.x = (adjustedCoord2.x - 0.5) / aspect_ratio2 + 0.5;
-    } else if (aspect_ratio2 < 1.0) {
-        adjustedCoord2.y = (adjustedCoord2.y - 0.5) * aspect_ratio2 + 0.5;
-    }
-
-
-
-
-
     
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
@@ -695,6 +681,17 @@ void main() {
 	// Combine both colors
 	vec4 combinedColor = redFluidColor + blueFluidColor;
     
+
+    vec2 adjustedCoord2 = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio2 > 1.0) {
+        adjustedCoord2.x = (adjustedCoord2.x - 0.5) / aspect_ratio2 + 0.5;
+    } else if (aspect_ratio2 < 1.0) {
+        adjustedCoord2.y = (adjustedCoord2.y - 0.5) * aspect_ratio2 + 0.5;
+    }
+
+
     // Use the color mapping logic as before, but with the combined color
     vec4 color1 = texture(backgroundTexture, adjustedCoord2);//vec4(0.0, 0.0, 0.0, 1.0);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
