@@ -210,8 +210,10 @@ void main() {
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
         
         // Sample stamp texture (use first channel for grayscale images)
-        float stampValue = length(texture(stampTexture, stampCoord).rgb) / 1.732; // Normalize RGB length
+        //float stampValue = length(texture(stampTexture, stampCoord).rgb) / 1.732; // Normalize RGB length
         
+		float stampValue = texture(stampTexture, stampCoord).a;
+
         // Apply threshold to make it binary
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
@@ -1716,10 +1718,12 @@ void keyboard(unsigned char key, int x, int y) {
 
 	case 'l':  // Load bitmap as stamp
 	case 'L':
-		if (loadStampTexture("obstacle.png")) { // Replace with your bitmap filename
+		if (loadStampTexture("obstacle.png")) 
+		{
 			std::cout << "Loaded bitmap as obstacle stamp" << std::endl;
 		}
-		else {
+		else 
+		{
 			std::cout << "Failed to load bitmap stamp" << std::endl;
 		}
 		break;
