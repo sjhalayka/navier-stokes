@@ -836,7 +836,9 @@ bool loadStampTexture(const char* filename) {
 	stampTextureLoaded = true;
 	return true;
 }
-void applyBitmapObstacle() {
+
+void applyBitmapObstacle() 
+{
 	if (!rightMouseDown || !stampTextureLoaded) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -858,8 +860,8 @@ void applyBitmapObstacle() {
 	float stampTexHeight = static_cast<float>(stampHeight) / HEIGHT * aspect;
 
 	// Adjust position to center stamp on mouse
-	float posX = mousePosX - (stampTexWidth / 2.0f);
-	float posY = mousePosY - (stampTexHeight / 2.0f);
+	float posX = mousePosX;// -(stampTexWidth / 2.0f);
+	float posY = mousePosY;// -(stampTexHeight / 2.0f);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
