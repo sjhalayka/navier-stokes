@@ -28,9 +28,9 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float DT = 0.1f;            // Time step
-const float VISCOSITY = 10.0f;     // Fluid viscosity
-const float DIFFUSION = 0.0f;    //  diffusion rate
+const float DT = 1.0f / 60.0f;// 0.1f;            // Time step
+const float VISCOSITY = 0.5f;     // Fluid viscosity
+const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 500.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
@@ -67,6 +67,7 @@ GLuint addObstacleProgram;
 GLuint detectCollisionProgram;
 GLuint addColorProgram;
 GLuint diffuseColorProgram;
+GLuint diffuseVelocityProgram;
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -169,6 +170,62 @@ GLuint stampTexture = 0;
 int stampWidth = 0;
 int stampHeight = 0;
 bool stampTextureLoaded = false;
+
+
+
+
+
+
+const char* diffuseVelocityFragmentShader = R"(
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float viscosity;
+uniform float dt;
+out vec4 FragColor;
+const float fake_dispersion = 0.99;
+
+in vec2 TexCoord;
+
+void main() {
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    // Simple diffusion using 5-point stencil
+    vec2 center = texture(velocityTexture, TexCoord).xy;
+    vec2 left = texture(velocityTexture, TexCoord - vec2(texelSize.x, 0.0)).xy;
+    vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
+    vec2 bottom = texture(velocityTexture, TexCoord - vec2(0.0, texelSize.y)).xy;
+    vec2 top = texture(velocityTexture, TexCoord + vec2(0.0, texelSize.y)).xy;
+    
+    // Check if sampling from obstacles
+    float oLeft = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float oRight = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float oBottom = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float oTop = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+    
+    if (oLeft > 0.0) left = center;
+    if (oRight > 0.0) right = center;
+    if (oBottom > 0.0) bottom = center;
+    if (oTop > 0.0) top = center;
+    
+    // Compute Laplacian
+    vec2 laplacian = (left + right + bottom + top - 4.0 * center);
+    
+    // Apply diffusion
+    vec2 result = center + viscosity * dt * laplacian;
+    
+    FragColor = fake_dispersion*vec4(result, 0.0, 1.0);
+}
+)";
+
+
+
 
 
 // Add this to your shader definitions section
@@ -800,6 +857,8 @@ bool loadStampTexture(const char* filename) {
 
 	// Load image using stb_image
 	int channels;
+
+	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
 
 	if (!data) {
@@ -884,7 +943,32 @@ void applyBitmapObstacle()
 }
 
 
+void diffuseVelocity() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
+	glUseProgram(diffuseVelocityProgram);
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(diffuseVelocityProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(diffuseVelocityProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(diffuseVelocityProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(diffuseVelocityProgram, "viscosity"), VISCOSITY);
+	glUniform1f(glGetUniformLocation(diffuseVelocityProgram, "dt"), DT);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
+}
 
 
 
@@ -1138,7 +1222,7 @@ void initGL() {
 	addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
 	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
 	stampObstacleProgram = createShaderProgram(vertexShaderSource, stampObstacleFragmentShader);
-
+	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
 
 
 	for (int i = 0; i < 2; i++) {
@@ -1576,8 +1660,7 @@ void addColor()
 	}
 }
 
-void simulationStep()
-{
+void simulationStep() {
 	// Add force from mouse interaction
 	addForce();
 
@@ -1589,6 +1672,9 @@ void simulationStep()
 
 	// Advect velocity
 	advectVelocity();
+
+	// Diffuse velocity - add this line
+	diffuseVelocity();
 
 	// Advect both color sets
 	advectColor();
@@ -1606,6 +1692,7 @@ void simulationStep()
 	// Detect collisions between density and obstacles
 	detectCollisions();
 }
+
 
 void renderToScreen() {
 	// Bind default framebuffer (the screen)
@@ -1748,6 +1835,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(diffuseColorProgram);
 	glDeleteProgram(addColorProgram);
 	glDeleteProgram(stampObstacleProgram);
+	glDeleteProgram(diffuseVelocityProgram);
 
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
