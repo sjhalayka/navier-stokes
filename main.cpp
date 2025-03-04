@@ -616,6 +616,9 @@ uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
 uniform sampler2D backgroundTexture;
 uniform vec2 texelSize;
+uniform float time;
+
+
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
@@ -692,8 +695,11 @@ void main() {
     }
 
 
-    // Use the color mapping logic as before, but with the combined color
-    vec4 color1 = texture(backgroundTexture, adjustedCoord2);//vec4(0.0, 0.0, 0.0, 1.0);
+	vec2 scrolledCoord = adjustedCoord2;
+	scrolledCoord.x += time * 0.05; // Horizontal scrolling - adjust speed as needed
+	// scrolledCoord.y += time * 0.02; // Uncomment for vertical scrolling too
+
+	vec4 color1 = texture(backgroundTexture, scrolledCoord);
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
@@ -1441,6 +1447,9 @@ void renderToScreen() {
 	GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
 	glUseProgram(renderProgram);
 
+	static float time = 0.0f;
+	time += 0.016f; // Approximate time for 60fps, adjust as needed
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
 	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
@@ -1448,7 +1457,10 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
 	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
 
+
+	
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
