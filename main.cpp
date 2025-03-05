@@ -36,7 +36,7 @@ const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
-const float COLOR_DETECTION_THRESHOLD = 0.1f;  // How strict the color matching should be
+const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching should be
 
 
 bool red_mode = true;
@@ -937,7 +937,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	float stampMaxY = stamp.posY + halfHeightNorm;
 
 	// Check if point is within stamp bounds (with a small margin)
-	const float margin = 0.02f; // Add a small margin to detect collisions near the stamp
+	const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
 	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
 		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
 
