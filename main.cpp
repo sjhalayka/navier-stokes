@@ -1170,7 +1170,7 @@ void applyBitmapObstacle() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampWidth, stampHeight);
-	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
+	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), COLOR_DETECTION_THRESHOLD);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1315,9 +1315,9 @@ void detectCollisions() {
 
 				if (a > 0.0) {
 					CollisionPoint::Type type;
-					if (r > 0.5 && b > 0.5) type = CollisionPoint::BOTH;
-					else if (r > 0.5) type = CollisionPoint::RED;
-					else if (b > 0.5) type = CollisionPoint::BLUE;
+					if (r > COLOR_DETECTION_THRESHOLD && b > COLOR_DETECTION_THRESHOLD) type = CollisionPoint::BOTH;
+					else if (r > COLOR_DETECTION_THRESHOLD) type = CollisionPoint::RED;
+					else if (b > COLOR_DETECTION_THRESHOLD) type = CollisionPoint::BLUE;
 					else type = CollisionPoint::OTHER;
 
 					collisionPoints.push_back(CollisionPoint(x, y, type));
