@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <map>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -46,12 +47,21 @@ struct StampInfo {
 	bool active;
 	float posX, posY;  // Normalized position (0-1)
 	float width, height;  // In pixels
+	int id;  // Unique ID for the stamp
+	std::string name;  // Name for the stamp (for reporting)
 
-	StampInfo() : active(false), posX(0), posY(0), width(0), height(0) {}
+	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), id(-1), name("") {}
 };
 
-// Add this to the other global variables
-StampInfo currentStamp;
+// Replace the single stamp with a vector of stamps
+// Replace the global currentStamp with:
+std::vector<StampInfo> stamps;
+int nextStampId = 0;  // Counter for assigning unique IDs
+int currentStampIndex = -1;  // Index of the currently selected stamp or -1 if none
+
+std::map<int, GLuint> stampTextures;
+
+
 
 
 
@@ -117,22 +127,6 @@ GLuint loadTexture(const char* filename) {
 	if (!data) {
 		std::cerr << "Failed to load texture: " << filename << std::endl;
 		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-
-		//// Create a default checkerboard pattern as fallback
-		//width = 256;
-		//height = 256;
-		//channels = 3;
-		//unsigned char* fallback = new unsigned char[width * height * channels];
-		//for (int y = 0; y < height; y++) {
-		//	for (int x = 0; x < width; x++) {
-		//		int idx = (y * width + x) * channels;
-		//		bool isEven = ((x / 32) + (y / 32)) % 2 == 0;
-		//		fallback[idx] = isEven ? 200 : 50;     // R
-		//		fallback[idx + 1] = isEven ? 200 : 50; // G
-		//		fallback[idx + 2] = isEven ? 200 : 50; // B
-		//	}
-		//}
-		//data = fallback;
 	}
 
 	// Bind and set texture parameters
@@ -860,18 +854,14 @@ void main() {
 
 
 
-
-bool loadStampTexture(const char* filename) {
-	// Clear previous texture if it exists
-	if (stampTexture != 0) {
-		glDeleteTextures(1, &stampTexture);
-	}
+bool loadStampTexture(const char* filename, const std::string& stampName = "") {
+	GLuint newStampTexture = 0;
+	int newStampWidth = 0, newStampHeight = 0;
 
 	// Load image using stb_image
 	int channels;
-
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
+	unsigned char* data = stbi_load(filename, &newStampWidth, &newStampHeight, &channels, 0);
 
 	if (!data) {
 		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
@@ -880,8 +870,8 @@ bool loadStampTexture(const char* filename) {
 	}
 
 	// Create texture
-	glGenTextures(1, &stampTexture);
-	glBindTexture(GL_TEXTURE_2D, stampTexture);
+	glGenTextures(1, &newStampTexture);
+	glBindTexture(GL_TEXTURE_2D, newStampTexture);
 
 	// Set texture parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -901,17 +891,34 @@ bool loadStampTexture(const char* filename) {
 	}
 
 	// Load texture data to GPU
-	glTexImage2D(GL_TEXTURE_2D, 0, format, stampWidth, stampHeight, 0, format, GL_UNSIGNED_BYTE, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, format, newStampWidth, newStampHeight, 0, format, GL_UNSIGNED_BYTE, data);
 
 	// Free image data
 	stbi_image_free(data);
 
-	stampTextureLoaded = true;
+	// Create a new stamp object
+	StampInfo newStamp;
+	newStamp.width = newStampWidth;
+	newStamp.height = newStampHeight;
+	newStamp.id = nextStampId++;
+	newStamp.name = stampName.empty() ? "Stamp " + std::to_string(newStamp.id) : stampName;
 
-	// Initialize stamp information but don't set it active yet
-	// It will become active when the user places it
-	currentStamp.width = stampWidth;
-	currentStamp.height = stampHeight;
+	// Store the texture ID in a map associated with the stamp ID
+	// Add this as a global variable at the top of the file:
+	// std::map<int, GLuint> stampTextures;
+	stampTextures[newStamp.id] = newStampTexture;
+
+	// Add the new stamp to the vector
+	stamps.push_back(newStamp);
+
+	// Set this as the current stamp
+	currentStampIndex = stamps.size() - 1;
+
+	// Set the global stampTexture for compatibility with existing code
+	stampTexture = newStampTexture;
+	stampWidth = newStampWidth;
+	stampHeight = newStampHeight;
+	stampTextureLoaded = true;
 
 	return true;
 }
@@ -944,77 +951,74 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
 }
 
-void reportStampCollisions() {
-	if (collisionPoints.empty()) return;
+int findStampForCollision(const CollisionPoint& point) {
+	for (int i = 0; i < stamps.size(); i++) {
+		if (stamps[i].active && isCollisionInStamp(point, stamps[i])) {
+			return i;
+		}
+	}
+	return -1;  // No matching stamp
+}
 
-	// Count stamp-related collisions
-	int stampCollisions = 0;
-	int redStampCollisions = 0;
-	int blueStampCollisions = 0;
-	int bothStampCollisions = 0;
+void reportStampCollisions() {
+	if (collisionPoints.empty() || stamps.empty()) return;
 
 	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
 
-	if (!currentStamp.active) {
-		std::cout << "No active stamp found. Use right mouse button to place a stamp." << std::endl;
+	if (stamps.empty()) {
+		std::cout << "No stamps found. Use right mouse button to place stamps." << std::endl;
+		return;
 	}
-	else {
-		// Analyze all collision points
-		for (const auto& point : collisionPoints) {
-			if (isCollisionInStamp(point, currentStamp)) {
-				stampCollisions++;
 
-				// Count by type
-				switch (point.type) {
-				case CollisionPoint::RED:
-					redStampCollisions++;
-					break;
-				case CollisionPoint::BLUE:
-					blueStampCollisions++;
-					break;
-				case CollisionPoint::BOTH:
-					bothStampCollisions++;
-					break;
-				default:
-					break;
-				}
+	// Create a map to store collisions for each stamp
+	std::map<int, std::map<CollisionPoint::Type, int>> stampCollisionCounts;
 
-				// Output detailed information for each stamp collision (optional)
-				std::cout << "Stamp collision at (" << point.x << ", " << point.y
-					<< ") - Type: ";
-
-				switch (point.type) {
-				case CollisionPoint::RED:
-					std::cout << "red";
-					break;
-				case CollisionPoint::BLUE:
-					std::cout << "blue";
-					break;
-				case CollisionPoint::BOTH:
-					std::cout << "both";
-					break;
-				default:
-					std::cout << "other";
-					break;
-				}
-				std::cout << std::endl;
-			}
+	// Initialize counts for all stamps
+	for (const auto& stamp : stamps) {
+		if (stamp.active) {
+			stampCollisionCounts[stamp.id][CollisionPoint::RED] = 0;
+			stampCollisionCounts[stamp.id][CollisionPoint::BLUE] = 0;
+			stampCollisionCounts[stamp.id][CollisionPoint::BOTH] = 0;
+			stampCollisionCounts[stamp.id][CollisionPoint::OTHER] = 0;
 		}
+	}
 
-		// Output summary
-		std::cout << "Stamp position: (" << currentStamp.posX << ", " << currentStamp.posY << ")" << std::endl;
-		std::cout << "Stamp size: " << currentStamp.width << "x" << currentStamp.height << " pixels" << std::endl;
-		std::cout << "Total stamp collisions: " << stampCollisions << std::endl;
-		std::cout << "Red collisions: " << redStampCollisions << std::endl;
-		std::cout << "Blue collisions: " << blueStampCollisions << std::endl;
-		std::cout << "Both colors collisions: " << bothStampCollisions << std::endl;
+	// Count collisions for each stamp
+	for (const auto& point : collisionPoints) {
+		int stampIndex = findStampForCollision(point);
+		if (stampIndex >= 0) {
+			stampCollisionCounts[stamps[stampIndex].id][point.type]++;
+		}
+	}
+
+	// Report collisions for each stamp
+	for (const auto& stamp : stamps) {
+		if (!stamp.active) continue;
+
+		int totalCollisions =
+			stampCollisionCounts[stamp.id][CollisionPoint::RED] +
+			stampCollisionCounts[stamp.id][CollisionPoint::BLUE] +
+			stampCollisionCounts[stamp.id][CollisionPoint::BOTH] +
+			stampCollisionCounts[stamp.id][CollisionPoint::OTHER];
+
+		std::cout << "Stamp " << stamp.id;
+		if (!stamp.name.empty()) std::cout << " (" << stamp.name << ")";
+		std::cout << " at (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
+		std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
+		std::cout << "  Total collisions: " << totalCollisions << std::endl;
+		std::cout << "  Red collisions: " << stampCollisionCounts[stamp.id][CollisionPoint::RED] << std::endl;
+		std::cout << "  Blue collisions: " << stampCollisionCounts[stamp.id][CollisionPoint::BLUE] << std::endl;
+		std::cout << "  Both colors collisions: " << stampCollisionCounts[stamp.id][CollisionPoint::BOTH] << std::endl;
+		std::cout << "--------------------------------" << std::endl;
 	}
 
 	std::cout << "=================================" << std::endl;
 }
-void applyBitmapObstacle()
-{
-	if (!rightMouseDown || !stampTextureLoaded) return;
+
+
+
+void applyBitmapObstacle() {
+	if (!rightMouseDown || !stampTextureLoaded || currentStampIndex < 0) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -1038,30 +1042,30 @@ void applyBitmapObstacle()
 	float posX = mousePosX;
 	float posY = mousePosY;
 
-	// Store current stamp information
-	currentStamp.active = true;
-	currentStamp.posX = posX;
-	currentStamp.posY = posY;
-	currentStamp.width = stampWidth;
-	currentStamp.height = stampHeight;
+	// Update the current stamp information
+	stamps[currentStampIndex].active = true;
+	stamps[currentStampIndex].posX = posX;
+	stamps[currentStampIndex].posY = posY;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), posX, posY);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampWidth, stampHeight);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamps[currentStampIndex].width, stamps[currentStampIndex].height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, stampTexture);
+	glBindTexture(GL_TEXTURE_2D, stampTextures[stamps[currentStampIndex].id]);
 
 	// Render full-screen quad
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
+
+
 
 
 void diffuseVelocity() {
@@ -1912,9 +1916,7 @@ void mouseMotion(int x, int y) {
 
 
 
-// GLUT keyboard callback
-void keyboard(unsigned char key, int x, int y)
-{
+void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 'r':
 		red_mode = !red_mode;
@@ -1927,24 +1929,123 @@ void keyboard(unsigned char key, int x, int y)
 		break;
 
 	case 'l':  // Load bitmap as stamp
-	case 'L':
-		if (loadStampTexture("obstacle.png"))
-		{
-			std::cout << "Loaded bitmap as obstacle stamp" << std::endl;
+	case 'L': {
+		std::string filename = "obstacle.png";
+		std::string stampName = "Default";
+		if (loadStampTexture(filename.c_str(), stampName)) {
+			std::cout << "Loaded bitmap as obstacle stamp: " << stampName << std::endl;
 		}
-		else
-		{
+		else {
 			std::cout << "Failed to load bitmap stamp" << std::endl;
 		}
 		break;
+	}
 
-	case 's':  // Clear current stamp info
+	case '1': case '2': case '3': case '4': case '5':
+	case '6': case '7': case '8': case '9': {
+		// Quick select stamp by number
+		int index = key - '1';
+		if (index >= 0 && index < stamps.size()) {
+			currentStampIndex = index;
+			// Update global variables for compatibility
+			if (stamps[currentStampIndex].active) {
+				stampTexture = stampTextures[stamps[currentStampIndex].id];
+				stampWidth = stamps[currentStampIndex].width;
+				stampHeight = stamps[currentStampIndex].height;
+				stampTextureLoaded = true;
+				std::cout << "Selected stamp: " << stamps[currentStampIndex].name << std::endl;
+			}
+		}
+		break;
+	}
+
+	case 's':  // Create a new variant of the current stamp at a new location
 	case 'S':
-		currentStamp.active = false;
-		std::cout << "Cleared current stamp information" << std::endl;
+		if (currentStampIndex >= 0 && stamps[currentStampIndex].active) {
+			// Clone the current stamp to a new entry
+			StampInfo newStamp = stamps[currentStampIndex];
+			newStamp.id = nextStampId++;
+			newStamp.name = "Copy of " + newStamp.name;
+			newStamp.active = false;  // Will be set to true when placed
+
+			// Copy the texture
+			GLuint newTexture;
+			glGenTextures(1, &newTexture);
+			glBindTexture(GL_TEXTURE_2D, newTexture);
+
+			// Copy parameters from the original
+			glBindTexture(GL_TEXTURE_2D, stampTextures[stamps[currentStampIndex].id]);
+			GLint width, height, format;
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &format);
+
+			// Allocate and copy texture data
+			std::vector<unsigned char> buffer(width * height * 4);
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer.data());
+
+			// Create new texture with the same data
+			glBindTexture(GL_TEXTURE_2D, newTexture);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer.data());
+
+			// Store the new texture
+			stampTextures[newStamp.id] = newTexture;
+
+			// Add the new stamp and make it current
+			stamps.push_back(newStamp);
+			currentStampIndex = stamps.size() - 1;
+
+			// Update globals for compatibility
+			stampTexture = newTexture;
+			std::cout << "Created new stamp: " << newStamp.name << std::endl;
+		}
+		break;
+
+	case 'd':  // Delete the current stamp
+	case 'D':
+		if (currentStampIndex >= 0) {
+			std::cout << "Deleted stamp: " << stamps[currentStampIndex].name << std::endl;
+
+			// Delete the texture
+			glDeleteTextures(1, &stampTextures[stamps[currentStampIndex].id]);
+			stampTextures.erase(stamps[currentStampIndex].id);
+
+			// Remove the stamp
+			stamps.erase(stamps.begin() + currentStampIndex);
+
+			// Update current index
+			if (stamps.empty()) {
+				currentStampIndex = -1;
+				stampTextureLoaded = false;
+			}
+			else {
+				currentStampIndex = std::min(currentStampIndex, (int)stamps.size() - 1);
+				// Update global variables
+				stampTexture = stampTextures[stamps[currentStampIndex].id];
+				stampWidth = stamps[currentStampIndex].width;
+				stampHeight = stamps[currentStampIndex].height;
+			}
+		}
+		break;
+
+	case 'p':  // Print list of stamps
+	case 'P':
+		std::cout << "\n===== Stamp List =====" << std::endl;
+		for (int i = 0; i < stamps.size(); i++) {
+			std::cout << i + 1 << ". " << stamps[i].name
+				<< (stamps[i].active ? " (placed)" : " (not placed)");
+			if (i == currentStampIndex) std::cout << " *CURRENT*";
+			std::cout << std::endl;
+		}
+		std::cout << "======================" << std::endl;
 		break;
 	}
 }
+
 
 // GLUT reshape callback
 void reshape(int w, int h) {
