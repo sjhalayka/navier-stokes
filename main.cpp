@@ -58,7 +58,6 @@ StampInfo currentStamp;
 // OpenGL variables
 GLuint velocityTexture[2];
 GLuint pressureTexture[2];
-
 GLuint divergenceTexture;
 GLuint obstacleTexture;
 GLuint collisionTexture;
@@ -80,8 +79,6 @@ GLuint detectCollisionProgram;
 GLuint addColorProgram;
 GLuint diffuseColorProgram;
 GLuint diffuseVelocityProgram;
-GLuint stampOverlayProgram;
-
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -120,21 +117,6 @@ GLuint loadTexture(const char* filename) {
 	if (!data) {
 		std::cerr << "Failed to load texture: " << filename << std::endl;
 		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-
-		//for (int y = 0; y < height; y++) 
-		//{
-		//	for (int x = 0; x < width; x++)
-		//	{
-		//		size_t index = (y * width + x) * channels;
-		//		
-		//		size_t red_temp = data[index + 0];
-		//		size_t blue_temp = data[index + 2];
-
-		//		data[index + 0] = blue_temp;
-		//		data[index + 2] = red_temp;
-		//	}
-		//}
-
 
 		//// Create a default checkerboard pattern as fallback
 		//width = 256;
@@ -202,43 +184,6 @@ bool stampTextureLoaded = false;
 
 
 
-
-
-const char* stampOverlayFragmentShader = R"(
-#version 330 core
-uniform sampler2D stampTexture;
-uniform float threshold;
-
-out vec4 FragColor;
-
-in vec2 TexCoord;
-
-void main() {
-    // Sample stamp texture directly using texture coordinates
-    vec4 stampValue = texture(stampTexture, TexCoord);
-    
-FragColor = stampValue;
-return;
-
-    // Apply threshold to make it binary
-    if (stampValue.a > threshold) {
-        // Draw a semi-transparent border
-        float borderWidth = 0.05; // Border width in texture space
-        
-        // Check if we're near the edge of a non-transparent area
-        if (TexCoord.x < borderWidth || TexCoord.x > 1.0 - borderWidth || 
-            TexCoord.y < borderWidth || TexCoord.y > 1.0 - borderWidth) {
-            FragColor = vec4(1.0, 1.0, 0.0, 0.8); // Yellow border
-        } else {
-            // Inner part of stamp - make it semi-transparent
-            FragColor = vec4(1.0, 1.0, 0.0, 0.3); // Light yellow fill
-        }
-    } else {
-        // Transparent parts of stamp
-        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-    }
-}
-)";
 
 
 
@@ -311,7 +256,9 @@ void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
     // Calculate coordinates in stamp texture
-    vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stampSize + vec2(0.5);
+	vec2 stamp_size = textureSize(stampTexture, 0)/2;
+
+    vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
 
     vec2 adjustedCoord = stampCoord;
 
@@ -922,7 +869,7 @@ bool loadStampTexture(const char* filename) {
 
 	// Load image using stb_image
 	int channels;
-		
+
 	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
 
@@ -1282,16 +1229,19 @@ void detectCollisions() {
 			}
 		}
 
-		// Output collision report
-		std::cout << "===== Collision Report =====" << std::endl;
-		std::cout << "Found " << collisionPoints.size() << " collision points" << std::endl;
-		std::cout << "Red collisions: " << red_count << std::endl;
-		std::cout << "Blue collisions: " << blue_count << std::endl;
-		std::cout << "Both colors: " << both_count << std::endl;
-		std::cout << "===========================" << std::endl;
+		if (collisionPoints.size() > 0)
+		{
+			// Output collision report
+			std::cout << "===== Collision Report =====" << std::endl;
+			std::cout << "Found " << collisionPoints.size() << " collision points" << std::endl;
+			std::cout << "Red collisions: " << red_count << std::endl;
+			std::cout << "Blue collisions: " << blue_count << std::endl;
+			std::cout << "Both colors: " << both_count << std::endl;
+			std::cout << "===========================" << std::endl;
 
-		// Generate report for stamp-related collisions
-		reportStampCollisions();
+			// Generate report for stamp-related collisions
+			reportStampCollisions();
+		}
 
 		// Reset reporting flag
 		reportCollisions = false;
@@ -1395,7 +1345,6 @@ void initGL() {
 	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
 	stampObstacleProgram = createShaderProgram(vertexShaderSource, stampObstacleFragmentShader);
 	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
-	stampOverlayProgram = createShaderProgram(vertexShaderSource, stampOverlayFragmentShader);
 
 
 	for (int i = 0; i < 2; i++) {
@@ -1867,7 +1816,6 @@ void simulationStep() {
 }
 
 
-
 void renderToScreen() {
 	// Bind default framebuffer (the screen)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1892,6 +1840,8 @@ void renderToScreen() {
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
 
+
+
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -1908,39 +1858,10 @@ void renderToScreen() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Now render the stamp overlay if it's active
-	if (currentStamp.active && stampTextureLoaded) {
-		// Enable blending for the overlay
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		// Use stamp overlay shader program
-		glUseProgram(stampOverlayProgram);
-
-		float aspect = HEIGHT / float(WIDTH);
-
-		// Set uniforms
-		glUniform1i(glGetUniformLocation(stampOverlayProgram, "stampTexture"), 0);
-		glUniform2f(glGetUniformLocation(stampOverlayProgram, "position"), currentStamp.posX, currentStamp.posY);
-		glUniform2f(glGetUniformLocation(stampOverlayProgram, "stampSize"), currentStamp.width, currentStamp.height);
-		glUniform1f(glGetUniformLocation(stampOverlayProgram, "threshold"), 0.5f);
-		glUniform2f(glGetUniformLocation(stampOverlayProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-		// Bind stamp texture
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, stampTexture);
-
-		// Render full-screen quad again (but with blending)
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-		// Disable blending when done
-		glDisable(GL_BLEND);
-	}
-
 	// Cleanup
 	glDeleteProgram(renderProgram);
 }
+
 
 
 // GLUT display callback
