@@ -54,7 +54,7 @@ struct StampInfo {
 };
 
 // Add this to the other global variables
-std::vector<StampInfo> stamps; 
+std::vector<StampInfo> stamps;
 //StampInfo currentStamp;
 
 
@@ -241,9 +241,6 @@ void main() {
 
 
 
-
-
-// Add this to your shader definitions section
 const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
@@ -260,15 +257,15 @@ void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
     // Calculate coordinates in stamp texture
-	vec2 stamp_size = textureSize(stampTexture, 0)/2;
+    vec2 stamp_size = textureSize(stampTexture, 0)/2;
 
     vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
 
     vec2 adjustedCoord = stampCoord;
 
-	ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
+    ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
 
-	float aspect_ratio = float(obstacle_tex_size.x) / float(obstacle_tex_size.y);
+    float aspect_ratio = float(obstacle_tex_size.x) / float(obstacle_tex_size.y);
 
     // For non-square textures, adjust sampling to prevent stretching
     if (aspect_ratio > 1.0) {
@@ -277,27 +274,29 @@ void main() {
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }    
 
-	stampCoord = adjustedCoord;
+    stampCoord = adjustedCoord;
 
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
         
-        // Sample stamp texture (use first channel for grayscale images)
-        //float stampValue = length(texture(stampTexture, stampCoord).rgb) / 1.732; // Normalize RGB length
-        
-		float stampValue = texture(stampTexture, stampCoord).a;
+        float stampValue = texture(stampTexture, stampCoord).a;
 
         // Apply threshold to make it binary
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
-        // Combine with existing obstacle (using max for union)
+        // CRITICAL: Combine with existing obstacle using max for union
+        // This ensures we preserve all obstacles when adding a new one
         obstacle = max(obstacle, stampValue);
     }
     
     FragColor = obstacle;
 }
 )";
+
+
+
+
 
 
 
@@ -914,7 +913,6 @@ bool loadStampTexture(const char* filename) {
 }
 
 
-
 bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active) return false;
 
@@ -938,23 +936,9 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 
 	// Check if point is within stamp bounds (with a small margin)
 	const float margin = 0.02f; // Add a small margin to detect collisions near the stamp
-	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
+	return (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
 		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
-
-	// Optional debugging: uncomment to see detailed coordinate comparisons
-	/*
-	if (isInStamp) {
-		std::cout << "Collision point (" << point.x << "," << point.y << ") -> normalized ("
-				  << pointX << "," << pointY << ") is within stamp at ("
-				  << stamp.posX << "," << stamp.posY << ") with bounds ["
-				  << stampMinX - margin << "," << stampMaxX + margin << "] x ["
-				  << stampMinY - margin << "," << stampMaxY + margin << "]" << std::endl;
-	}
-	*/
-
-	return isInStamp;
 }
-
 
 
 void reportStampCollisions() {
@@ -1044,28 +1028,69 @@ void reportStampCollisions() {
 
 
 
-void applyBitmapObstacle() {
-	if (!rightMouseDown || !stampTextureLoaded) return;
 
+void rebuildObstacleTexture() {
+	// Skip if no stamps or texture not loaded
+	if (stamps.empty() || !stampTextureLoaded) return;
+
+	// Bind the FBO for rendering to obstacle texture
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
 
+	// Clear the obstacle texture first
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// Set up shader for rendering stamps
 	glUseProgram(stampObstacleProgram);
 
-	float aspect = HEIGHT / float(WIDTH);
+	// Process each stamp
+	for (size_t i = 0; i < stamps.size(); i++) {
+		const auto& stamp = stamps[i];
+		if (!stamp.active) continue;
 
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
+		// Set uniforms for this stamp
+		glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
+		glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
+		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
+		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
+		glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 
-	// Apply aspect ratio correction
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+		// Bind textures
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, stampTexture);
 
-	// Create a new stamp info and add it to the vector
-	// Only create a new stamp when the mouse is first pressed
+		// Render full-screen quad to add this stamp
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
 
-	if (rightMouseDown && !lastRightMouseDown) 
-	{
+	// Return to default framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+
+
+
+
+void applyBitmapObstacle() {
+	if (!stampTextureLoaded) return;
+
+	// Add a new stamp when right mouse button is first pressed
+	if (rightMouseDown && !lastRightMouseDown) {
+		float aspect = HEIGHT / float(WIDTH);
+
+		// Get normalized mouse position (0 to 1 range)
+		float mousePosX = mouseX / (float)WIDTH;
+		float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
+
+		// Apply aspect ratio correction
+		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+		// Create a new stamp and add it to the vector
 		StampInfo newStamp;
 		newStamp.active = true;
 		newStamp.posX = mousePosX;
@@ -1076,27 +1101,14 @@ void applyBitmapObstacle() {
 
 		std::cout << "Added new stamp #" << stamps.size() << " at position ("
 			<< mousePosX << ", " << mousePosY << ")" << std::endl;
+
+		// Ensure the obstacle texture is rebuilt entirely
+		rebuildObstacleTexture();
 	}
 
 	lastRightMouseDown = rightMouseDown;
-
-	// Set uniforms for rendering the stamp
-	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampWidth, stampHeight);
-	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, stampTexture);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
+
 
 
 
@@ -1709,6 +1721,10 @@ void addForce() {
 	prevMouseY = mouseY;
 }
 
+
+
+
+
 void updateObstacle() {
 	if (!rightMouseDown) return;
 
@@ -1749,6 +1765,10 @@ void updateObstacle() {
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 }
+
+
+
+
 
 
 void addColor()
@@ -1934,11 +1954,11 @@ void mouseButton(int button, int state, int x, int y) {
 	prevMouseX = x;
 	prevMouseY = y;
 
-	if (button == GLUT_LEFT_BUTTON) 
+	if (button == GLUT_LEFT_BUTTON)
 	{
 		mouseDown = (state == GLUT_DOWN);
 	}
-	else if (button == GLUT_RIGHT_BUTTON) 
+	else if (button == GLUT_RIGHT_BUTTON)
 	{
 		if (state == GLUT_UP)
 			lastRightMouseDown = false;
@@ -1984,6 +2004,13 @@ void keyboard(unsigned char key, int x, int y) {
 	case 'S':
 		if (!stamps.empty()) {
 			stamps.clear();
+			// Clear obstacle texture
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 			std::cout << "Cleared all stamps" << std::endl;
 		}
 		else {
@@ -1997,6 +2024,8 @@ void keyboard(unsigned char key, int x, int y) {
 			stamps.pop_back();
 			std::cout << "Removed the most recent stamp. "
 				<< stamps.size() << " stamps remaining." << std::endl;
+			// Rebuild obstacle texture with remaining stamps
+			rebuildObstacleTexture();
 		}
 		else {
 			std::cout << "No stamps to remove" << std::endl;
@@ -2015,6 +2044,7 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 	}
 }
+
 
 
 
@@ -2054,47 +2084,49 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &backgroundTexture);
 
 	initGL();
+
+	rebuildObstacleTexture();
 }
 void printInstructions() {
-    std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
-    std::cout << "Right Mouse Button: Add obstacles/stamps" << std::endl;
-    std::cout << "F1: Reset simulation" << std::endl;
-    std::cout << "R: Toggle between red and blue color modes" << std::endl;
-    std::cout << "C: Generate collision report immediately" << std::endl;
-    std::cout << "L: Load bitmap as obstacle stamp" << std::endl;
-    std::cout << "S: Clear all stamps" << std::endl;
-    std::cout << "X: Remove the most recent stamp" << std::endl;
-    std::cout << "ESC: Exit" << std::endl;
-    std::cout << "Highlights show colour-obstacle collisions" << std::endl;
-    std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
+	std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
+	std::cout << "-----------------------------------" << std::endl;
+	std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
+	std::cout << "Right Mouse Button: Add obstacles/stamps" << std::endl;
+	std::cout << "F1: Reset simulation" << std::endl;
+	std::cout << "R: Toggle between red and blue color modes" << std::endl;
+	std::cout << "C: Generate collision report immediately" << std::endl;
+	std::cout << "L: Load bitmap as obstacle stamp" << std::endl;
+	std::cout << "S: Clear all stamps" << std::endl;
+	std::cout << "X: Remove the most recent stamp" << std::endl;
+	std::cout << "ESC: Exit" << std::endl;
+	std::cout << "Highlights show colour-obstacle collisions" << std::endl;
+	std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
 }
 
 // Then update the main function to call this instead of printing directly
 int main(int argc, char** argv) {
-    // Initialize GLUT
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
-    glutInitWindowSize(WIDTH, HEIGHT);
-    glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
+	// Initialize GLUT
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+	glutInitWindowSize(WIDTH, HEIGHT);
+	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
-    // Initialize OpenGL
-    initGL();
+	// Initialize OpenGL
+	initGL();
 
-    // Register callbacks
-    glutDisplayFunc(display);
-    glutIdleFunc(idle);
-    glutMouseFunc(mouseButton);
-    glutMotionFunc(mouseMotion);
-    glutKeyboardFunc(keyboard);
-    glutReshapeFunc(reshape);
+	// Register callbacks
+	glutDisplayFunc(display);
+	glutIdleFunc(idle);
+	glutMouseFunc(mouseButton);
+	glutMotionFunc(mouseMotion);
+	glutKeyboardFunc(keyboard);
+	glutReshapeFunc(reshape);
 
-    // Print instructions
-    printInstructions();
+	// Print instructions
+	printInstructions();
 
-    // Main loop
-    glutMainLoop();
+	// Main loop
+	glutMainLoop();
 
-    return 0;
-}
+	return 0;
+} 
