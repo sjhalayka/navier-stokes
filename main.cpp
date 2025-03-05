@@ -33,7 +33,7 @@ const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
+const float COLLISION_THRESHOLD = 0.95f; // Threshold for color-obstacle collision
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching should be
