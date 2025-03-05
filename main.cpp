@@ -43,15 +43,22 @@ bool red_mode = true;
 
 bool lastRightMouseDown = false;
 
-
+std::vector<unsigned char> currentStampData;
+int currentStampChannels = 0;
 
 struct StampInfo {
 	bool active;
 	float posX, posY;  // Normalized position (0-1)
 	float width, height;  // In pixels
+	std::vector<unsigned char> pixelData;  // Raw pixel data from the stamp texture
+	int channels;  // Number of channels in the image (e.g., 4 for RGBA)
 
-	StampInfo() : active(false), posX(0), posY(0), width(0), height(0) {}
+	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), channels(0) {}
 };
+
+
+
+
 
 // Add this to the other global variables
 std::vector<StampInfo> stamps;
@@ -863,7 +870,6 @@ void main() {
 
 
 
-
 bool loadStampTexture(const char* filename) {
 	// Clear previous texture if it exists
 	if (stampTexture != 0) {
@@ -881,6 +887,12 @@ bool loadStampTexture(const char* filename) {
 		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
 		return false;
 	}
+
+	// Save the stamp data for use in collision detection
+	size_t dataSize = stampWidth * stampHeight * channels;
+	currentStampData.resize(dataSize);
+	std::memcpy(currentStampData.data(), data, dataSize);
+	currentStampChannels = channels;
 
 	// Create texture
 	glGenTextures(1, &stampTexture);
@@ -910,50 +922,131 @@ bool loadStampTexture(const char* filename) {
 	stbi_image_free(data);
 
 	stampTextureLoaded = true;
+
+	std::cout << "Loaded stamp texture: " << stampWidth << "x" << stampHeight << " with "
+		<< channels << " channels, data size: " << dataSize << " bytes" << std::endl;
+
 	return true;
 }
 
-
-
+//
+//
 bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
-	if (!stamp.active) return false;
+	if (!stamp.active || stamp.pixelData.empty()) return false;
+		float aspect = HEIGHT / float(WIDTH);
+	
+		// Convert pixel coordinates to normalized coordinates (0-1)
+		float pointX = point.x / (float)WIDTH;
+		float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
+	
+		// Apply aspect ratio correction to y-coordinate
+		pointY = (pointY - 0.5f) * aspect + 0.5f;
+	
+		// Calculate stamp bounds in normalized coordinates
+		float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+		float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+	
+		float stampMinX = stamp.posX - halfWidthNorm;
+		float stampMaxX = stamp.posX + halfWidthNorm;
+		float stampMinY = stamp.posY - halfHeightNorm;
+		float stampMaxY = stamp.posY + halfHeightNorm;
+	
+		// Check if point is within stamp bounds (with a small margin)
+		const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
+		bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
+			pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
+	
+		return isInStamp;
 
-	float aspect = HEIGHT / float(WIDTH);
 
-	// Convert pixel coordinates to normalized coordinates (0-1)
-	float pointX = point.x / (float)WIDTH;
-	float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
+	
+	// Convert the normalized coordinates to pixel coordinates within the stamp
+	float normalizedU = (pointX - stampMinX) / (stampMaxX - stampMinX);
+	float normalizedV = (pointY - stampMinY) / (stampMaxY - stampMinY);
 
-	// Apply aspect ratio correction to y-coordinate
-	pointY = (pointY - 0.5f) * aspect + 0.5f;
+	// Convert to pixel coordinates in the stamp texture
+	int stampPixelX = static_cast<int>(normalizedU * stamp.width);
+	int stampPixelY = static_cast<int>((1.0f - normalizedV) * stamp.height); // Invert Y for image coordinates
 
-	// Calculate stamp bounds in normalized coordinates
-	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
-	float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+	// Clamp to valid pixel coordinates
+	stampPixelX = std::max(0, std::min(stampPixelX, static_cast<int>(stamp.width) - 1));
+	stampPixelY = std::max(0, std::min(stampPixelY, static_cast<int>(stamp.height) - 1));
 
-	float stampMinX = stamp.posX - halfWidthNorm;
-	float stampMaxX = stamp.posX + halfWidthNorm;
-	float stampMinY = stamp.posY - halfHeightNorm;
-	float stampMaxY = stamp.posY + halfHeightNorm;
+	// Calculate the index in the pixel data
+	int pixelIndex = (stampPixelY * static_cast<int>(stamp.width) + stampPixelX) * stamp.channels;
 
-	// Check if point is within stamp bounds (with a small margin)
-	const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
-	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
-		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
-
-	// Optional debugging: uncomment to see detailed coordinate comparisons
-	/*
-	if (isInStamp) {
-		std::cout << "Collision point (" << point.x << "," << point.y << ") -> normalized ("
-				  << pointX << "," << pointY << ") is within stamp at ("
-				  << stamp.posX << "," << stamp.posY << ") with bounds ["
-				  << stampMinX - margin << "," << stampMaxX + margin << "] x ["
-				  << stampMinY - margin << "," << stampMaxY + margin << "]" << std::endl;
+	// Make sure the index is valid
+	if (pixelIndex + stamp.channels - 1 >= stamp.pixelData.size()) {
+		std::cerr << "Warning: Invalid pixel index in isCollisionInStamp" << std::endl;
+		return false;
 	}
-	*/
 
-	return isInStamp;
+	// For RGBA images, check the alpha channel (4th byte)
+	if (stamp.channels == 4) {
+		// Alpha channel is usually the 4th byte
+		unsigned char alpha = stamp.pixelData[pixelIndex + 3];
+		return alpha > 0; // Alpha > 0.5
+	}
+	// For RGB images, check if the color is not black
+	else if (stamp.channels == 3) {
+		// Check average color intensity
+		unsigned char r = stamp.pixelData[pixelIndex];
+		unsigned char g = stamp.pixelData[pixelIndex + 1];
+		unsigned char b = stamp.pixelData[pixelIndex + 2];
+		int sum = r + g + b;
+		return sum > 127 * 3 / 2; // Average color intensity > 0.5
+	}
+	// For grayscale images
+	else if (stamp.channels == 1) {
+		unsigned char gray = stamp.pixelData[pixelIndex];
+		return gray > 127; // Grayscale > 0.5
+	}
+
+	// Default fallback - if we can't determine, use the bounding box check we already passed
+	return true;
 }
+
+//
+//bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
+//	if (!stamp.active) return false;
+//
+//	float aspect = HEIGHT / float(WIDTH);
+//
+//	// Convert pixel coordinates to normalized coordinates (0-1)
+//	float pointX = point.x / (float)WIDTH;
+//	float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
+//
+//	// Apply aspect ratio correction to y-coordinate
+//	pointY = (pointY - 0.5f) * aspect + 0.5f;
+//
+//	// Calculate stamp bounds in normalized coordinates
+//	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+//	float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+//
+//	float stampMinX = stamp.posX - halfWidthNorm;
+//	float stampMaxX = stamp.posX + halfWidthNorm;
+//	float stampMinY = stamp.posY - halfHeightNorm;
+//	float stampMaxY = stamp.posY + halfHeightNorm;
+//
+//	// Check if point is within stamp bounds (with a small margin)
+//	const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
+//	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
+//		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
+//
+//
+//	// Optional debugging: uncomment to see detailed coordinate comparisons
+//	/*
+//	if (isInStamp) {
+//		std::cout << "Collision point (" << point.x << "," << point.y << ") -> normalized ("
+//				  << pointX << "," << pointY << ") is within stamp at ("
+//				  << stamp.posX << "," << stamp.posY << ") with bounds ["
+//				  << stampMinX - margin << "," << stampMaxX + margin << "] x ["
+//				  << stampMinY - margin << "," << stampMaxY + margin << "]" << std::endl;
+//	}
+//	*/
+//
+//	return isInStamp;
+//}
 
 
 
@@ -1043,7 +1136,6 @@ void reportStampCollisions() {
 
 
 
-
 void applyBitmapObstacle() {
 	if (!rightMouseDown || !stampTextureLoaded) return;
 
@@ -1063,7 +1155,6 @@ void applyBitmapObstacle() {
 
 	// Create a new stamp info and add it to the vector
 	// Only create a new stamp when the mouse is first pressed
-
 	if (rightMouseDown && !lastRightMouseDown)
 	{
 		StampInfo newStamp;
@@ -1072,10 +1163,17 @@ void applyBitmapObstacle() {
 		newStamp.posY = mousePosY;
 		newStamp.width = stampWidth;
 		newStamp.height = stampHeight;
+
+		// Copy the pixel data from the current loaded stamp
+		newStamp.pixelData = currentStampData;
+		newStamp.channels = currentStampChannels;
+
 		stamps.push_back(newStamp);
 
 		std::cout << "Added new stamp #" << stamps.size() << " at position ("
-			<< mousePosX << ", " << mousePosY << ")" << std::endl;
+			<< mousePosX << ", " << mousePosY << ") with "
+			<< newStamp.channels << " channels and "
+			<< newStamp.pixelData.size() << " bytes of pixel data" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
@@ -1097,6 +1195,9 @@ void applyBitmapObstacle() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
+
+
+
 
 
 
