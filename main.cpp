@@ -869,7 +869,6 @@ void main() {
 )";
 
 
-
 bool loadStampTexture(const char* filename) {
 	// Clear previous texture if it exists
 	if (stampTexture != 0) {
@@ -878,7 +877,6 @@ bool loadStampTexture(const char* filename) {
 
 	// Load image using stb_image
 	int channels;
-
 	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
 
@@ -929,37 +927,38 @@ bool loadStampTexture(const char* filename) {
 	return true;
 }
 
-//
-//
+
+
 bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active || stamp.pixelData.empty()) return false;
-		float aspect = HEIGHT / float(WIDTH);
-	
-		// Convert pixel coordinates to normalized coordinates (0-1)
-		float pointX = point.x / (float)WIDTH;
-		float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
-	
-		// Apply aspect ratio correction to y-coordinate
-		pointY = (pointY - 0.5f) * aspect + 0.5f;
-	
-		// Calculate stamp bounds in normalized coordinates
-		float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
-		float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
-	
-		float stampMinX = stamp.posX - halfWidthNorm;
-		float stampMaxX = stamp.posX + halfWidthNorm;
-		float stampMinY = stamp.posY - halfHeightNorm;
-		float stampMaxY = stamp.posY + halfHeightNorm;
-	
-		// Check if point is within stamp bounds (with a small margin)
-		const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
-		bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
-			pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
-	
-		return isInStamp;
+	float aspect = HEIGHT / float(WIDTH);
 
+	// Convert pixel coordinates to normalized coordinates (0-1)
+	float pointX = point.x / (float)WIDTH;
+	float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
 
-	
+	// Apply aspect ratio correction to y-coordinate
+	pointY = (pointY - 0.5f) * aspect + 0.5f;
+
+	// Calculate stamp bounds in normalized coordinates
+	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+	float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+
+	float stampMinX = stamp.posX - halfWidthNorm;
+	float stampMaxX = stamp.posX + halfWidthNorm;
+	float stampMinY = stamp.posY - halfHeightNorm;
+	float stampMaxY = stamp.posY + halfHeightNorm;
+
+	// Check if point is within stamp bounds (with a small margin)
+	const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
+	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
+		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
+
+	return isInStamp;
+
+	// Only proceed with per-pixel collision detection if the point is within bounds
+	if (!isInStamp) return false;
+
 	// Convert the normalized coordinates to pixel coordinates within the stamp
 	float normalizedU = (pointX - stampMinX) / (stampMaxX - stampMinX);
 	float normalizedV = (pointY - stampMinY) / (stampMaxY - stampMinY);
@@ -983,13 +982,11 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 
 	// For RGBA images, check the alpha channel (4th byte)
 	if (stamp.channels == 4) {
-		// Alpha channel is usually the 4th byte
 		unsigned char alpha = stamp.pixelData[pixelIndex + 3];
-		return alpha > 0; // Alpha > 0.5
+		return alpha > 127; // Alpha > 0.5
 	}
 	// For RGB images, check if the color is not black
 	else if (stamp.channels == 3) {
-		// Check average color intensity
 		unsigned char r = stamp.pixelData[pixelIndex];
 		unsigned char g = stamp.pixelData[pixelIndex + 1];
 		unsigned char b = stamp.pixelData[pixelIndex + 2];
@@ -1005,6 +1002,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	// Default fallback - if we can't determine, use the bounding box check we already passed
 	return true;
 }
+
 
 //
 //bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
