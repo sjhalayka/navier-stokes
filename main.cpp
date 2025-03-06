@@ -740,7 +740,7 @@ void main() {
         bool blueCollision = (maxBlue > colorThreshold);
         
         // Set collision with specific type information
-		// keep track of fire-smoke alpha. less alpha, less damage per second
+		// keep track of fire-smoke intensity. less intense, less damage per second
         if (redCollision && blueCollision) {
             // Both red and blue collided
             FragColor = vec4(maxRed, 0.0, maxBlue, 1.0); // Magenta for both
@@ -1303,7 +1303,7 @@ void reportStampCollisions() {
 				stampCollisions++;
 				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
 
-				// keep track of fire-smoke alpha. less alpha, less damage per second
+				// keep track of fire-smoke intensity. less intense, less damage per second
 				cout << "RED: " << point.r << endl;
 				cout << "BLUE: " << point.b << endl;
 
