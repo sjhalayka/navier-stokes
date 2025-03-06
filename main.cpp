@@ -44,16 +44,16 @@ bool red_mode = true;
 bool lastRightMouseDown = false;
 
 
-
 struct StampTexture {
 	GLuint textureID;
 	int width;
 	int height;
 	std::string filename;
+	std::vector<unsigned char> pixelData;  // Added to store the raw pixel data
+	int channels;  // Store the number of channels (needed for pixel access)
 
-	StampTexture() : textureID(0), width(0), height(0) {}
+	StampTexture() : textureID(0), width(0), height(0), channels(0) {}
 };
-
 
 std::vector<StampTexture> stampTextures;
 int currentStampIndex = 0;
@@ -876,17 +876,35 @@ void main() {
 }
 )";
 
-bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
-	// Load image using stb_image
-	int channels;
 
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(filename, &stampTex.width, &stampTex.height, &channels, 0);
+
+
+bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
+	// Load image using stb_image - Don't flip vertically for our pixel data
+	// We'll need to be consistent with the orientation when sampling
+	stbi_set_flip_vertically_on_load(false);  // Load in regular orientation for our data
+	unsigned char* data = stbi_load(filename, &stampTex.width, &stampTex.height, &stampTex.channels, 0);
 
 	if (!data) {
 		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
 		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
 		return false;
+	}
+
+	// Store the pixel data in the StampTexture struct
+	int dataSize = stampTex.width * stampTex.height * stampTex.channels;
+	stampTex.pixelData.resize(dataSize);
+	std::memcpy(stampTex.pixelData.data(), data, dataSize);
+
+	// Now set flip for OpenGL texture loading
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* glData = stbi_load(filename, &stampTex.width, &stampTex.height, &stampTex.channels, 0);
+
+	if (!glData) {
+		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
+		// If we fail to reload, use the original data for OpenGL too
+		glData = data;
+		stbi_set_flip_vertically_on_load(false);  // Reset the flag
 	}
 
 	// Create texture
@@ -901,22 +919,49 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 
 	// Determine format based on channels
 	GLenum format;
-	switch (channels) {
+	switch (stampTex.channels) {
 	case 1: format = GL_RED; break;
 	case 3: format = GL_RGB; break;
 	case 4: format = GL_RGBA; break;
 	default:
 		format = GL_RGB;
-		std::cerr << "Unsupported number of channels: " << channels << std::endl;
+		std::cerr << "Unsupported number of channels: " << stampTex.channels << std::endl;
 	}
 
 	// Load texture data to GPU
-	glTexImage2D(GL_TEXTURE_2D, 0, format, stampTex.width, stampTex.height, 0, format, GL_UNSIGNED_BYTE, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, format, stampTex.width, stampTex.height, 0, format, GL_UNSIGNED_BYTE, glData);
 
-	// Free image data
+	// Free image data - we've already copied what we need
+	if (glData != data) {
+		stbi_image_free(glData);
+	}
 	stbi_image_free(data);
 
+	// Reset the flip flag to its default
+	stbi_set_flip_vertically_on_load(true);
+
 	return true;
+}
+
+
+
+
+unsigned char getPixelValueFromStampTexture(const StampTexture& texture, int x, int y, int channel) {
+	// Make sure coordinates are within bounds
+	if (x < 0 || x >= texture.width || y < 0 || y >= texture.height ||
+		channel < 0 || channel >= texture.channels) {
+		return 0;
+	}
+
+	// Calculate the index in the pixel data array
+	int index = (y * texture.width + x) * texture.channels + channel;
+
+	// Make sure the index is within bounds
+	if (index < 0 || index >= texture.pixelData.size()) {
+		return 0;
+	}
+
+	return texture.pixelData[index];
 }
 
 bool loadStampTextures() {
@@ -1029,7 +1074,6 @@ bool loadStampTexture(const char* filename) {
 
 
 
-
 bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active || stampTextures.empty()) return false;
 
@@ -1038,32 +1082,126 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 		return false;
 	}
 
+	const StampTexture& stampTex = stampTextures[stamp.textureIndex];
+	if (stampTex.pixelData.empty()) {
+		// No pixel data available, fall back to the original bounding box check
+		float aspect = HEIGHT / float(WIDTH);
+
+		// Convert pixel coordinates to normalized coordinates (0-1)
+		float pointX = point.x / (float)WIDTH;
+		float pointY = (point.y / (float)HEIGHT); // Y is already in screen coordinates
+
+		// Apply aspect ratio correction to y-coordinate
+		pointY = (pointY - 0.5f) * aspect + 0.5f;
+
+		// Calculate stamp bounds in normalized coordinates
+		float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+		float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+
+		float stampMinX = stamp.posX - halfWidthNorm;
+		float stampMaxX = stamp.posX + halfWidthNorm;
+		float stampMinY = stamp.posY - halfHeightNorm;
+		float stampMaxY = stamp.posY + halfHeightNorm;
+
+		// Simple bounding box check
+		return (pointX >= stampMinX && pointX <= stampMaxX &&
+			pointY >= stampMinY && pointY <= stampMaxY);
+	}
+
+	// Get the normalized stamp position (0-1 in screen space)
+	float stampX = stamp.posX;  // Normalized X position
+	float stampY = stamp.posY;  // Normalized Y position
+
+	// Calculate the screen-space dimensions of the stamp
 	float aspect = HEIGHT / float(WIDTH);
+	float stampWidth = stamp.width / float(WIDTH);  // In normalized screen units
+	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
 
-	// Convert pixel coordinates to normalized coordinates (0-1)
-	float pointX = point.x / (float)WIDTH;
-	float pointY = (point.y / (float)HEIGHT); // Invert Y for OpenGL
+	// Convert collision point to normalized screen coordinates
+	float pointX = point.x / float(WIDTH);  // 0-1 range
+	float pointY = point.y / float(HEIGHT);  // 0-1 range
 
-	// Apply aspect ratio correction to y-coordinate
-	pointY = (pointY - 0.5f) * aspect + 0.5f;
+	// Check if the collision point is within the stamp's bounding box
+	if (pointX < stampX - stampWidth / 2 || pointX > stampX + stampWidth / 2 ||
+		pointY < stampY - stampHeight / 2 || pointY > stampY + stampHeight / 2) {
+		return false;  // Outside the stamp's bounding box
+	}
 
-	// Calculate stamp bounds in normalized coordinates
-	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
-	float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+	// Map the collision point to texture coordinates
+	float texCoordX = (pointX - (stampX - stampWidth / 2)) / stampWidth;
+	float texCoordY = (pointY - (stampY - stampHeight / 2)) / stampHeight;
 
-	float stampMinX = stamp.posX - halfWidthNorm;
-	float stampMaxX = stamp.posX + halfWidthNorm;
-	float stampMinY = stamp.posY - halfHeightNorm;
-	float stampMaxY = stamp.posY + halfHeightNorm;
+	// Convert to pixel coordinates in the texture
+	int pixelX = int(texCoordX * stampTex.width);
+	int pixelY = int(texCoordY * stampTex.height);
+	pixelX = std::max(0, std::min(pixelX, stampTex.width - 1));
+	pixelY = std::max(0, std::min(pixelY, stampTex.height - 1));
 
-	// Check if point is within stamp bounds (with a small margin)
-	const float margin = 0.1f; // Add a small margin to detect collisions near the stamp
-	bool isInStamp = (pointX >= stampMinX - margin && pointX <= stampMaxX + margin &&
-		pointY >= stampMinY - margin && pointY <= stampMaxY + margin);
+	// Get the alpha/opacity at this pixel
+	float opacity = 0.0f;
+	if (stampTex.channels == 4) {
+		// Use alpha channel for RGBA textures
+		opacity = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 3) / 255.0f;
+	}
+	else if (stampTex.channels == 1) {
+		// Use intensity for grayscale
+		opacity = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 0) / 255.0f;
+	}
+	else if (stampTex.channels == 3) {
+		// For RGB, use average intensity as opacity
+		float r = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 0) / 255.0f;
+		float g = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 1) / 255.0f;
+		float b = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 2) / 255.0f;
+		opacity = (r + g + b) / 3.0f;
+	}
 
-	return isInStamp;
+	// Check if the pixel is opaque enough for a collision
+	return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
+void debugTextureSampling(const StampInfo& stamp, int screenX, int screenY) {
+	if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) {
+		std::cout << "Invalid texture index: " << stamp.textureIndex << std::endl;
+		return;
+	}
+
+	const StampTexture& tex = stampTextures[stamp.textureIndex];
+
+	// Convert screen coordinates to normalized position
+	float normX = screenX / float(WIDTH);
+	float normY = screenY / float(HEIGHT);
+
+	// Calculate the relative position in the stamp
+	float aspect = HEIGHT / float(WIDTH);
+	float stampWidth = stamp.width / float(WIDTH);
+	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;
+
+	float relX = (normX - (stamp.posX - stampWidth / 2)) / stampWidth;
+	float relY = (normY - (stamp.posY - stampHeight / 2)) / stampHeight;
+
+	// Convert to texture coordinates
+	int texX = int(relX * tex.width);
+	int texY = int(relY * tex.height);
+
+	// Check bounds
+	bool inBounds = (texX >= 0 && texX < tex.width && texY >= 0 && texY < tex.height);
+
+	//std::cout << "Debug Texture Sampling:" << std::endl;
+	//std::cout << "  Screen position: (" << screenX << ", " << screenY << ")" << std::endl;
+	//std::cout << "  Normalized: (" << normX << ", " << normY << ")" << std::endl;
+	//std::cout << "  Stamp position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
+	//std::cout << "  Stamp size: " << stampWidth << " x " << stampHeight << " (normalized)" << std::endl;
+	//std::cout << "  Relative position: (" << relX << ", " << relY << ")" << std::endl;
+	//std::cout << "  Texture coordinates: (" << texX << ", " << texY << ")" << std::endl;
+	//std::cout << "  In bounds: " << (inBounds ? "Yes" : "No") << std::endl;
+
+	if (inBounds) {
+		for (int c = 0; c < tex.channels; c++) {
+			unsigned char value = getPixelValueFromStampTexture(tex, texX, texY, c);
+			std::cout << "  Channel " << c << " value: " << (int)value << std::endl;
+		}
+	}
+}
 
 void reportStampCollisions() {
 	if (collisionPoints.empty()) {
@@ -1082,6 +1220,7 @@ void reportStampCollisions() {
 	}
 
 	std::cout << "Number of active stamps: " << stamps.size() << std::endl;
+	std::cout << "Number of collision points: " << collisionPoints.size() << std::endl;
 
 	// Track overall collision statistics across all stamps
 	int totalStampCollisions = 0;
@@ -1100,10 +1239,14 @@ void reportStampCollisions() {
 		int blueStampCollisions = 0;
 		int bothStampCollisions = 0;
 
+		// Debug a sample collision point for this stamp (if any)
+		CollisionPoint* samplePoint = nullptr;
+
 		// Check all collision points against this stamp
 		for (const auto& point : collisionPoints) {
 			if (isCollisionInStamp(point, stamp)) {
 				stampCollisions++;
+				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
 
 				// Count by type
 				switch (point.type) {
@@ -1127,13 +1270,14 @@ void reportStampCollisions() {
 			}
 		}
 
-		// Output the results for this stamp if it has any collisions
-		if (stampCollisions > 0) {
-			std::string textureName = "unknown";
-			if (stamp.textureIndex >= 0 && stamp.textureIndex < stampTextures.size()) {
-				textureName = stampTextures[stamp.textureIndex].filename;
-			}
+		// Output the results for this stamp
+		std::string textureName = "unknown";
+		if (stamp.textureIndex >= 0 && stamp.textureIndex < stampTextures.size()) {
+			textureName = stampTextures[stamp.textureIndex].filename;
+		}
 
+		if (stampCollisions > 0)
+		{
 			std::cout << "\nStamp #" << (i + 1) << ":" << std::endl;
 			std::cout << "  Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
 			std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
@@ -1142,6 +1286,12 @@ void reportStampCollisions() {
 			std::cout << "  Red: " << redStampCollisions
 				<< ", Blue: " << blueStampCollisions
 				<< ", Both: " << bothStampCollisions << std::endl;
+		}
+
+		// If we found a collision point, debug the texture sampling for it
+		if (samplePoint) {
+			std::cout << "  Sample collision point: (" << samplePoint->x << ", " << samplePoint->y << ")" << std::endl;
+			debugTextureSampling(stamp, samplePoint->x, samplePoint->y);
 		}
 	}
 
@@ -1154,8 +1304,48 @@ void reportStampCollisions() {
 	std::cout << "=================================" << std::endl;
 }
 
+void printTextureInformation() {
+	std::cout << "\n===== Texture Information =====" << std::endl;
+	for (size_t i = 0; i < stampTextures.size(); i++) {
+		const auto& tex = stampTextures[i];
+		std::cout << "Texture #" << (i + 1) << ": " << tex.filename << std::endl;
+		std::cout << "  Dimensions: " << tex.width << "x" << tex.height << std::endl;
+		std::cout << "  Channels: " << tex.channels << std::endl;
+		std::cout << "  Pixel data size: " << tex.pixelData.size() << " bytes" << std::endl;
 
+		// Print a few sample pixels
+		if (!tex.pixelData.empty()) {
+			std::cout << "  Sample pixels:" << std::endl;
 
+			// Top-left corner
+			int x = 0, y = 0;
+			std::cout << "    Top-left (" << x << "," << y << "): ";
+			for (int c = 0; c < tex.channels; c++) {
+				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
+			}
+			std::cout << std::endl;
+
+			// Center
+			x = tex.width / 2;
+			y = tex.height / 2;
+			std::cout << "    Center (" << x << "," << y << "): ";
+			for (int c = 0; c < tex.channels; c++) {
+				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
+			}
+			std::cout << std::endl;
+
+			// Bottom-right corner
+			x = tex.width - 1;
+			y = tex.height - 1;
+			std::cout << "    Bottom-right (" << x << "," << y << "): ";
+			for (int c = 0; c < tex.channels; c++) {
+				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
+			}
+			std::cout << std::endl;
+		}
+	}
+	std::cout << "===============================" << std::endl;
+}
 
 void applyBitmapObstacle() {
 	if (!rightMouseDown || !stampTextureLoaded || stampTextures.empty()) return;
@@ -2074,7 +2264,10 @@ void mouseMotion(int x, int y) {
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
-		// ... existing key handlers ...
+	case 'i':
+	case 'I':
+		printTextureInformation();
+		break;
 
 	case 'r':
 	case 'R':
