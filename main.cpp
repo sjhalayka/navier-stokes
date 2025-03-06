@@ -1123,7 +1123,7 @@ bool loadStampTexture(const char* filename) {
 
 
 
-float isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
+bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active || stampTextures.empty()) return false;
 
 	// Make sure the texture index is valid
