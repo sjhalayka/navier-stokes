@@ -1269,6 +1269,11 @@ void debugTextureSampling(const StampInfo& stamp, int screenX, int screenY) {
 	}
 }
 
+
+
+
+
+
 void reportStampCollisions() {
 	if (collisionPoints.empty()) {
 		std::cout << "\n===== Stamp Collision Report =====" << std::endl;
@@ -1309,33 +1314,47 @@ void reportStampCollisions() {
 		CollisionPoint* samplePoint = nullptr;
 
 		// Check all collision points against this stamp
-		for (const auto& point : collisionPoints) {
+		for (const auto& point : collisionPoints)
+		{
 			if (isCollisionInStamp(point, stamp))
 			{
 				stampCollisions++;
 				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
 
-				// keep track of fire-smoke intensity. less intense, less damage per second
+				// keep track of fire-smoke alpha. less alpha, less damage per second
 				cout << "RED: " << point.r << endl;
 				cout << "BLUE: " << point.b << endl;
 
-				// Count by type
-				switch (point.type) {
-				case CollisionPoint::RED:
+				if (point.r > 0)
+				{
 					redStampCollisions++;
 					totalRedStampCollisions++;
-					break;
-				case CollisionPoint::BLUE:
+				}
+
+				if (point.b > 0)
+				{
 					blueStampCollisions++;
 					totalBlueStampCollisions++;
-					break;
-				case CollisionPoint::BOTH:
-					bothStampCollisions++;
-					totalBothStampCollisions++;
-					break;
-				default:
-					break;
 				}
+
+
+				//// Count by type
+				//switch (point.type) {
+				//case CollisionPoint::RED:
+				//	redStampCollisions++;
+				//	totalRedStampCollisions++;
+				//	break;
+				//case CollisionPoint::BLUE:
+				//	blueStampCollisions++;
+				//	totalBlueStampCollisions++;
+				//	break;
+				//case CollisionPoint::BOTH:
+				//	bothStampCollisions++;
+				//	totalBothStampCollisions++;
+				//	break;
+				//default:
+				//	break;
+				//}
 
 				totalStampCollisions++;
 			}
@@ -1374,6 +1393,10 @@ void reportStampCollisions() {
 	std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
 	std::cout << "=================================" << std::endl;
 }
+
+
+
+
 
 void printTextureInformation() {
 	std::cout << "\n===== Texture Information =====" << std::endl;
