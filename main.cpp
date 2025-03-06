@@ -922,7 +922,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 
 	// Convert pixel coordinates to normalized coordinates (0-1)
 	float pointX = point.x / (float)WIDTH;
-	float pointY = 1.0f - (point.y / (float)HEIGHT); // Invert Y for OpenGL
+	float pointY = /*1.0f -*/ (point.y / (float)HEIGHT); // Invert Y for OpenGL
 
 	// Apply aspect ratio correction to y-coordinate
 	pointY = (pointY - 0.5f) * aspect + 0.5f;
@@ -993,31 +993,12 @@ void reportStampCollisions() {
 		int bothStampCollisions = 0;
 
 		// Check all collision points against this stamp
-		for (auto& point : collisionPoints)
-		{
-			pair<double, double> adjusted_coord;
-			adjusted_coord.first = point.x / float(WIDTH);
-			adjusted_coord.second = point.y / float(HEIGHT);
-
-			float aspect_ratio = float(WIDTH) / float(HEIGHT);
-
-			// For non-square textures, adjust sampling to prevent stretching
-			if (1.0/ aspect_ratio > 1.0) {
-				adjusted_coord.first = (adjusted_coord.first - 0.5) * aspect_ratio + 0.5;
-			}
-			else if (1.0/aspect_ratio < 1.0) {
-				adjusted_coord.second = (adjusted_coord.second - 0.5) / aspect_ratio + 0.5;
-			}
-
-			CollisionPoint p(0, 0, point.type);
-			p.x = adjusted_coord.first * WIDTH;
-			p.y = adjusted_coord.second * HEIGHT;
-
-			if (isCollisionInStamp(p, stamp)) {
+		for (const auto& point : collisionPoints) {
+			if (isCollisionInStamp(point, stamp)) {
 				stampCollisions++;
 
 				// Count by type
-				switch (p.type) {
+				switch (point.type) {
 				case CollisionPoint::RED:
 					redStampCollisions++;
 					totalRedStampCollisions++;
