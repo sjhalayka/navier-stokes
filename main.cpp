@@ -879,6 +879,53 @@ void main() {
 
 
 
+
+void clearObstacleTexture() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+
+void reapplyAllStamps() {
+	// Skip if no stamps or no textures
+	if (stamps.empty() || stampTextures.empty()) return;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+
+	glUseProgram(stampObstacleProgram);
+
+	// Set common uniforms
+	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
+	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
+
+	// Process each saved stamp
+	for (const auto& stamp : stamps) {
+		if (!stamp.active) continue;
+
+		// Skip if texture index is invalid
+		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
+
+		// Set stamp-specific uniforms
+		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
+		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
+
+		// Bind textures
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, stampTextures[stamp.textureIndex].textureID);
+
+		// Render full-screen quad
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+}
+
+
 bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
 	// We'll need to be consistent with the orientation when sampling
@@ -996,18 +1043,18 @@ bool loadStampTextures() {
 		}
 	}
 
-	// Fall back to loading just "obstacle.png" if no indexed textures were found
-	if (!loadedAny) {
-		StampTexture stampTex;
-		stampTex.filename = "obstacle.png";
+	//// Fall back to loading just "obstacle.png" if no indexed textures were found
+	//if (!loadedAny) {
+	//	StampTexture stampTex;
+	//	stampTex.filename = "obstacle.png";
 
-		if (loadStampTextureFile("obstacle.png", stampTex)) {
-			stampTextures.push_back(stampTex);
-			std::cout << "Loaded stamp texture: obstacle.png"
-				<< " (" << stampTex.width << "x" << stampTex.height << ")" << std::endl;
-			loadedAny = true;
-		}
-	}
+	//	if (loadStampTextureFile("obstacle.png", stampTex)) {
+	//		stampTextures.push_back(stampTex);
+	//		std::cout << "Loaded stamp texture: obstacle.png"
+	//			<< " (" << stampTex.width << "x" << stampTex.height << ")" << std::endl;
+	//		loadedAny = true;
+	//	}
+	//}
 
 	// Set current stamp to the first one if we loaded any
 	if (loadedAny) {
@@ -1126,6 +1173,8 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 		pointY < stampY - stampHeight / 2 || pointY > stampY + stampHeight / 2) {
 		return false;  // Outside the stamp's bounding box
 	}
+
+	//cout << "doing per-pixel collision" << endl;
 
 	// Map the collision point to texture coordinates
 	float texCoordX = (pointX - (stampX - stampWidth / 2)) / stampWidth;
@@ -2015,45 +2064,39 @@ void addForce() {
 	prevMouseY = mouseY;
 }
 
+
+
+
 void updateObstacle() {
 	if (!rightMouseDown) return;
 
-	// Choose between circle obstacles or bitmap stamp
-	bool useStamp = stampTextureLoaded;
-
-	if (useStamp) {
-		applyBitmapObstacle();
-	}
-	else {
-		// Original circle obstacle code
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-
-		glUseProgram(addObstacleProgram);
-
+	// Only handle the creation of new stamps, not the rendering
+	if (rightMouseDown && !lastRightMouseDown && stampTextureLoaded && !stampTextures.empty()) {
 		float aspect = HEIGHT / float(WIDTH);
 
 		// Get normalized mouse position (0 to 1 range)
 		float mousePosX = mouseX / (float)WIDTH;
-		float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+		float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
 
-		// Center the Y coordinate, apply aspect ratio, then un-center
+		// Apply aspect ratio correction
 		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-		// Set uniforms
-		glUniform1i(glGetUniformLocation(addObstacleProgram, "obstacleTexture"), 0);
-		glUniform2f(glGetUniformLocation(addObstacleProgram, "point"), mousePosX, mousePosY);
-		glUniform1f(glGetUniformLocation(addObstacleProgram, "radius"), OBSTACLE_RADIUS);
-		glUniform1i(glGetUniformLocation(addObstacleProgram, "addObstacle"), true);
+		// Create new stamp
+		StampInfo newStamp;
+		newStamp.active = true;
+		newStamp.posX = mousePosX;
+		newStamp.posY = mousePosY;
+		newStamp.width = stampTextures[currentStampIndex].width;
+		newStamp.height = stampTextures[currentStampIndex].height;
+		newStamp.textureIndex = currentStampIndex;
+		stamps.push_back(newStamp);
 
-		// Bind textures
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-		// Render full-screen quad
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		std::cout << "Added new stamp #" << stamps.size() << " at position ("
+			<< mousePosX << ", " << mousePosY << ") with texture: "
+			<< stampTextures[currentStampIndex].filename << std::endl;
 	}
+
+	lastRightMouseDown = rightMouseDown;
 }
 
 
@@ -2127,6 +2170,11 @@ void addColor()
 }
 
 void simulationStep() {
+	// First clear obstacle texture and reapply all stamps
+	clearObstacleTexture();
+	reapplyAllStamps();
+
+	// Continue with existing code...
 	// Add force from mouse interaction
 	addForce();
 
