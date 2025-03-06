@@ -120,8 +120,9 @@ bool reportCollisions = true;
 struct CollisionPoint {
 	int x, y;
 	enum Type { RED, BLUE, BOTH, OTHER } type;
+	float a;
 
-	CollisionPoint(int _x, int _y, Type _type) : x(_x), y(_y), type(_type) {}
+	CollisionPoint(int _x, int _y, Type _type, float _a) : x(_x), y(_y), type(_type), a(_a) {}
 };
 
 
@@ -740,13 +741,13 @@ void main() {
         // Set collision with specific type information
         if (redCollision && blueCollision) {
             // Both red and blue collided
-            FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Magenta for both
+            FragColor = vec4(1.0, 0.0, 1.0, (maxRed + maxBlue) * 0.5); // Magenta for both
         } else if (redCollision) {
             // Only red collided
-            FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red
+            FragColor = vec4(1.0, 0.0, 0.0, maxRed); // Red
         } else if (blueCollision) {
             // Only blue collided
-            FragColor = vec4(0.0, 0.0, 1.0, 1.0); // Blue
+            FragColor = vec4(0.0, 0.0, 1.0, maxBlue); // Blue
         } else {
             // No collision
             FragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -1121,7 +1122,7 @@ bool loadStampTexture(const char* filename) {
 
 
 
-bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
+float isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active || stampTextures.empty()) return false;
 
 	// Make sure the texture index is valid
@@ -1130,7 +1131,9 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	}
 
 	const StampTexture& stampTex = stampTextures[stamp.textureIndex];
-	if (stampTex.pixelData.empty()) {
+
+	if (stampTex.pixelData.empty()) 
+	{
 		// No pixel data available, fall back to the original bounding box check
 		float aspect = HEIGHT / float(WIDTH);
 
@@ -1205,7 +1208,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	}
 
 	// Check if the pixel is opaque enough for a collision
-	return opacity > COLOR_DETECTION_THRESHOLD;
+	return opacity;// > COLOR_DETECTION_THRESHOLD;
 }
 
 void debugTextureSampling(const StampInfo& stamp, int screenX, int screenY) {
@@ -1296,6 +1299,9 @@ void reportStampCollisions() {
 			if (isCollisionInStamp(point, stamp)) {
 				stampCollisions++;
 				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
+
+				// keep track of fire-smoke alpha. less alpha, less damage per second
+				//cout << "ALPHA: " << point.a << endl;
 
 				// Count by type
 				switch (point.type) {
@@ -1591,7 +1597,7 @@ void detectCollisions() {
 					else if (b > 0.5) type = CollisionPoint::BLUE;
 					else type = CollisionPoint::OTHER;
 
-					collisionPoints.push_back(CollisionPoint(x, y, type));
+					collisionPoints.push_back(CollisionPoint(x, y, type, a));
 				}
 			}
 		}
