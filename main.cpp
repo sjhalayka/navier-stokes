@@ -119,11 +119,11 @@ bool reportCollisions = true;
 // Define a struct for collision data
 struct CollisionPoint {
 	int x, y;
-	enum Type { RED, BLUE, BOTH, OTHER } type;
+
 	float r;
 	float b;
 
-	CollisionPoint(int _x, int _y, Type _type, float _r, float _b) : x(_x), y(_y), type(_type), r(_r), b(_b) {}
+	CollisionPoint(int _x, int _y, float _r, float _b) : x(_x), y(_y), r(_r), b(_b) {}
 };
 
 
@@ -1337,25 +1337,6 @@ void reportStampCollisions() {
 					totalBlueStampCollisions++;
 				}
 
-
-				//// Count by type
-				//switch (point.type) {
-				//case CollisionPoint::RED:
-				//	redStampCollisions++;
-				//	totalRedStampCollisions++;
-				//	break;
-				//case CollisionPoint::BLUE:
-				//	blueStampCollisions++;
-				//	totalBlueStampCollisions++;
-				//	break;
-				//case CollisionPoint::BOTH:
-				//	bothStampCollisions++;
-				//	totalBothStampCollisions++;
-				//	break;
-				//default:
-				//	break;
-				//}
-
 				totalStampCollisions++;
 			}
 		}
@@ -1630,52 +1611,16 @@ void detectCollisions() {
 				float a = collisionData[index + 3];
 
 				if (a > 0.0) {
-					CollisionPoint::Type type;
-					if (r > 0.5 && b > 0.5) type = CollisionPoint::BOTH;
-					else if (r > 0.5) type = CollisionPoint::RED;
-					else if (b > 0.5) type = CollisionPoint::BLUE;
-					else type = CollisionPoint::OTHER;
-
-					collisionPoints.push_back(CollisionPoint(x, y, type, r, b));
+					collisionPoints.push_back(CollisionPoint(x, y, r, b));
 				}
 			}
 		}
 
-		// Output collision report
-		size_t red_count = 0;
-		size_t blue_count = 0;
-		size_t both_count = 0;
 
-		for (int i = 0; i < collisionPoints.size(); ++i) {
-			// Determine collision type
-			switch (collisionPoints[i].type) {
-			case CollisionPoint::RED:
-				red_count++;
-				break;
-			case CollisionPoint::BLUE:
-				blue_count++;
-				break;
-			case CollisionPoint::BOTH:
-				both_count++;
-				red_count++;
-				blue_count++;
-				break;
-			default:
-				break;
-			}
-		}
+
 
 		if (collisionPoints.size() > 0)
 		{
-			// Output collision report
-			std::cout << "===== Collision Report =====" << std::endl;
-			std::cout << "Found " << collisionPoints.size() << " collision points" << std::endl;
-			std::cout << "Red collisions: " << red_count << std::endl;
-			std::cout << "Blue collisions: " << blue_count << std::endl;
-			std::cout << "Both colors: " << both_count << std::endl;
-			std::cout << "===========================" << std::endl;
-
-			// Generate report for stamp-related collisions
 			reportStampCollisions();
 		}
 
