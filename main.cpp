@@ -739,6 +739,7 @@ void main() {
         bool blueCollision = (maxBlue > colorThreshold);
         
         // Set collision with specific type information
+		// keep track of fire-smoke alpha. less alpha, less damage per second
         if (redCollision && blueCollision) {
             // Both red and blue collided
             FragColor = vec4(1.0, 0.0, 1.0, (maxRed + maxBlue) * 0.5); // Magenta for both
@@ -1208,7 +1209,7 @@ float isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	}
 
 	// Check if the pixel is opaque enough for a collision
-	return opacity;// > COLOR_DETECTION_THRESHOLD;
+	return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
 void debugTextureSampling(const StampInfo& stamp, int screenX, int screenY) {
@@ -1296,12 +1297,13 @@ void reportStampCollisions() {
 
 		// Check all collision points against this stamp
 		for (const auto& point : collisionPoints) {
-			if (isCollisionInStamp(point, stamp)) {
+			if (isCollisionInStamp(point, stamp))
+			{
 				stampCollisions++;
 				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
 
 				// keep track of fire-smoke alpha. less alpha, less damage per second
-				//cout << "ALPHA: " << point.a << endl;
+				cout << "ALPHA: " << point.a << endl;
 
 				// Count by type
 				switch (point.type) {
