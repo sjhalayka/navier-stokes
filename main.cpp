@@ -120,9 +120,10 @@ bool reportCollisions = true;
 struct CollisionPoint {
 	int x, y;
 	enum Type { RED, BLUE, BOTH, OTHER } type;
-	float a;
+	float r;
+	float b;
 
-	CollisionPoint(int _x, int _y, Type _type, float _a) : x(_x), y(_y), type(_type), a(_a) {}
+	CollisionPoint(int _x, int _y, Type _type, float _r, float _b) : x(_x), y(_y), type(_type), r(_r), b(_b) {}
 };
 
 
@@ -742,13 +743,13 @@ void main() {
 		// keep track of fire-smoke alpha. less alpha, less damage per second
         if (redCollision && blueCollision) {
             // Both red and blue collided
-            FragColor = vec4(1.0, 0.0, 1.0, (maxRed + maxBlue) * 0.5); // Magenta for both
+            FragColor = vec4(maxRed, 0.0, maxBlue, 1.0); // Magenta for both
         } else if (redCollision) {
             // Only red collided
-            FragColor = vec4(1.0, 0.0, 0.0, maxRed); // Red
+            FragColor = vec4(maxRed, 0.0, 0.0, 1.0); // Red
         } else if (blueCollision) {
             // Only blue collided
-            FragColor = vec4(0.0, 0.0, 1.0, maxBlue); // Blue
+            FragColor = vec4(0.0, 0.0, maxBlue, 1.0); // Blue
         } else {
             // No collision
             FragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -1303,7 +1304,8 @@ void reportStampCollisions() {
 				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
 
 				// keep track of fire-smoke alpha. less alpha, less damage per second
-				cout << "ALPHA: " << point.a << endl;
+				cout << "RED: " << point.r << endl;
+				cout << "BLUE: " << point.b << endl;
 
 				// Count by type
 				switch (point.type) {
@@ -1599,7 +1601,7 @@ void detectCollisions() {
 					else if (b > 0.5) type = CollisionPoint::BLUE;
 					else type = CollisionPoint::OTHER;
 
-					collisionPoints.push_back(CollisionPoint(x, y, type, a));
+					collisionPoints.push_back(CollisionPoint(x, y, type, r, b));
 				}
 			}
 		}
