@@ -277,7 +277,7 @@ void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
     // Calculate coordinates in stamp texture
-	vec2 stamp_size = textureSize(stampTexture, 0)/sqrt(2.0);
+	vec2 stamp_size = textureSize(stampTexture, 0)/2.0;
 
     vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
 
@@ -296,13 +296,15 @@ void main() {
 
 	stampCoord = adjustedCoord;
 
+	
+	// Keep the stamps sqare
+	if(aspect_ratio > 1.0)
+		stampCoord *= aspect_ratio;
+	else
+		stampCoord /= aspect_ratio;
 
-if(aspect_ratio > 1.0)
-stampCoord *= aspect_ratio;
-else
-stampCoord /= aspect_ratio;
-
-
+	// Why does this work?
+	stampCoord /= sqrt(2.0);
 
 
     // Check if we're within stamp bounds
