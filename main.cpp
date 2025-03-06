@@ -272,7 +272,8 @@ out float FragColor;
 
 in vec2 TexCoord;
 
-void main() {
+void main() 
+{
     // Get current obstacle value
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
@@ -304,7 +305,7 @@ void main() {
 		stampCoord /= aspect_ratio;
 
 	// Why does this work?
-	stampCoord /= sqrt(2.0);
+	stampCoord /= 1.5;
 
 
     // Check if we're within stamp bounds
