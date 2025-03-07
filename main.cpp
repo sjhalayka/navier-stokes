@@ -46,6 +46,16 @@ const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching
 // Define the orthographic projection matrix
 glm::mat4 orthoProjectionMatrix = glm::mat4(1.0);// glm::ortho(0.0f, static_cast<float>(WIDTH), 0.0f, static_cast<float>(HEIGHT));
 
+// Define the camera parameters
+glm::vec3 eye = glm::vec3(0.0f, 0.0f, 5.0f);  // Camera position
+glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at point
+glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);  // Up vector
+
+// Create the Look At matrix
+glm::mat4 lookAtMatrix = glm::lookAt(eye, center, up);
+
+
+
 
 
 bool red_mode = true;
@@ -1755,6 +1765,22 @@ void initGL() {
 	}
 
 	loadStampTextures();
+
+	// Define the orthographic projection matrix
+	orthoProjectionMatrix = glm::mat4(1.0);// glm::ortho(0.0f, static_cast<float>(WIDTH), 0.0f, static_cast<float>(HEIGHT));
+
+	//// Define the camera parameters
+	//glm::vec3 eye = glm::vec3(0.0f,0, 5.0f);  // Camera position
+	//glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at point
+	//glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);  // Up vector
+
+	//// Create the Look At matrix
+	//glm::mat4 v = glm::lookAt(eye, center, up);
+
+	//glm::mat4 combined = orthoProjectionMatrix * v;
+
+	//orthoProjectionMatrix = combined;
+
 
 	// Create shader programs
 	advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
