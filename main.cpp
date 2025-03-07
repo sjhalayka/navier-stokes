@@ -903,6 +903,10 @@ void main() {
 )";
 
 
+void updateDynamicTexture(StampTexture& stamp) {
+	glBindTexture(GL_TEXTURE_2D, stamp.textureID);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData.data());
+}
 
 
 
@@ -960,7 +964,7 @@ void reapplyAllStamps() {
 bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
 	// We'll need to be consistent with the orientation when sampling
-	stbi_set_flip_vertically_on_load(false);  // Load in regular orientation for our data
+	stbi_set_flip_vertically_on_load(true);  // Load in regular orientation for our data
 	unsigned char* data = stbi_load(filename, &stampTex.width, &stampTex.height, &stampTex.channels, 0);
 
 	if (!data) {
@@ -982,7 +986,6 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
 		// If we fail to reload, use the original data for OpenGL too
 		glData = data;
-		stbi_set_flip_vertically_on_load(false);  // Reset the flag
 	}
 
 	// Create texture
@@ -1014,9 +1017,6 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 		stbi_image_free(glData);
 	}
 	stbi_image_free(data);
-
-	// Reset the flip flag to its default
-	stbi_set_flip_vertically_on_load(true);
 
 	return true;
 }
@@ -1055,7 +1055,8 @@ bool loadStampTextures() {
 	bool loadedAny = false;
 
 	// Try loading textures with increasing index until we fail
-	while (true) {
+	while (true) 
+	{
 		std::string filename = "obstacle" + std::to_string(index) + ".png";
 		StampTexture stampTex;
 		stampTex.filename = filename;
@@ -2173,6 +2174,12 @@ void simulationStep() {
 	// First clear obstacle texture and reapply all stamps
 	clearObstacleTexture();
 	reapplyAllStamps();
+
+	    for (auto& stamp : stampTextures)
+        updateDynamicTexture(stamp);
+    
+
+
 
 	// Continue with existing code...
 	// Add force from mouse interaction
