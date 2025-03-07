@@ -278,21 +278,21 @@ void main()
   
     float aspect_ratio = screenSize.x / screenSize.y;
 
-    //// for non-square textures, adjust sampling to prevent stretching
-    //vec2 adjustedcoord = stampcoord;
-    //if (aspect_ratio > 1.0) {
-    //    adjustedcoord.x = (adjustedcoord.x - 0.5) / aspect_ratio + 0.5;
-    //} else if (aspect_ratio < 1.0) {
-    //    adjustedcoord.y = (adjustedcoord.y - 0.5) * aspect_ratio + 0.5;
-    //}    
+    // for non-square textures, adjust sampling to prevent stretching
+    vec2 adjustedcoord = stampCoord;
+    if (aspect_ratio > 1.0) {
+        adjustedcoord.x = (adjustedcoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        adjustedcoord.y = (adjustedcoord.y - 0.5) * aspect_ratio + 0.5;
+    }    
 
-    //stampcoord = adjustedcoord;
+    stampCoord = adjustedcoord;
     
-    //// Keep the stamps square
-    //if(aspect_ratio > 1.0)
-    //    stampCoord *= aspect_ratio;
-    //else
-    //    stampCoord /= aspect_ratio;
+    // Keep the stamps square
+    if(aspect_ratio > 1.0)
+        stampCoord *= aspect_ratio;
+    else
+        stampCoord /= aspect_ratio;
 
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
