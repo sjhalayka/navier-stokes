@@ -304,8 +304,12 @@ void main()
 	else
 		stampCoord /= aspect_ratio;
 
-	// Why does this work?
-	stampCoord /= 1.5;
+
+
+	// Why do I need to perform a scale?
+	// stampCoord /= 1.5;
+
+
 
 
     // Check if we're within stamp bounds
