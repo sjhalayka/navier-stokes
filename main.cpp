@@ -274,19 +274,19 @@ void main()
 {
     // Calculate coordinates in stamp texture
     vec2 stamp_size = textureSize(stampTexture, 0)/2.0;
-    vec2 stampCoord = (TexCoord - position) * screenSize / stamp_size;// + vec2(0.5);
+    vec2 stampCoord = (TexCoord - position) * screenSize / stamp_size + vec2(0.5);
   
     float aspect_ratio = screenSize.x / screenSize.y;
 
-    //// For non-square textures, adjust sampling to prevent stretching
-    //vec2 adjustedCoord = stampCoord;
+    //// for non-square textures, adjust sampling to prevent stretching
+    //vec2 adjustedcoord = stampcoord;
     //if (aspect_ratio > 1.0) {
-    //    adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    //    adjustedcoord.x = (adjustedcoord.x - 0.5) / aspect_ratio + 0.5;
     //} else if (aspect_ratio < 1.0) {
-    //    adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    //    adjustedcoord.y = (adjustedcoord.y - 0.5) * aspect_ratio + 0.5;
     //}    
 
-    //stampCoord = adjustedCoord;
+    //stampcoord = adjustedcoord;
     
     //// Keep the stamps square
     //if(aspect_ratio > 1.0)
@@ -984,6 +984,9 @@ void reapplyAllStamps() {
 
 		// Skip if texture index is invalid
 		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
+
+
+
 
 		// Set stamp-specific uniforms
 		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
@@ -2319,9 +2322,13 @@ void renderToScreen() {
 		// Skip if texture index is invalid
 		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
 
+		float aspect = WIDTH / float(HEIGHT);
+
+		float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+
 		// Set stamp-specific uniforms
 		glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp.posY);
+		glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
 		glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
 		glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f); // Lower threshold for visual display
 		glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
