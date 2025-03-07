@@ -97,6 +97,12 @@ GLuint detectCollisionProgram;
 GLuint addColorProgram;
 GLuint diffuseColorProgram;
 GLuint diffuseVelocityProgram;
+GLuint stampObstacleProgram;
+GLuint stampTextureProgram;
+
+
+
+
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -196,11 +202,6 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 //std::vector<std::pair<int, int>> collisionLocations;
 
 
-GLuint stampObstacleProgram;
-//GLuint stampTexture = 0;
-//int stampWidth = 0;
-//int stampHeight = 0;
-//bool stampTextureLoaded = false;
 
 
 
@@ -256,6 +257,63 @@ void main() {
 )";
 
 
+
+
+const char* stampTextureFragmentShader = R"(
+#version 330 core
+uniform sampler2D stampTexture;
+uniform vec2 position;
+uniform vec2 stampSize;
+uniform float threshold;
+uniform vec2 screenSize;
+
+in vec2 TexCoord;
+out vec4 FragColor;
+
+void main() 
+{
+    // Calculate coordinates in stamp texture
+    vec2 stamp_size = textureSize(stampTexture, 0)/2.0;
+    vec2 stampCoord = (TexCoord - position) * screenSize / stamp_size;// + vec2(0.5);
+  
+    float aspect_ratio = screenSize.x / screenSize.y;
+
+    //// For non-square textures, adjust sampling to prevent stretching
+    //vec2 adjustedCoord = stampCoord;
+    //if (aspect_ratio > 1.0) {
+    //    adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    //} else if (aspect_ratio < 1.0) {
+    //    adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    //}    
+
+    //stampCoord = adjustedCoord;
+    
+    //// Keep the stamps square
+    //if(aspect_ratio > 1.0)
+    //    stampCoord *= aspect_ratio;
+    //else
+    //    stampCoord /= aspect_ratio;
+
+    // Check if we're within stamp bounds
+    if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
+        stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
+        
+        // Sample stamp texture (use all channels for RGBA output)
+        vec4 stampColor = texture(stampTexture, stampCoord);
+        
+        // Only show pixels that are above the threshold (use alpha for transparency)
+        if (stampColor.a > threshold) {
+            FragColor = stampColor;
+        } else {
+            // Transparent for pixels below threshold
+            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
+    } else {
+        // Outside stamp bounds - transparent
+        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+}
+)";
 
 
 
@@ -1730,6 +1788,9 @@ void initGL() {
 	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
 	stampObstacleProgram = createShaderProgram(vertexShaderSource, stampObstacleFragmentShader);
 	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
+	stampTextureProgram = createShaderProgram(vertexShaderSource, stampTextureFragmentShader);
+
+
 
 
 	for (int i = 0; i < 2; i++) {
@@ -2200,6 +2261,7 @@ void simulationStep() {
 }
 
 
+
 void renderToScreen() {
 	// Bind default framebuffer (the screen)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -2224,8 +2286,6 @@ void renderToScreen() {
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
 
-
-
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -2238,12 +2298,46 @@ void renderToScreen() {
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, backgroundTexture);
 
-	// Render full-screen quad
+	// Render full-screen quad with the fluid simulation
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Cleanup
+	// Cleanup the first render program
 	glDeleteProgram(renderProgram);
+
+	// Now render all the stamps with textures using the new program
+	// Enable blending for transparent textures
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glUseProgram(stampTextureProgram);
+
+	// Process each saved stamp
+	for (const auto& stamp : stamps) {
+		if (!stamp.active) continue;
+
+		// Skip if texture index is invalid
+		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
+
+		// Set stamp-specific uniforms
+		glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
+		glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp.posY);
+		glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
+		glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f); // Lower threshold for visual display
+		glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
+
+
+		// Bind texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, stampTextures[stamp.textureIndex].textureID);
+
+		// Render full-screen quad for this stamp
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+
+	// Disable blending when done
+	glDisable(GL_BLEND);
 }
 
 
@@ -2409,6 +2503,9 @@ void reshape(int w, int h) {
 	glDeleteProgram(addColorProgram);
 	glDeleteProgram(stampObstacleProgram);
 	glDeleteProgram(diffuseVelocityProgram);
+	glDeleteProgram(stampTextureProgram);
+
+
 
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
