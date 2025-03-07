@@ -93,7 +93,6 @@ GLuint divergenceProgram;
 GLuint pressureProgram;
 GLuint gradientSubtractProgram;
 GLuint addForceProgram;
-GLuint addObstacleProgram;
 GLuint detectCollisionProgram;
 GLuint addColorProgram;
 GLuint diffuseColorProgram;
@@ -1726,7 +1725,6 @@ void initGL() {
 	pressureProgram = createShaderProgram(vertexShaderSource, pressureFragmentShader);
 	gradientSubtractProgram = createShaderProgram(vertexShaderSource, gradientSubtractFragmentShader);
 	addForceProgram = createShaderProgram(vertexShaderSource, addForceFragmentShader);
-	addObstacleProgram = createShaderProgram(vertexShaderSource, addObstacleFragmentShader);
 	detectCollisionProgram = createShaderProgram(vertexShaderSource, detectCollisionFragmentShader);
 	addColorProgram = createShaderProgram(vertexShaderSource, addColorFragmentShader);
 	diffuseColorProgram = createShaderProgram(vertexShaderSource, diffuseColorFragmentShader);
@@ -2406,7 +2404,6 @@ void reshape(int w, int h) {
 	glDeleteProgram(pressureProgram);
 	glDeleteProgram(gradientSubtractProgram);
 	glDeleteProgram(addForceProgram);
-	glDeleteProgram(addObstacleProgram);
 	glDeleteProgram(detectCollisionProgram);
 	glDeleteProgram(diffuseColorProgram);
 	glDeleteProgram(addColorProgram);
