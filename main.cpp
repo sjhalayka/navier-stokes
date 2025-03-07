@@ -2,10 +2,6 @@
 
 #include <GL/glew.h>
 #include <GL/glut.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -41,15 +37,6 @@ const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collisio
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching should be
-
-	
-// Define the orthographic projection matrix
-glm::mat4 orthoProjectionMatrix = glm::mat4(1.0);// glm::ortho(0.0f, static_cast<float>(WIDTH), 0.0f, static_cast<float>(HEIGHT));
-
-
-
-
-
 
 
 bool red_mode = true;
@@ -295,7 +282,7 @@ void main()
 
     vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
 
-    vec2 adjustedStampCoord = stampCoord;
+    vec2 adjustedCoord = stampCoord;
 
 	ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
 
@@ -303,12 +290,12 @@ void main()
 
     // For non-square textures, adjust sampling to prevent stretching
     if (aspect_ratio > 1.0) {
-        adjustedStampCoord.x = (adjustedStampCoord.x - 0.5) / aspect_ratio + 0.5;
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
     } else if (aspect_ratio < 1.0) {
-        adjustedStampCoord.y = (adjustedStampCoord.y - 0.5) * aspect_ratio + 0.5;
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }    
 
-	stampCoord = adjustedStampCoord;
+	stampCoord = adjustedCoord;
 
 	
 	// Keep the stamps sqare
@@ -320,7 +307,7 @@ void main()
 
 
 	// Why do I need to perform a scale?
-	 stampCoord /= 1.5;
+	// stampCoord /= 1.5;
 
 
 
@@ -447,38 +434,15 @@ void main() {
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
 #version 330 core
-
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
 
-uniform vec2 texelSize;// = vec2(960.0, 540.0);
-
-uniform mat4 orthoMatrix;
-
 out vec2 TexCoord;
-out vec2 adjustedCoord;
 
-void main()
-{
-    gl_Position = orthoMatrix * vec4(aPos, 1.0);
+void main() {
+    gl_Position = vec4(aPos, 1.0);
     TexCoord = aTexCoord;
-
-    adjustedCoord = TexCoord;
-
-    float aspect_ratio = float(texelSize.x) / float(texelSize.y);
-
-    if (aspect_ratio > 1.0)
-    {
-        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
-    }
-    else if (aspect_ratio < 1.0)
-    {
-        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
-    }
 }
-
-
-
 )";
 
 
@@ -837,9 +801,18 @@ float aspect_ratio = WIDTH/HEIGHT;
 out vec4 FragColor;
 
 in vec2 TexCoord;
-in vec2 adjustedCoord;
 
-void main() {    
+void main() {
+    // Adjust texture coordinates based on aspect ratio
+    vec2 adjustedCoord = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio > 1.0) {
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }
+    
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
     if (collision.a > 0.0) {
@@ -947,9 +920,6 @@ void reapplyAllStamps() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
-
-	GLuint orthoMatrixLocation = glGetUniformLocation(stampObstacleProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
 
 	// Process each saved stamp
 	for (const auto& stamp : stamps) {
@@ -1464,9 +1434,6 @@ void applyBitmapObstacle() {
 
 	glUseProgram(stampObstacleProgram);
 
-	GLuint orthoMatrixLocation = glGetUniformLocation(stampObstacleProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 	float aspect = HEIGHT / float(WIDTH);
 
 	// Get normalized mouse position (0 to 1 range)
@@ -1530,8 +1497,6 @@ void diffuseVelocity() {
 	glUniform2f(glGetUniformLocation(diffuseVelocityProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(diffuseVelocityProgram, "viscosity"), VISCOSITY);
 	glUniform1f(glGetUniformLocation(diffuseVelocityProgram, "dt"), DT);
-	GLuint orthoMatrixLocation = glGetUniformLocation(diffuseVelocityProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1561,8 +1526,7 @@ void diffuseColor() {
 	glUniform2f(glGetUniformLocation(diffuseColorProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(diffuseColorProgram, "diffusionRate"), DIFFUSION);
 	glUniform1f(glGetUniformLocation(diffuseColorProgram, "dt"), DT);
-	GLuint orthoMatrixLocation = glGetUniformLocation(diffuseColorProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
+
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
@@ -1590,8 +1554,7 @@ void diffuseFriendlyColor() {
 	glUniform2f(glGetUniformLocation(diffuseColorProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(diffuseColorProgram, "diffusionRate"), DIFFUSION);
 	glUniform1f(glGetUniformLocation(diffuseColorProgram, "dt"), DT);
-	GLuint orthoMatrixLocation = glGetUniformLocation(diffuseColorProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
+
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
@@ -1619,9 +1582,6 @@ void detectCollisions() {
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
 	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-	GLuint orthoMatrixLocation = glGetUniformLocation(detectCollisionProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1760,22 +1720,6 @@ void initGL() {
 
 	loadStampTextures();
 
-	// Define the orthographic projection matrix
-	orthoProjectionMatrix = glm::mat4(1.0);// glm::ortho(0.0f, static_cast<float>(WIDTH), 0.0f, static_cast<float>(HEIGHT));
-
-	//// Define the camera parameters
-	//glm::vec3 eye = glm::vec3(0.0f,0, 5.0f);  // Camera position
-	//glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at point
-	//glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);  // Up vector
-
-	//// Create the Look At matrix
-	//glm::mat4 v = glm::lookAt(eye, center, up);
-
-	//glm::mat4 combined = orthoProjectionMatrix * v;
-
-	//orthoProjectionMatrix = combined;
-
-
 	// Create shader programs
 	advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
 	divergenceProgram = createShaderProgram(vertexShaderSource, divergenceFragmentShader);
@@ -1885,9 +1829,6 @@ void advectColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	GLuint orthoMatrixLocation = glGetUniformLocation(advectProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
@@ -1919,9 +1860,6 @@ void advectFriendlyColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	GLuint orthoMatrixLocation = glGetUniformLocation(advectProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1955,10 +1893,6 @@ void advectVelocity() {
 	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	GLuint orthoMatrixLocation = glGetUniformLocation(advectProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2029,9 +1963,6 @@ void solvePressure(int iterations) {
 		glUniform1f(glGetUniformLocation(pressureProgram, "alpha"), alpha);
 		glUniform1f(glGetUniformLocation(pressureProgram, "rBeta"), rBeta);
 
-		GLuint orthoMatrixLocation = glGetUniformLocation(pressureProgram, "orthoMatrix");
-		glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 		// Bind textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, pressureTexture[pressureIndex]);
@@ -2062,9 +1993,6 @@ void subtractPressureGradient() {
 	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "obstacleTexture"), 2);
 	glUniform2f(glGetUniformLocation(gradientSubtractProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(gradientSubtractProgram, "scale"), 1.0f);
-	GLuint orthoMatrixLocation = glGetUniformLocation(gradientSubtractProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2111,10 +2039,6 @@ void addForce() {
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
-
-	GLuint orthoMatrixLocation = glGetUniformLocation(addForceProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2209,9 +2133,6 @@ void addColor()
 	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
 	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
 
-	GLuint orthoMatrixLocation = glGetUniformLocation(addColorProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
-
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
 
@@ -2305,8 +2226,6 @@ void renderToScreen() {
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
 
-	GLuint orthoMatrixLocation = glGetUniformLocation(renderProgram, "orthoMatrix");
-	glUniformMatrix4fv(orthoMatrixLocation, 1, GL_FALSE, &orthoProjectionMatrix[0][0]);
 
 
 	// Bind textures
@@ -2514,10 +2433,6 @@ void reshape(int w, int h) {
 	}
 
 	stampTextures.clear();
-
-	orthoProjectionMatrix = glm::mat4(1.0);
-	// glm::ortho(0.0f, static_cast<float>(WIDTH), 0.0f, static_cast<float>(HEIGHT));
-
 	initGL();
 }
 void printInstructions() {
@@ -2544,8 +2459,12 @@ int main(int argc, char** argv) {
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
+
+
 	// Initialize OpenGL
 	initGL();
+
+
 
 	// Register callbacks
 	glutDisplayFunc(display);
