@@ -198,10 +198,10 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 GLuint stampObstacleProgram;
-GLuint stampTexture = 0;
-int stampWidth = 0;
-int stampHeight = 0;
-bool stampTextureLoaded = false;
+//GLuint stampTexture = 0;
+//int stampWidth = 0;
+//int stampHeight = 0;
+//bool stampTextureLoaded = false;
 
 
 
@@ -1076,66 +1076,66 @@ bool loadStampTextures() {
 	//}
 
 	// Set current stamp to the first one if we loaded any
-	if (loadedAny) {
-		currentStampIndex = 0;
-		stampTextureLoaded = true;
-	}
-	else {
-		stampTextureLoaded = false;
-	}
+	//if (loadedAny) {
+	//	currentStampIndex = 0;
+	//	stampTextureLoaded = true;
+	//}
+	//else {
+	//	stampTextureLoaded = false;
+	//}
 
 	return loadedAny;
 }
 
-
-bool loadStampTexture(const char* filename) {
-	// Clear previous texture if it exists
-	if (stampTexture != 0) {
-		glDeleteTextures(1, &stampTexture);
-	}
-
-	// Load image using stb_image
-	int channels;
-
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
-
-	if (!data) {
-		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
-		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-		return false;
-	}
-
-	// Create texture
-	glGenTextures(1, &stampTexture);
-	glBindTexture(GL_TEXTURE_2D, stampTexture);
-
-	// Set texture parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Determine format based on channels
-	GLenum format;
-	switch (channels) {
-	case 1: format = GL_RED; break;
-	case 3: format = GL_RGB; break;
-	case 4: format = GL_RGBA; break;
-	default:
-		format = GL_RGB;
-		std::cerr << "Unsupported number of channels: " << channels << std::endl;
-	}
-
-	// Load texture data to GPU
-	glTexImage2D(GL_TEXTURE_2D, 0, format, stampWidth, stampHeight, 0, format, GL_UNSIGNED_BYTE, data);
-
-	// Free image data
-	stbi_image_free(data);
-
-	stampTextureLoaded = true;
-	return true;
-}
+//
+//bool loadStampTexture(const char* filename) {
+//	// Clear previous texture if it exists
+//	if (stampTexture != 0) {
+//		glDeleteTextures(1, &stampTexture);
+//	}
+//
+//	// Load image using stb_image
+//	int channels;
+//
+//	stbi_set_flip_vertically_on_load(true);
+//	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
+//
+//	if (!data) {
+//		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
+//		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+//		return false;
+//	}
+//
+//	// Create texture
+//	glGenTextures(1, &stampTexture);
+//	glBindTexture(GL_TEXTURE_2D, stampTexture);
+//
+//	// Set texture parameters
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//
+//	// Determine format based on channels
+//	GLenum format;
+//	switch (channels) {
+//	case 1: format = GL_RED; break;
+//	case 3: format = GL_RGB; break;
+//	case 4: format = GL_RGBA; break;
+//	default:
+//		format = GL_RGB;
+//		std::cerr << "Unsupported number of channels: " << channels << std::endl;
+//	}
+//
+//	// Load texture data to GPU
+//	glTexImage2D(GL_TEXTURE_2D, 0, format, stampWidth, stampHeight, 0, format, GL_UNSIGNED_BYTE, data);
+//
+//	// Free image data
+//	stbi_image_free(data);
+//
+//	stampTextureLoaded = true;
+//	return true;
+//}
 
 
 
@@ -1427,7 +1427,7 @@ void printTextureInformation() {
 }
 
 void applyBitmapObstacle() {
-	if (!rightMouseDown || !stampTextureLoaded || stampTextures.empty()) return;
+	if (!rightMouseDown || stampTextures.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -2065,7 +2065,7 @@ void updateObstacle() {
 	if (!rightMouseDown) return;
 
 	// Only handle the creation of new stamps, not the rendering
-	if (rightMouseDown && !lastRightMouseDown && stampTextureLoaded && !stampTextures.empty()) {
+	if (rightMouseDown && !lastRightMouseDown && !stampTextures.empty()) {
 		float aspect = HEIGHT / float(WIDTH);
 
 		// Get normalized mouse position (0 to 1 range)
