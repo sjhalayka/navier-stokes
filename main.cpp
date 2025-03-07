@@ -703,36 +703,6 @@ void main() {
 )";
 
 
-const char* addObstacleFragmentShader = R"(
-#version 330 core
-uniform sampler2D obstacleTexture;
-uniform vec2 point;
-uniform float radius;
-uniform bool addObstacle;
-out float FragColor;
-
-in vec2 TexCoord;
-
-void main() {
-    // Get current obstacle value
-    float obstacle = texture(obstacleTexture, TexCoord).r;
-    
-    // Calculate distance to obstacle point
-    float distance = length(TexCoord - point);
-    
-    // Apply obstacle based on radius
-    if (distance < radius) {
-        if (addObstacle) {
-            obstacle = 1.0;
-        } else {
-            obstacle = 0.0;
-        }
-    }
-    
-    FragColor = obstacle;
-}
-)";
-
 
 
 const char* detectCollisionFragmentShader = R"(
@@ -893,13 +863,10 @@ void main() {
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
 
-    if (obstacle > 0.0) {
-        // Render obstacles as white
-       // FragColor = vec4(1.0, 0.5, 0.0, 0.0);
-       
+    if (obstacle > 0.0) 
+	{
+        // Render obstacles as background coloured
 		FragColor = texture(backgroundTexture, scrolledCoord);
-	
-
 		return;
     }
 
