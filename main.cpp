@@ -522,6 +522,7 @@ void main() {
 
 
         // If we sampled from an obstacle, kill the velocity
+		// We do this to avoid generating the opposite colour as a bug
 		result = vec4(0.0, 0.0, 0.0, 1.0);
 
     }
