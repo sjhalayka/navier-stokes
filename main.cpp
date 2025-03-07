@@ -861,16 +861,7 @@ void main() {
         return;
     }
     
-    // Check for obstacle
-    float obstacle = texture(obstacleTexture, adjustedCoord).r;
-    if (obstacle > 0.0) {
-        // Render obstacles as white
-        //FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-       
-		FragColor = texture(backgroundTexture, TexCoord);
 
-		return;
-    }
     
     // Get density and colors at adjusted position
 	float redIntensity = texture(colorTexture, adjustedCoord).r;
@@ -899,7 +890,18 @@ void main() {
 	vec2 scrolledCoord = adjustedCoord2;
 	scrolledCoord.x += time * 0.01;
 
+    // Check for obstacle
+    float obstacle = texture(obstacleTexture, adjustedCoord).r;
 
+    if (obstacle > 0.0) {
+        // Render obstacles as white
+       // FragColor = vec4(1.0, 0.5, 0.0, 0.0);
+       
+		FragColor = texture(backgroundTexture, scrolledCoord);
+	
+
+		return;
+    }
 
 
 	vec4 color1 = texture(backgroundTexture, scrolledCoord);
