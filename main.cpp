@@ -518,7 +518,12 @@ void main() {
     
     if (obstacleSample > 0.0) {
         // If we sampled from an obstacle, reflect the velocity
-        result = vec4(-vel, 0.0, 1.0);
+//        result = vec4(-vel, 0.0, 1.0);
+
+
+        // If we sampled from an obstacle, kill the velocity
+		result = vec4(0.0, 0.0, 0.0, 1.0);
+
     }
     
     FragColor = result;
