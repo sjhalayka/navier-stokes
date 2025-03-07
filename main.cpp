@@ -282,7 +282,7 @@ void main()
 
     vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
 
-    vec2 adjustedCoord = stampCoord;
+    vec2 adjustedStampCoord = stampCoord;
 
 	ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
 
@@ -290,12 +290,12 @@ void main()
 
     // For non-square textures, adjust sampling to prevent stretching
     if (aspect_ratio > 1.0) {
-        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+        adjustedStampCoord.x = (adjustedStampCoord.x - 0.5) / aspect_ratio + 0.5;
     } else if (aspect_ratio < 1.0) {
-        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+        adjustedStampCoord.y = (adjustedStampCoord.y - 0.5) * aspect_ratio + 0.5;
     }    
 
-	stampCoord = adjustedCoord;
+	stampCoord = adjustedStampCoord;
 
 	
 	// Keep the stamps sqare
@@ -307,7 +307,7 @@ void main()
 
 
 	// Why do I need to perform a scale?
-	// stampCoord /= 1.5;
+	 stampCoord /= 1.5;
 
 
 
@@ -442,13 +442,14 @@ uniform vec2 texelSize;
 out vec2 TexCoord;
 out vec2 adjustedCoord;
 
+
 void main() 
 {
     gl_Position = vec4(aPos, 1.0);
 
     TexCoord = aTexCoord;
 
-    vec2 adjustedCoord = TexCoord;
+    adjustedCoord = TexCoord;
 
 	float aspect_ratio = float(texelSize.x) / float(texelSize.y);
 
@@ -820,18 +821,9 @@ float aspect_ratio = WIDTH/HEIGHT;
 out vec4 FragColor;
 
 in vec2 TexCoord;
+in vec2 adjustedCoord;
 
-void main() {
-    // Adjust texture coordinates based on aspect ratio
-    vec2 adjustedCoord = TexCoord;
-    
-    // For non-square textures, adjust sampling to prevent stretching
-    if (aspect_ratio > 1.0) {
-        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
-    } else if (aspect_ratio < 1.0) {
-        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
-    }
-    
+void main() {    
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
     if (collision.a > 0.0) {
