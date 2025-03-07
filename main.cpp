@@ -339,10 +339,6 @@ void main()
     
 	if(windowAspect > 1.0)
 	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
-
-	if(windowAspect < 1.0)
-	stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
-
     
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
@@ -869,8 +865,11 @@ void main() {
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
     if (obstacle > 0.0) {
         // Render obstacles as white
-        FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        return;
+        //FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+       
+		FragColor = texture(backgroundTexture, TexCoord);
+
+		return;
     }
     
     // Get density and colors at adjusted position
