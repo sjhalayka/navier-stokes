@@ -337,18 +337,12 @@ void main()
     // Calculate coordinates in stamp texture - use the same approach as the texture shader
     vec2 stampCoord = (TexCoord - position) * obstacleTexSize / (stampTexSize/2.0) + vec2(0.5);
     
-    //// Apply aspect ratio correction
-    //if (windowAspect > 1.0) {
-    //    // Wide window - adjust x coordinate
-    //    stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
-    //} else if (windowAspect < 1.0) {
-    //    // Tall window - adjust y coordinate
-    
+	if(windowAspect > 1.0)
+	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
 
-stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
+	if(windowAspect < 1.0)
+	stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
 
-
-    //}
     
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
