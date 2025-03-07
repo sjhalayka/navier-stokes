@@ -258,7 +258,6 @@ void main() {
 
 
 
-
 const char* stampTextureFragmentShader = R"(
 #version 330 core
 uniform sampler2D stampTexture;
@@ -272,28 +271,22 @@ out vec4 FragColor;
 
 void main() 
 {
-    // Calculate coordinates in stamp texture
-    vec2 stamp_size = textureSize(stampTexture, 0)/2.0;
-    vec2 stampCoord = (TexCoord - position) * screenSize / stamp_size + vec2(0.5);
-  
-    float aspect_ratio = screenSize.x / screenSize.y;
-
-    // for non-square textures, adjust sampling to prevent stretching
-    vec2 adjustedcoord = stampCoord;
-    if (aspect_ratio > 1.0) {
-        adjustedcoord.x = (adjustedcoord.x - 0.5) / aspect_ratio + 0.5;
-    } else if (aspect_ratio < 1.0) {
-        adjustedcoord.y = (adjustedcoord.y - 0.5) * aspect_ratio + 0.5;
-    }    
-
-    stampCoord = adjustedcoord;
+    // Get dimensions
+    vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
+    float windowAspect = screenSize.x / screenSize.y;
     
-    // Keep the stamps square
-    if(aspect_ratio > 1.0)
-        stampCoord *= aspect_ratio;
-    else
-        stampCoord /= aspect_ratio;
-
+    // Calculate coordinates in stamp texture - use the same approach as the obstacle shader
+    vec2 stampCoord = (TexCoord - position) * screenSize / (stampTexSize/2.0) + vec2(0.5);
+    
+    //// Apply aspect ratio correction
+    //if (windowAspect > 1.0) {
+    //    // Wide window - adjust x coordinate
+    //    stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
+    //} else if (windowAspect < 1.0) {
+    //    // Tall window - adjust y coordinate
+    //    stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
+    //}
+    
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
@@ -317,7 +310,7 @@ void main()
 
 
 
-// Add this to your shader definitions section
+
 const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
@@ -325,6 +318,8 @@ uniform sampler2D stampTexture;
 uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
+uniform vec2 screenSize; // Add this uniform to match texture shader
+
 out float FragColor;
 
 in vec2 TexCoord;
@@ -334,50 +329,34 @@ void main()
     // Get current obstacle value
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
-    // Calculate coordinates in stamp texture
-	vec2 stamp_size = textureSize(stampTexture, 0)/2.0;
+    // Get dimensions
+    vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
+    vec2 obstacleTexSize = vec2(textureSize(obstacleTexture, 0));
+    float windowAspect = obstacleTexSize.x / obstacleTexSize.y; // Or use screenSize if passed
+    
+    // Calculate coordinates in stamp texture - use the same approach as the texture shader
+    vec2 stampCoord = (TexCoord - position) * obstacleTexSize / (stampTexSize/2.0) + vec2(0.5);
+    
+    //// Apply aspect ratio correction
+    //if (windowAspect > 1.0) {
+    //    // Wide window - adjust x coordinate
+    //    stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
+    //} else if (windowAspect < 1.0) {
+    //    // Tall window - adjust y coordinate
+    
 
-    vec2 stampCoord = (TexCoord - position) * textureSize(obstacleTexture, 0) / stamp_size + vec2(0.5);
-
-    vec2 adjustedCoord = stampCoord;
-
-	ivec2 obstacle_tex_size = textureSize(obstacleTexture, 0);    
-
-	float aspect_ratio = float(obstacle_tex_size.x) / float(obstacle_tex_size.y);
-
-    // For non-square textures, adjust sampling to prevent stretching
-    if (aspect_ratio > 1.0) {
-        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
-    } else if (aspect_ratio < 1.0) {
-        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
-    }    
-
-	stampCoord = adjustedCoord;
-
-	
-	// Keep the stamps sqare
-	if(aspect_ratio > 1.0)
-		stampCoord *= aspect_ratio;
-	else
-		stampCoord /= aspect_ratio;
+stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
 
 
-
-	// Why do I need to perform a scale?
-	// stampCoord /= 1.5;
-
-
-
-
+    //}
+    
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
         
-        // Sample stamp texture (use first channel for grayscale images)
-        //float stampValue = length(texture(stampTexture, stampCoord).rgb) / 1.732; // Normalize RGB length
+        // Sample stamp texture (use alpha channel for transparency)
+        float stampValue = texture(stampTexture, stampCoord).a;
         
-		float stampValue = texture(stampTexture, stampCoord).a;
-
         // Apply threshold to make it binary
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
@@ -388,6 +367,9 @@ void main()
     FragColor = obstacle;
 }
 )";
+
+
+
 
 
 
@@ -964,8 +946,10 @@ void clearObstacleTexture() {
 }
 
 
+
+
+
 void reapplyAllStamps() {
-	// Skip if no stamps or no textures
 	if (stamps.empty() || stampTextures.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -973,36 +957,36 @@ void reapplyAllStamps() {
 
 	glUseProgram(stampObstacleProgram);
 
-	// Set common uniforms
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
 
-	// Process each saved stamp
 	for (const auto& stamp : stamps) {
 		if (!stamp.active) continue;
 
-		// Skip if texture index is invalid
 		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
 
-
-
-
-		// Set stamp-specific uniforms
 		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
 		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
 
-		// Bind textures
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, stampTextures[stamp.textureIndex].textureID);
 
-		// Render full-screen quad
 		glBindVertexArray(vao);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 }
+
+
+
+
+
+
+
+
 
 
 bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
@@ -1486,6 +1470,8 @@ void printTextureInformation() {
 	std::cout << "===============================" << std::endl;
 }
 
+
+
 void applyBitmapObstacle() {
 	if (!rightMouseDown || stampTextures.empty()) return;
 
@@ -1494,16 +1480,9 @@ void applyBitmapObstacle() {
 
 	glUseProgram(stampObstacleProgram);
 
-	float aspect = HEIGHT / float(WIDTH);
-
-	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 
-	// Apply aspect ratio correction
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-
-	// Only create a new stamp when the mouse is first pressed
 	if (rightMouseDown && !lastRightMouseDown) {
 		StampInfo newStamp;
 		newStamp.active = true;
@@ -1511,35 +1490,32 @@ void applyBitmapObstacle() {
 		newStamp.posY = mousePosY;
 		newStamp.width = stampTextures[currentStampIndex].width;
 		newStamp.height = stampTextures[currentStampIndex].height;
-		newStamp.textureIndex = currentStampIndex;  // Store which texture we used
+		newStamp.textureIndex = currentStampIndex;
 		stamps.push_back(newStamp);
 
-		std::cout << "Added new stamp #" << stamps.size() << " at position ("
-			<< mousePosX << ", " << mousePosY << ") with texture: "
-			<< stampTextures[currentStampIndex].filename << std::endl;
+		std::cout << "Added new stamp #" << stamps.size() << " at position (" << mousePosX << ", " << mousePosY << ") with texture: " << stampTextures[currentStampIndex].filename << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 
-	// Set uniforms for rendering the stamp
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"),
-		stampTextures[currentStampIndex].width,
-		stampTextures[currentStampIndex].height);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampTextures[currentStampIndex].width, stampTextures[currentStampIndex].height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
 
-	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, stampTextures[currentStampIndex].textureID);
 
-	// Render full-screen quad
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
+
+
+
 
 
 
