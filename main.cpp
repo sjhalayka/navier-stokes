@@ -437,11 +437,30 @@ const char* vertexShaderSource = R"(
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
 
-out vec2 TexCoord;
+uniform vec2 texelSize;
 
-void main() {
+out vec2 TexCoord;
+out vec2 adjustedCoord;
+
+void main() 
+{
     gl_Position = vec4(aPos, 1.0);
+
     TexCoord = aTexCoord;
+
+    vec2 adjustedCoord = TexCoord;
+
+	float aspect_ratio = float(texelSize.x) / float(texelSize.y);
+
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio > 1.0)
+	{
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } 
+	else if (aspect_ratio < 1.0) 
+	{
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }   
 }
 )";
 
