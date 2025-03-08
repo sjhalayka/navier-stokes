@@ -45,28 +45,40 @@ bool lastRightMouseDown = false;
 
 
 struct StampTexture {
-	GLuint textureID;
+	std::vector<GLuint> textureIDs;          // Multiple texture IDs
 	int width;
 	int height;
-	std::string filename;
-	std::vector<unsigned char> pixelData;  // Added to store the raw pixel data
+	std::string baseFilename;                // Base filename without suffix
+	std::vector<std::string> textureNames;   // Names of the specific textures (e.g., "up", "down", "center")
+	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
 	int channels;  // Store the number of channels (needed for pixel access)
+	int currentTextureIndex;                 // Currently active texture index
 
-	StampTexture() : textureID(0), width(0), height(0), channels(0) {}
+	StampTexture() : width(0), height(0), channels(0), currentTextureIndex(0) {}
 };
+
+
 
 std::vector<StampTexture> stampTextures;
 int currentStampIndex = 0;
-
 
 struct StampInfo {
 	bool active;
 	float posX, posY;  // Normalized position (0-1)
 	float width, height;  // In pixels
-	int textureIndex;  // Index of the stamp texture used
+	int textureIndex;     // Index of the stamp texture used
+	int variationIndex;   // Which texture variation to use (up, down, center)
 
-	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), textureIndex(0) {}
+	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), textureIndex(0), variationIndex(0) {}
 };
+
+
+
+bool upKeyPressed = false;
+bool downKeyPressed = false;
+int lastVariationIndex = 0; // Track last variation to detect changes
+
+
 
 // Add this to the other global variables
 std::vector<StampInfo> stamps;
@@ -904,10 +916,17 @@ void main() {
 
 
 void updateDynamicTexture(StampTexture& stamp) {
-	glBindTexture(GL_TEXTURE_2D, stamp.textureID);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData.data());
+	// For each valid texture in the stamp
+	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
+			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
+				(stamp.channels == 1) ? GL_RED :
+				(stamp.channels == 3) ? GL_RGB : GL_RGBA,
+				GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
+		}
+	}
 }
-
 
 
 void clearObstacleTexture() {
@@ -916,7 +935,6 @@ void clearObstacleTexture() {
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
-
 
 
 
@@ -939,13 +957,35 @@ void reapplyAllStamps() {
 
 		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
 
+		const StampTexture& stampTex = stampTextures[stamp.textureIndex];
+
+		// Determine which texture variation to use
+		int variationIndex = stamp.variationIndex;
+
+		// Make sure the variation index is valid
+		if (variationIndex < 0 || variationIndex >= stampTex.textureIDs.size() ||
+			stampTex.textureIDs[variationIndex] == 0) {
+			// Fall back to the first available texture
+			for (size_t i = 0; i < stampTex.textureIDs.size(); i++) {
+				if (stampTex.textureIDs[i] != 0) {
+					variationIndex = i;
+					break;
+				}
+			}
+			// If still no valid texture, skip this stamp
+			if (variationIndex < 0 || variationIndex >= stampTex.textureIDs.size() ||
+				stampTex.textureIDs[variationIndex] == 0) {
+				continue;
+			}
+		}
+
 		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
 		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, stampTextures[stamp.textureIndex].textureID);
+		glBindTexture(GL_TEXTURE_2D, stampTex.textureIDs[variationIndex]);
 
 		glBindVertexArray(vao);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
@@ -958,14 +998,10 @@ void reapplyAllStamps() {
 
 
 
-
-
-
-bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
+bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
-	// We'll need to be consistent with the orientation when sampling
-	stbi_set_flip_vertically_on_load(true);  // Load in regular orientation for our data
-	unsigned char* data = stbi_load(filename, &stampTex.width, &stampTex.height, &stampTex.channels, 0);
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!data) {
 		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
@@ -973,14 +1009,14 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 		return false;
 	}
 
-	// Store the pixel data in the StampTexture struct
-	int dataSize = stampTex.width * stampTex.height * stampTex.channels;
-	stampTex.pixelData.resize(dataSize);
-	std::memcpy(stampTex.pixelData.data(), data, dataSize);
+	// Store the pixel data in the vector
+	int dataSize = width * height * channels;
+	pixelData.resize(dataSize);
+	std::memcpy(pixelData.data(), data, dataSize);
 
 	// Now set flip for OpenGL texture loading
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char* glData = stbi_load(filename, &stampTex.width, &stampTex.height, &stampTex.channels, 0);
+	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!glData) {
 		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
@@ -989,8 +1025,8 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 	}
 
 	// Create texture
-	glGenTextures(1, &stampTex.textureID);
-	glBindTexture(GL_TEXTURE_2D, stampTex.textureID);
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_2D, textureID);
 
 	// Set texture parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1000,17 +1036,17 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 
 	// Determine format based on channels
 	GLenum format;
-	switch (stampTex.channels) {
+	switch (channels) {
 	case 1: format = GL_RED; break;
 	case 3: format = GL_RGB; break;
 	case 4: format = GL_RGBA; break;
 	default:
 		format = GL_RGB;
-		std::cerr << "Unsupported number of channels: " << stampTex.channels << std::endl;
+		std::cerr << "Unsupported number of channels: " << channels << std::endl;
 	}
 
 	// Load texture data to GPU
-	glTexImage2D(GL_TEXTURE_2D, 0, format, stampTex.width, stampTex.height, 0, format, GL_UNSIGNED_BYTE, glData);
+	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, glData);
 
 	// Free image data - we've already copied what we need
 	if (glData != data) {
@@ -1024,10 +1060,15 @@ bool loadStampTextureFile(const char* filename, StampTexture& stampTex) {
 
 
 
-unsigned char getPixelValueFromStampTexture(const StampTexture& texture, int x, int y, int channel) {
-	// Make sure coordinates are within bounds
+
+
+
+unsigned char getPixelValueFromStampTexture(const StampTexture& texture, int variationIndex, int x, int y, int channel) {
+	// Make sure coordinates and indices are within bounds
 	if (x < 0 || x >= texture.width || y < 0 || y >= texture.height ||
-		channel < 0 || channel >= texture.channels) {
+		channel < 0 || channel >= texture.channels ||
+		variationIndex < 0 || variationIndex >= texture.pixelData.size() ||
+		texture.pixelData[variationIndex].empty()) {
 		return 0;
 	}
 
@@ -1035,18 +1076,28 @@ unsigned char getPixelValueFromStampTexture(const StampTexture& texture, int x, 
 	int index = (y * texture.width + x) * texture.channels + channel;
 
 	// Make sure the index is within bounds
-	if (index < 0 || index >= texture.pixelData.size()) {
+	if (index < 0 || index >= texture.pixelData[variationIndex].size()) {
 		return 0;
 	}
 
-	return texture.pixelData[index];
+	return texture.pixelData[variationIndex][index];
 }
+
+
+
+
+
+
+
+
 
 bool loadStampTextures() {
 	// Clear previous textures if they exist
 	for (auto& stamp : stampTextures) {
-		if (stamp.textureID != 0) {
-			glDeleteTextures(1, &stamp.textureID);
+		for (auto& texID : stamp.textureIDs) {
+			if (texID != 0) {
+				glDeleteTextures(1, &texID);
+			}
 		}
 	}
 	stampTextures.clear();
@@ -1054,51 +1105,109 @@ bool loadStampTextures() {
 	int index = 0;
 	bool loadedAny = false;
 
-	// Try loading textures with increasing index until we fail
-	while (true) 
-	{
-		std::string filename = "obstacle" + std::to_string(index) + ".png";
-		StampTexture stampTex;
-		stampTex.filename = filename;
+	// List of variations to try loading
+	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
 
-		// Try to load the texture
-		if (loadStampTextureFile(filename.c_str(), stampTex)) {
-			stampTextures.push_back(stampTex);
-			std::cout << "Loaded stamp texture: " << filename
-				<< " (" << stampTex.width << "x" << stampTex.height << ")" << std::endl;
+	// Try loading textures with increasing index
+	while (true) {
+		std::string baseFilename = "obstacle" + std::to_string(index);
+		StampTexture stampTex;
+		stampTex.baseFilename = baseFilename;
+		stampTex.textureNames = { "centre", "up", "down" };
+		stampTex.currentTextureIndex = 0; // Default to center
+
+		bool loadedAtLeastOne = false;
+
+		// Try to load each variation
+		for (size_t i = 0; i < variations.size(); i++) {
+			std::string filename = baseFilename + variations[i] + ".png";
+			GLuint textureID = 0;
+			int width = 0, height = 0, channels = 0;
+			std::vector<unsigned char> pixelData;
+
+			if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
+				// First successful load sets dimensions and channels
+				if (stampTex.pixelData.empty()) {
+					stampTex.width = width;
+					stampTex.height = height;
+					stampTex.channels = channels;
+				}
+
+				// Add to our collections
+				stampTex.textureIDs.push_back(textureID);
+				stampTex.pixelData.push_back(std::move(pixelData));
+
+				std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
+				loadedAtLeastOne = true;
+			}
+			else {
+				// If a variation is missing, create a placeholder
+				stampTex.textureIDs.push_back(0);
+				stampTex.pixelData.push_back(std::vector<unsigned char>());
+			}
+		}
+
+		// If we loaded at least one variation, add this stamp
+		if (loadedAtLeastOne) {
+			// Special case: if we're missing the center texture but have others,
+			// copy the first available texture to the center position
+			if (stampTex.textureIDs[0] == 0) {
+				for (size_t i = 1; i < stampTex.textureIDs.size(); i++) {
+					if (stampTex.textureIDs[i] != 0) {
+						// Copy the texture ID and pixel data to position 0
+						GLuint newTexID;
+						glGenTextures(1, &newTexID);
+						glBindTexture(GL_TEXTURE_2D, newTexID);
+
+						// Copy texture parameters and data from the other texture
+						GLint width, height, format;
+						glBindTexture(GL_TEXTURE_2D, stampTex.textureIDs[i]);
+						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &format);
+
+						// Create and setup the new texture
+						glBindTexture(GL_TEXTURE_2D, newTexID);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+						// Copy pixel data
+						std::vector<unsigned char> pixelData = stampTex.pixelData[i];
+						stampTex.pixelData[0] = pixelData;
+						stampTex.textureIDs[0] = newTexID;
+
+						// Copy texture data
+						GLenum pixFormat = (stampTex.channels == 1) ? GL_RED :
+							(stampTex.channels == 3) ? GL_RGB : GL_RGBA;
+						glTexImage2D(GL_TEXTURE_2D, 0, format, stampTex.width, stampTex.height,
+							0, pixFormat, GL_UNSIGNED_BYTE, pixelData.data());
+						break;
+					}
+				}
+			}
+
+			stampTextures.push_back(std::move(stampTex));
 			loadedAny = true;
 			index++;
 		}
 		else {
-			// If we can't load the next index, we're done
+			// If we can't load any variations of this index, we're done
 			break;
 		}
 	}
 
-	//// Fall back to loading just "obstacle.png" if no indexed textures were found
-	//if (!loadedAny) {
-	//	StampTexture stampTex;
-	//	stampTex.filename = "obstacle.png";
-
-	//	if (loadStampTextureFile("obstacle.png", stampTex)) {
-	//		stampTextures.push_back(stampTex);
-	//		std::cout << "Loaded stamp texture: obstacle.png"
-	//			<< " (" << stampTex.width << "x" << stampTex.height << ")" << std::endl;
-	//		loadedAny = true;
-	//	}
-	//}
-
 	// Set current stamp to the first one if we loaded any
-	//if (loadedAny) {
-	//	currentStampIndex = 0;
-	//	stampTextureLoaded = true;
-	//}
-	//else {
-	//	stampTextureLoaded = false;
-	//}
+	if (loadedAny) {
+		currentStampIndex = 0;
+	}
 
 	return loadedAny;
 }
+
+
+
 
 //
 //bool loadStampTexture(const char* filename) {
@@ -1153,6 +1262,8 @@ bool loadStampTextures() {
 
 
 
+
+
 bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	if (!stamp.active || stampTextures.empty()) return false;
 
@@ -1162,15 +1273,33 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	}
 
 	const StampTexture& stampTex = stampTextures[stamp.textureIndex];
+	int variationIndex = stamp.variationIndex;
 
-	if (stampTex.pixelData.empty())
+	// Validate variation index
+	if (variationIndex < 0 || variationIndex >= stampTex.pixelData.size() ||
+		stampTex.pixelData[variationIndex].empty()) {
+		// Fall back to first available texture
+		for (size_t i = 0; i < stampTex.pixelData.size(); i++) {
+			if (!stampTex.pixelData[i].empty()) {
+				variationIndex = i;
+				break;
+			}
+		}
+		// If still no valid texture, return false
+		if (variationIndex < 0 || variationIndex >= stampTex.pixelData.size() ||
+			stampTex.pixelData[variationIndex].empty()) {
+			return false;
+		}
+	}
+
+	if (stampTex.pixelData[variationIndex].empty())
 	{
 		// No pixel data available, fall back to the original bounding box check
 		float aspect = HEIGHT / float(WIDTH);
 
 		// Convert pixel coordinates to normalized coordinates (0-1)
 		float pointX = point.x / (float)WIDTH;
-		float pointY = (point.y / (float)HEIGHT); // Y is already in screen coordinates
+		float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
 
 		// Apply aspect ratio correction to y-coordinate
 		pointY = (pointY - 0.5f) * aspect + 0.5f;
@@ -1208,8 +1337,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 		return false;  // Outside the stamp's bounding box
 	}
 
-	//cout << "doing per-pixel collision" << endl;
-
 	// Map the collision point to texture coordinates
 	float texCoordX = (pointX - (stampX - stampWidth / 2)) / stampWidth;
 	float texCoordY = (pointY - (stampY - stampHeight / 2)) / stampHeight;
@@ -1220,21 +1347,21 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	pixelX = std::max(0, std::min(pixelX, stampTex.width - 1));
 	pixelY = std::max(0, std::min(pixelY, stampTex.height - 1));
 
-	// Get the alpha/opacity at this pixel
+	// Get the alpha/opacity at this pixel for the current variation
 	float opacity = 0.0f;
 	if (stampTex.channels == 4) {
 		// Use alpha channel for RGBA textures
-		opacity = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 3) / 255.0f;
+		opacity = getPixelValueFromStampTexture(stampTex, variationIndex, pixelX, pixelY, 3) / 255.0f;
 	}
 	else if (stampTex.channels == 1) {
 		// Use intensity for grayscale
-		opacity = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 0) / 255.0f;
+		opacity = getPixelValueFromStampTexture(stampTex, variationIndex, pixelX, pixelY, 0) / 255.0f;
 	}
 	else if (stampTex.channels == 3) {
 		// For RGB, use average intensity as opacity
-		float r = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 0) / 255.0f;
-		float g = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 1) / 255.0f;
-		float b = getPixelValueFromStampTexture(stampTex, pixelX, pixelY, 2) / 255.0f;
+		float r = getPixelValueFromStampTexture(stampTex, variationIndex, pixelX, pixelY, 0) / 255.0f;
+		float g = getPixelValueFromStampTexture(stampTex, variationIndex, pixelX, pixelY, 1) / 255.0f;
+		float b = getPixelValueFromStampTexture(stampTex, variationIndex, pixelX, pixelY, 2) / 255.0f;
 		opacity = (r + g + b) / 3.0f;
 	}
 
@@ -1242,49 +1369,9 @@ bool isCollisionInStamp(const CollisionPoint& point, const StampInfo& stamp) {
 	return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
-void debugTextureSampling(const StampInfo& stamp, int screenX, int screenY) {
-	if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) {
-		std::cout << "Invalid texture index: " << stamp.textureIndex << std::endl;
-		return;
-	}
 
-	const StampTexture& tex = stampTextures[stamp.textureIndex];
 
-	// Convert screen coordinates to normalized position
-	float normX = screenX / float(WIDTH);
-	float normY = screenY / float(HEIGHT);
 
-	// Calculate the relative position in the stamp
-	float aspect = HEIGHT / float(WIDTH);
-	float stampWidth = stamp.width / float(WIDTH);
-	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;
-
-	float relX = (normX - (stamp.posX - stampWidth / 2)) / stampWidth;
-	float relY = (normY - (stamp.posY - stampHeight / 2)) / stampHeight;
-
-	// Convert to texture coordinates
-	int texX = int(relX * tex.width);
-	int texY = int(relY * tex.height);
-
-	// Check bounds
-	bool inBounds = (texX >= 0 && texX < tex.width && texY >= 0 && texY < tex.height);
-
-	//std::cout << "Debug Texture Sampling:" << std::endl;
-	//std::cout << "  Screen position: (" << screenX << ", " << screenY << ")" << std::endl;
-	//std::cout << "  Normalized: (" << normX << ", " << normY << ")" << std::endl;
-	//std::cout << "  Stamp position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-	//std::cout << "  Stamp size: " << stampWidth << " x " << stampHeight << " (normalized)" << std::endl;
-	//std::cout << "  Relative position: (" << relX << ", " << relY << ")" << std::endl;
-	//std::cout << "  Texture coordinates: (" << texX << ", " << texY << ")" << std::endl;
-	//std::cout << "  In bounds: " << (inBounds ? "Yes" : "No") << std::endl;
-
-	if (inBounds) {
-		for (int c = 0; c < tex.channels; c++) {
-			unsigned char value = getPixelValueFromStampTexture(tex, texX, texY, c);
-			std::cout << "  Channel " << c << " value: " << (int)value << std::endl;
-		}
-	}
-}
 
 
 
@@ -1354,14 +1441,26 @@ void reportStampCollisions() {
 					totalBlueStampCollisions++;
 				}
 
+				if (point.r > 0 && point.b > 0) {
+					bothStampCollisions++;
+					totalBothStampCollisions++;
+				}
+
 				totalStampCollisions++;
 			}
 		}
 
 		// Output the results for this stamp
 		std::string textureName = "unknown";
+		std::string variationName = "unknown";
+
 		if (stamp.textureIndex >= 0 && stamp.textureIndex < stampTextures.size()) {
-			textureName = stampTextures[stamp.textureIndex].filename;
+			const auto& stampTex = stampTextures[stamp.textureIndex];
+			textureName = stampTex.baseFilename;
+
+			if (stamp.variationIndex >= 0 && stamp.variationIndex < stampTex.textureNames.size()) {
+				variationName = stampTex.textureNames[stamp.variationIndex];
+			}
 		}
 
 		if (stampCollisions > 0)
@@ -1369,18 +1468,18 @@ void reportStampCollisions() {
 			std::cout << "\nStamp #" << (i + 1) << ":" << std::endl;
 			std::cout << "  Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
 			std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-			std::cout << "  Texture: " << textureName << std::endl;
+			std::cout << "  Texture: " << textureName << " (" << variationName << ")" << std::endl;
 			std::cout << "  Collisions: " << stampCollisions << std::endl;
 			std::cout << "  Red: " << redStampCollisions
 				<< ", Blue: " << blueStampCollisions
 				<< ", Both: " << bothStampCollisions << std::endl;
 		}
 
-		// If we found a collision point, debug the texture sampling for it
-		if (samplePoint) {
-			std::cout << "  Sample collision point: (" << samplePoint->x << ", " << samplePoint->y << ")" << std::endl;
-			debugTextureSampling(stamp, samplePoint->x, samplePoint->y);
-		}
+		//// If we found a collision point, debug the texture sampling for it
+		//if (samplePoint) {
+		//	std::cout << "  Sample collision point: (" << samplePoint->x << ", " << samplePoint->y << ")" << std::endl;
+		//	debugTextureSampling(stamp, samplePoint->x, samplePoint->y);
+		//}
 	}
 
 	// Output overall summary
@@ -1396,48 +1495,11 @@ void reportStampCollisions() {
 
 
 
-void printTextureInformation() {
-	std::cout << "\n===== Texture Information =====" << std::endl;
-	for (size_t i = 0; i < stampTextures.size(); i++) {
-		const auto& tex = stampTextures[i];
-		std::cout << "Texture #" << (i + 1) << ": " << tex.filename << std::endl;
-		std::cout << "  Dimensions: " << tex.width << "x" << tex.height << std::endl;
-		std::cout << "  Channels: " << tex.channels << std::endl;
-		std::cout << "  Pixel data size: " << tex.pixelData.size() << " bytes" << std::endl;
 
-		// Print a few sample pixels
-		if (!tex.pixelData.empty()) {
-			std::cout << "  Sample pixels:" << std::endl;
 
-			// Top-left corner
-			int x = 0, y = 0;
-			std::cout << "    Top-left (" << x << "," << y << "): ";
-			for (int c = 0; c < tex.channels; c++) {
-				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
-			}
-			std::cout << std::endl;
 
-			// Center
-			x = tex.width / 2;
-			y = tex.height / 2;
-			std::cout << "    Center (" << x << "," << y << "): ";
-			for (int c = 0; c < tex.channels; c++) {
-				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
-			}
-			std::cout << std::endl;
 
-			// Bottom-right corner
-			x = tex.width - 1;
-			y = tex.height - 1;
-			std::cout << "    Bottom-right (" << x << "," << y << "): ";
-			for (int c = 0; c < tex.channels; c++) {
-				std::cout << (int)getPixelValueFromStampTexture(tex, x, y, c) << " ";
-			}
-			std::cout << std::endl;
-		}
-	}
-	std::cout << "===============================" << std::endl;
-}
+
 
 
 
@@ -1457,36 +1519,96 @@ void applyBitmapObstacle() {
 		newStamp.active = true;
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
-		newStamp.width = stampTextures[currentStampIndex].width;
-		newStamp.height = stampTextures[currentStampIndex].height;
+
+		// When creating a new stamp, we need to find the default dimensions
+		// from the current texture set, taking into account variations
+		const StampTexture& stampTex = stampTextures[currentStampIndex];
+		newStamp.width = stampTex.width;
+		newStamp.height = stampTex.height;
+
+		// Determine which variation to use initially - use center (index 0) as default
+		newStamp.variationIndex = 0;
+
+		// If center variation isn't available but others are, use the first available one
+		if (stampTex.textureIDs[newStamp.variationIndex] == 0) {
+			for (size_t i = 0; i < stampTex.textureIDs.size(); i++) {
+				if (stampTex.textureIDs[i] != 0) {
+					newStamp.variationIndex = i;
+					break;
+				}
+			}
+		}
+
+		// Set current variation based on arrow key state
+		if (upKeyPressed) {
+			// Try to use "up" variation (index 1)
+			if (stampTex.textureIDs.size() > 1 && stampTex.textureIDs[1] != 0) {
+				newStamp.variationIndex = 1;
+			}
+		}
+		else if (downKeyPressed) {
+			// Try to use "down" variation (index 2)
+			if (stampTex.textureIDs.size() > 2 && stampTex.textureIDs[2] != 0) {
+				newStamp.variationIndex = 2;
+			}
+		}
+
 		newStamp.textureIndex = currentStampIndex;
 		stamps.push_back(newStamp);
 
-		std::cout << "Added new stamp #" << stamps.size() << " at position (" << mousePosX << ", " << mousePosY << ") with texture: " << stampTextures[currentStampIndex].filename << std::endl;
+		// Log information about the newly added stamp
+		std::string variationName = "unknown";
+		if (newStamp.variationIndex < stampTex.textureNames.size()) {
+			variationName = stampTex.textureNames[newStamp.variationIndex];
+		}
+
+		std::cout << "Added new stamp #" << stamps.size() << " at position (" << mousePosX << ", " << mousePosY << ")"
+			<< " with texture: " << stampTex.baseFilename
+			<< " (variation: " << variationName << ")" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 
+	// For rendering the current stamp at mouse position (preview)
+	// Determine which variation to render based on key state
+	int currentVariation = 0; // Default to center
+
+	if (upKeyPressed) {
+		currentVariation = 1; // up
+	}
+	else if (downKeyPressed) {
+		currentVariation = 2; // down
+	}
+
+	// Make sure we have a valid texture for the selected variation
+	if (currentVariation >= stampTextures[currentStampIndex].textureIDs.size() ||
+		stampTextures[currentStampIndex].textureIDs[currentVariation] == 0) {
+		// Find first available texture
+		for (size_t i = 0; i < stampTextures[currentStampIndex].textureIDs.size(); i++) {
+			if (stampTextures[currentStampIndex].textureIDs[i] != 0) {
+				currentVariation = i;
+				break;
+			}
+		}
+	}
+
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stampTextures[currentStampIndex].width, stampTextures[currentStampIndex].height);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"),
+		stampTextures[currentStampIndex].width,
+		stampTextures[currentStampIndex].height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, stampTextures[currentStampIndex].textureID);
+	glBindTexture(GL_TEXTURE_2D, stampTextures[currentStampIndex].textureIDs[currentVariation]);
 
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
-
-
-
-
-
 
 
 
@@ -2067,7 +2189,6 @@ void addForce() {
 
 
 
-
 void updateObstacle() {
 	if (!rightMouseDown) return;
 
@@ -2087,18 +2208,68 @@ void updateObstacle() {
 		newStamp.active = true;
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
-		newStamp.width = stampTextures[currentStampIndex].width;
-		newStamp.height = stampTextures[currentStampIndex].height;
+
+		// Get current texture set
+		const StampTexture& stampTex = stampTextures[currentStampIndex];
+		newStamp.width = stampTex.width;
+		newStamp.height = stampTex.height;
 		newStamp.textureIndex = currentStampIndex;
+
+		// Set variation based on arrow key state
+		if (upKeyPressed) {
+			// Use "up" variation (index 1) if available
+			if (stampTex.textureIDs.size() > 1 && stampTex.textureIDs[1] != 0) {
+				newStamp.variationIndex = 1;
+			}
+			else {
+				newStamp.variationIndex = 0; // Fall back to center
+			}
+		}
+		else if (downKeyPressed) {
+			// Use "down" variation (index 2) if available
+			if (stampTex.textureIDs.size() > 2 && stampTex.textureIDs[2] != 0) {
+				newStamp.variationIndex = 2;
+			}
+			else {
+				newStamp.variationIndex = 0; // Fall back to center
+			}
+		}
+		else {
+			// Default to center (index 0)
+			newStamp.variationIndex = 0;
+		}
+
+		// Fall back if the chosen variation isn't available
+		if (newStamp.variationIndex >= stampTex.textureIDs.size() ||
+			stampTex.textureIDs[newStamp.variationIndex] == 0) {
+			// Find first available texture
+			for (size_t i = 0; i < stampTex.textureIDs.size(); i++) {
+				if (stampTex.textureIDs[i] != 0) {
+					newStamp.variationIndex = i;
+					break;
+				}
+			}
+		}
+
 		stamps.push_back(newStamp);
+
+		// Get variation name for logging
+		std::string variationName = "unknown";
+		if (newStamp.variationIndex < stampTex.textureNames.size()) {
+			variationName = stampTex.textureNames[newStamp.variationIndex];
+		}
 
 		std::cout << "Added new stamp #" << stamps.size() << " at position ("
 			<< mousePosX << ", " << mousePosY << ") with texture: "
-			<< stampTextures[currentStampIndex].filename << std::endl;
+			<< stampTex.baseFilename << " (variation: " << variationName << ")" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 }
+
+
+
+
 
 
 void addColor()
@@ -2175,9 +2346,9 @@ void simulationStep() {
 	clearObstacleTexture();
 	reapplyAllStamps();
 
-	    for (auto& stamp : stampTextures)
-        updateDynamicTexture(stamp);
-    
+	for (auto& stamp : stampTextures)
+		updateDynamicTexture(stamp);
+
 
 
 
@@ -2213,6 +2384,9 @@ void simulationStep() {
 	// Detect collisions between density and obstacles
 	detectCollisions();
 }
+
+
+
 
 
 
@@ -2273,8 +2447,29 @@ void renderToScreen() {
 		// Skip if texture index is invalid
 		if (stamp.textureIndex < 0 || stamp.textureIndex >= stampTextures.size()) continue;
 
-		float aspect = WIDTH / float(HEIGHT);
+		const StampTexture& stampTex = stampTextures[stamp.textureIndex];
 
+		// Determine which texture variation to use
+		int variationIndex = stamp.variationIndex;
+
+		// Make sure the variation index is valid
+		if (variationIndex < 0 || variationIndex >= stampTex.textureIDs.size() ||
+			stampTex.textureIDs[variationIndex] == 0) {
+			// Fall back to the first available texture
+			for (size_t i = 0; i < stampTex.textureIDs.size(); i++) {
+				if (stampTex.textureIDs[i] != 0) {
+					variationIndex = i;
+					break;
+				}
+			}
+			// If still no valid texture, skip this stamp
+			if (variationIndex < 0 || variationIndex >= stampTex.textureIDs.size() ||
+				stampTex.textureIDs[variationIndex] == 0) {
+				continue;
+			}
+		}
+
+		float aspect = WIDTH / float(HEIGHT);
 		float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 		// Set stamp-specific uniforms
@@ -2284,10 +2479,9 @@ void renderToScreen() {
 		glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f); // Lower threshold for visual display
 		glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
 
-
-		// Bind texture
+		// Bind the appropriate texture variation
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, stampTextures[stamp.textureIndex].textureID);
+		glBindTexture(GL_TEXTURE_2D, stampTex.textureIDs[variationIndex]);
 
 		// Render full-screen quad for this stamp
 		glBindVertexArray(vao);
@@ -2297,6 +2491,9 @@ void renderToScreen() {
 	// Disable blending when done
 	glDisable(GL_BLEND);
 }
+
+
+
 
 
 
@@ -2354,12 +2551,11 @@ void mouseMotion(int x, int y) {
 
 
 // GLUT keyboard callback
+
+
+// GLUT keyboard callback for regular keys
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
-	case 'i':
-	case 'I':
-		printTextureInformation();
-		break;
 
 	case 'r':
 	case 'R':
@@ -2377,7 +2573,16 @@ void keyboard(unsigned char key, int x, int y) {
 	case 'L':
 		if (loadStampTextures()) {
 			std::cout << "Loaded " << stampTextures.size() << " stamp textures" << std::endl;
-			std::cout << "Currently using: " << stampTextures[currentStampIndex].filename << std::endl;
+			if (!stampTextures.empty()) {
+				std::cout << "Currently using: " << stampTextures[currentStampIndex].baseFilename << std::endl;
+				std::cout << "Available variations:";
+				for (size_t i = 0; i < stampTextures[currentStampIndex].textureNames.size(); i++) {
+					if (stampTextures[currentStampIndex].textureIDs[i] != 0) {
+						std::cout << " " << stampTextures[currentStampIndex].textureNames[i];
+					}
+				}
+				std::cout << std::endl;
+			}
 		}
 		else {
 			std::cout << "Failed to load any stamp textures" << std::endl;
@@ -2389,7 +2594,7 @@ void keyboard(unsigned char key, int x, int y) {
 		if (!stampTextures.empty()) {
 			currentStampIndex = (currentStampIndex + 1) % stampTextures.size();
 			std::cout << "Switched to stamp texture: "
-				<< stampTextures[currentStampIndex].filename
+				<< stampTextures[currentStampIndex].baseFilename
 				<< " (" << (currentStampIndex + 1) << " of "
 				<< stampTextures.size() << ")" << std::endl;
 		}
@@ -2427,14 +2632,22 @@ void keyboard(unsigned char key, int x, int y) {
 		for (size_t i = 0; i < stamps.size(); i++) {
 			const auto& stamp = stamps[i];
 			std::string textureName = "unknown";
+			std::string variationName = "unknown";
+
 			if (stamp.textureIndex >= 0 && stamp.textureIndex < stampTextures.size()) {
-				textureName = stampTextures[stamp.textureIndex].filename;
+				const auto& stampTex = stampTextures[stamp.textureIndex];
+				textureName = stampTex.baseFilename;
+
+				if (stamp.variationIndex >= 0 && stamp.variationIndex < stampTex.textureNames.size()) {
+					variationName = stampTex.textureNames[stamp.variationIndex];
+				}
 			}
 
 			std::cout << "  Stamp #" << (i + 1) << ": active=" << (stamp.active ? "yes" : "no")
 				<< ", pos=(" << stamp.posX << "," << stamp.posY << ")"
 				<< ", size=" << stamp.width << "x" << stamp.height
-				<< ", texture=" << textureName << std::endl;
+				<< ", texture=" << textureName
+				<< ", variation=" << variationName << std::endl;
 		}
 		break;
 	}
@@ -2442,51 +2655,131 @@ void keyboard(unsigned char key, int x, int y) {
 
 
 
+	void specialKeyboard(int key, int x, int y) 
+	{
+		bool updateNeeded = false;
 
-// GLUT reshape callback
-void reshape(int w, int h) {
+		switch (key) {
+		case GLUT_KEY_UP:
+			upKeyPressed = true;
+			downKeyPressed = false;
+			updateNeeded = true;
+			break;
 
-	glViewport(0, 0, w, h);
+		case GLUT_KEY_DOWN:
+			downKeyPressed = true;
+			upKeyPressed = false;
+			updateNeeded = true;
+			break;
+		}
 
-	WIDTH = w;
-	HEIGHT = h;
-
-	glDeleteProgram(advectProgram);
-	glDeleteProgram(divergenceProgram);
-	glDeleteProgram(pressureProgram);
-	glDeleteProgram(gradientSubtractProgram);
-	glDeleteProgram(addForceProgram);
-	glDeleteProgram(detectCollisionProgram);
-	glDeleteProgram(diffuseColorProgram);
-	glDeleteProgram(addColorProgram);
-	glDeleteProgram(stampObstacleProgram);
-	glDeleteProgram(diffuseVelocityProgram);
-	glDeleteProgram(stampTextureProgram);
-
-
-
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteVertexArrays(1, &vao);
-	glDeleteBuffers(1, &vbo);
-
-	glDeleteTextures(2, velocityTexture);
-	glDeleteTextures(2, pressureTexture);
-	glDeleteTextures(1, &divergenceTexture);
-	glDeleteTextures(1, &obstacleTexture);
-	glDeleteTextures(1, &collisionTexture);
-	glDeleteTextures(2, colorTexture);
-	glDeleteTextures(2, friendlyColorTexture);
-	glDeleteTextures(1, &backgroundTexture);
-
-	for (auto& stamp : stampTextures) {
-		if (stamp.textureID != 0) {
-			glDeleteTextures(1, &stamp.textureID);
+		// Update all active stamps if needed
+		if (updateNeeded) {
+			for (auto& stamp : stamps) {
+				if (stamp.active) {
+					// Determine which variation to use based on key state
+					if (upKeyPressed) {
+						stamp.variationIndex = 1; // up
+					}
+					else if (downKeyPressed) {
+						stamp.variationIndex = 2; // down
+					}
+					else {
+						stamp.variationIndex = 0; // center/default
+					}
+				}
+			}
 		}
 	}
 
-	stampTextures.clear();
-	initGL();
-}
+	// GLUT special key up callback
+	void specialKeyboardUp(int key, int x, int y) {
+		bool updateNeeded = false;
+
+		switch (key) {
+		case GLUT_KEY_UP:
+			upKeyPressed = false;
+			updateNeeded = true;
+			break;
+
+		case GLUT_KEY_DOWN:
+			downKeyPressed = false;
+			updateNeeded = true;
+			break;
+		}
+
+		// When keys are released, revert to center texture
+		if (updateNeeded) {
+			for (auto& stamp : stamps) {
+				if (stamp.active) {
+					// If no keys are pressed, use center texture
+					if (!upKeyPressed && !downKeyPressed) {
+						stamp.variationIndex = 0; // center
+					}
+				}
+			}
+		}
+	}
+
+
+
+// GLUT reshape callback// GLUT reshape callback
+	void reshape(int w, int h) {
+		glViewport(0, 0, w, h);
+
+		WIDTH = w;
+		HEIGHT = h;
+
+		// Delete existing shader programs
+		glDeleteProgram(advectProgram);
+		glDeleteProgram(divergenceProgram);
+		glDeleteProgram(pressureProgram);
+		glDeleteProgram(gradientSubtractProgram);
+		glDeleteProgram(addForceProgram);
+		glDeleteProgram(detectCollisionProgram);
+		glDeleteProgram(diffuseColorProgram);
+		glDeleteProgram(addColorProgram);
+		glDeleteProgram(stampObstacleProgram);
+		glDeleteProgram(diffuseVelocityProgram);
+		glDeleteProgram(stampTextureProgram);
+
+		// Delete OpenGL resources
+		glDeleteFramebuffers(1, &fbo);
+		glDeleteVertexArrays(1, &vao);
+		glDeleteBuffers(1, &vbo);
+
+		// Delete textures
+		glDeleteTextures(2, velocityTexture);
+		glDeleteTextures(2, pressureTexture);
+		glDeleteTextures(1, &divergenceTexture);
+		glDeleteTextures(1, &obstacleTexture);
+		glDeleteTextures(1, &collisionTexture);
+		glDeleteTextures(2, colorTexture);
+		glDeleteTextures(2, friendlyColorTexture);
+		glDeleteTextures(1, &backgroundTexture);
+
+		// Delete stamp textures
+		for (auto& stamp : stampTextures) {
+			for (auto& textureID : stamp.textureIDs) {
+				if (textureID != 0) {
+					glDeleteTextures(1, &textureID);
+				}
+			}
+		}
+
+		// Clear textures
+		stampTextures.clear();
+
+		// Reinitialize OpenGL
+		initGL();
+	}
+
+
+
+
+
+
+
 void printInstructions() {
 	std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
 	std::cout << "-----------------------------------" << std::endl;
@@ -2525,6 +2818,9 @@ int main(int argc, char** argv) {
 	glutMotionFunc(mouseMotion);
 	glutKeyboardFunc(keyboard);
 	glutReshapeFunc(reshape);
+
+	glutSpecialFunc(specialKeyboard);
+	glutSpecialUpFunc(specialKeyboardUp);
 
 	// Print instructions
 	printInstructions();
