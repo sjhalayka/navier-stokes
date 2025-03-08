@@ -24,11 +24,6 @@ using namespace std;
 
 
 
-// TODO: Test is collision in stamp function so that bullets die when they hit a ship, based on the texture data, not just hit the bounding box
-// TODO: Make bullet stamp. Set it up so that it doesn’t constitute an obstacle, so there must be a bool in the stamp struct 
-// TODO: Also add velocity to stamp struct
-// TODO: how to do pixel-perfect collision detection with stamps
-
 
 // Simulation parameters
 int WIDTH = 960;
@@ -1128,7 +1123,7 @@ bool loadStampTextures() {
 			}
 		}
 	}
-	//stamps.clear();
+	stamps.clear();
 
 	int index = 0;
 	bool loadedAny = false;
@@ -2763,7 +2758,7 @@ void reshape(int w, int h) {
 	}
 
 	// Clear textures
-	//stamps.clear();
+	stamps.clear();
 
 	// Reinitialize OpenGL
 	initGL();
