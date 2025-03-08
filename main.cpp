@@ -2654,125 +2654,101 @@ void keyboard(unsigned char key, int x, int y) {
 }
 
 
+void specialKeyboard(int key, int x, int y) {
+	switch (key) {
+	case GLUT_KEY_UP:
+		upKeyPressed = true;
+		downKeyPressed = false;
 
-	void specialKeyboard(int key, int x, int y) 
-	{
-		bool updateNeeded = false;
-
-		switch (key) {
-		case GLUT_KEY_UP:
-			upKeyPressed = true;
-			downKeyPressed = false;
-			updateNeeded = true;
-			break;
-
-		case GLUT_KEY_DOWN:
-			downKeyPressed = true;
-			upKeyPressed = false;
-			updateNeeded = true;
-			break;
+		// Adjust the texture for the first stamp only
+		if (!stamps.empty() && stamps[0].active) {
+			stamps[0].variationIndex = 1; // up variation
 		}
+		break;
 
-		// Update all active stamps if needed
-		if (updateNeeded) {
-			for (auto& stamp : stamps) {
-				if (stamp.active) {
-					// Determine which variation to use based on key state
-					if (upKeyPressed) {
-						stamp.variationIndex = 1; // up
-					}
-					else if (downKeyPressed) {
-						stamp.variationIndex = 2; // down
-					}
-					else {
-						stamp.variationIndex = 0; // center/default
-					}
-				}
-			}
+	case GLUT_KEY_DOWN:
+		upKeyPressed = false;
+		downKeyPressed = true;
+
+		// Adjust the texture for the first stamp only
+		if (!stamps.empty() && stamps[0].active) {
+			stamps[0].variationIndex = 2; // down variation
 		}
+		break;
 	}
+}
 
-	// GLUT special key up callback
+
+
+
+
 	void specialKeyboardUp(int key, int x, int y) {
-		bool updateNeeded = false;
-
 		switch (key) {
 		case GLUT_KEY_UP:
-			upKeyPressed = false;
-			updateNeeded = true;
-			break;
-
 		case GLUT_KEY_DOWN:
+			upKeyPressed = false;
 			downKeyPressed = false;
-			updateNeeded = true;
-			break;
-		}
 
-		// When keys are released, revert to center texture
-		if (updateNeeded) {
-			for (auto& stamp : stamps) {
-				if (stamp.active) {
-					// If no keys are pressed, use center texture
-					if (!upKeyPressed && !downKeyPressed) {
-						stamp.variationIndex = 0; // center
-					}
-				}
+			// Revert to center texture for the first stamp only
+			if (!stamps.empty() && stamps[0].active) {
+				stamps[0].variationIndex = 0; // center variation
 			}
+			break;
 		}
 	}
 
 
 
 // GLUT reshape callback// GLUT reshape callback
-	void reshape(int w, int h) {
-		glViewport(0, 0, w, h);
+void reshape(int w, int h) {
+	glViewport(0, 0, w, h);
 
-		WIDTH = w;
-		HEIGHT = h;
+	WIDTH = w;
+	HEIGHT = h;
 
-		// Delete existing shader programs
-		glDeleteProgram(advectProgram);
-		glDeleteProgram(divergenceProgram);
-		glDeleteProgram(pressureProgram);
-		glDeleteProgram(gradientSubtractProgram);
-		glDeleteProgram(addForceProgram);
-		glDeleteProgram(detectCollisionProgram);
-		glDeleteProgram(diffuseColorProgram);
-		glDeleteProgram(addColorProgram);
-		glDeleteProgram(stampObstacleProgram);
-		glDeleteProgram(diffuseVelocityProgram);
-		glDeleteProgram(stampTextureProgram);
+	// Delete existing shader programs
+	glDeleteProgram(advectProgram);
+	glDeleteProgram(divergenceProgram);
+	glDeleteProgram(pressureProgram);
+	glDeleteProgram(gradientSubtractProgram);
+	glDeleteProgram(addForceProgram);
+	glDeleteProgram(detectCollisionProgram);
+	glDeleteProgram(diffuseColorProgram);
+	glDeleteProgram(addColorProgram);
+	glDeleteProgram(stampObstacleProgram);
+	glDeleteProgram(diffuseVelocityProgram);
+	glDeleteProgram(stampTextureProgram);
 
-		// Delete OpenGL resources
-		glDeleteFramebuffers(1, &fbo);
-		glDeleteVertexArrays(1, &vao);
-		glDeleteBuffers(1, &vbo);
+	// Delete OpenGL resources
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteBuffers(1, &vbo);
 
-		// Delete textures
-		glDeleteTextures(2, velocityTexture);
-		glDeleteTextures(2, pressureTexture);
-		glDeleteTextures(1, &divergenceTexture);
-		glDeleteTextures(1, &obstacleTexture);
-		glDeleteTextures(1, &collisionTexture);
-		glDeleteTextures(2, colorTexture);
-		glDeleteTextures(2, friendlyColorTexture);
-		glDeleteTextures(1, &backgroundTexture);
+	// Delete textures
+	glDeleteTextures(2, velocityTexture);
+	glDeleteTextures(2, pressureTexture);
+	glDeleteTextures(1, &divergenceTexture);
+	glDeleteTextures(1, &obstacleTexture);
+	glDeleteTextures(1, &collisionTexture);
+	glDeleteTextures(2, colorTexture);
+	glDeleteTextures(2, friendlyColorTexture);
+	glDeleteTextures(1, &backgroundTexture);
 
-		// Delete stamp textures
-		for (auto& stamp : stampTextures) {
-			for (auto& textureID : stamp.textureIDs) {
-				if (textureID != 0) {
-					glDeleteTextures(1, &textureID);
-				}
+	// Delete stamp textures
+	for (auto& stamp : stampTextures) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
 			}
 		}
-
-		// Clear textures
-		stampTextures.clear();
-
-		// Reinitialize OpenGL
-		initGL();
 	}
+
+	// Clear textures
+	stampTextures.clear();
+
+	// Reinitialize OpenGL
+	initGL();
+}
 
 
 
