@@ -1128,7 +1128,7 @@ bool loadStampTextures() {
 			}
 		}
 	}
-	stamps.clear();
+	//stamps.clear();
 
 	int index = 0;
 	bool loadedAny = false;
@@ -2763,7 +2763,7 @@ void reshape(int w, int h) {
 	}
 
 	// Clear textures
-	stamps.clear();
+	//stamps.clear();
 
 	// Reinitialize OpenGL
 	initGL();
