@@ -947,6 +947,223 @@ void main() {
 }
 )";
 
+
+
+
+
+
+
+unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
+	// Make sure coordinates and indices are within bounds
+	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
+		channel < 0 || channel >= stamp.channels ||
+		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+		stamp.pixelData[variationIndex].empty()) {
+		return 0;
+	}
+
+	// Calculate the index in the pixel data array
+	int index = (y * stamp.width + x) * stamp.channels + channel;
+
+	// Make sure the index is within bounds
+	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
+		return 0;
+	}
+
+	return stamp.pixelData[variationIndex][index];
+}
+
+
+
+bool checkStampCollision(const Stamp& stamp1, const Stamp& stamp2) {
+	// Skip inactive stamps
+	if (!stamp1.active || !stamp2.active) return false;
+
+	// Get the normalized positions of both stamps
+	float aspect = HEIGHT / float(WIDTH);
+
+	// Get texture indices to use
+	int var1 = stamp1.currentVariationIndex;
+	int var2 = stamp2.currentVariationIndex;
+
+	// Check if both stamps have valid texture data
+	if (var1 >= stamp1.pixelData.size() || stamp1.pixelData[var1].empty() ||
+		var2 >= stamp2.pixelData.size() || stamp2.pixelData[var2].empty()) {
+		return false;
+	}
+
+	// Calculate stamp dimensions in normalized screen coordinates
+	float stampWidth1 = stamp1.width / float(WIDTH);
+	float stampHeight1 = (stamp1.height / float(HEIGHT)) * aspect;
+	float stampWidth2 = stamp2.width / float(WIDTH);
+	float stampHeight2 = (stamp2.height / float(HEIGHT)) * aspect;
+
+	// Calculate stamp bounds in normalized coordinates
+	float stamp1MinX = stamp1.posX - stampWidth1 / 2;
+	float stamp1MaxX = stamp1.posX + stampWidth1 / 2;
+	float stamp1MinY = stamp1.posY - stampHeight1 / 2;
+	float stamp1MaxY = stamp1.posY + stampHeight1 / 2;
+
+	float stamp2MinX = stamp2.posX - stampWidth2 / 2;
+	float stamp2MaxX = stamp2.posX + stampWidth2 / 2;
+	float stamp2MinY = stamp2.posY - stampHeight2 / 2;
+	float stamp2MaxY = stamp2.posY + stampHeight2 / 2;
+
+	// Quick bounding box check - if no overlap, return false
+	if (stamp1MaxX < stamp2MinX || stamp1MinX > stamp2MaxX ||
+		stamp1MaxY < stamp2MinY || stamp1MinY > stamp2MaxY) {
+		return false;
+	}
+
+	// Calculate the overlap region in normalized coordinates
+	float overlapMinX = std::max(stamp1MinX, stamp2MinX);
+	float overlapMaxX = std::min(stamp1MaxX, stamp2MaxX);
+	float overlapMinY = std::max(stamp1MinY, stamp2MinY);
+	float overlapMaxY = std::min(stamp1MaxY, stamp2MaxY);
+
+	// Convert the overlap region to pixel coordinates for each stamp
+	// For stamp1:
+	int stamp1OverlapMinPixelX = static_cast<int>((overlapMinX - stamp1MinX) / stampWidth1 * stamp1.width);
+	int stamp1OverlapMaxPixelX = static_cast<int>((overlapMaxX - stamp1MinX) / stampWidth1 * stamp1.width);
+	int stamp1OverlapMinPixelY = static_cast<int>((overlapMinY - stamp1MinY) / stampHeight1 * stamp1.height);
+	int stamp1OverlapMaxPixelY = static_cast<int>((overlapMaxY - stamp1MinY) / stampHeight1 * stamp1.height);
+
+	// For stamp2:
+	int stamp2OverlapMinPixelX = static_cast<int>((overlapMinX - stamp2MinX) / stampWidth2 * stamp2.width);
+	int stamp2OverlapMaxPixelX = static_cast<int>((overlapMaxX - stamp2MinX) / stampWidth2 * stamp2.width);
+	int stamp2OverlapMinPixelY = static_cast<int>((overlapMinY - stamp2MinY) / stampHeight2 * stamp2.height);
+	int stamp2OverlapMaxPixelY = static_cast<int>((overlapMaxY - stamp2MinY) / stampHeight2 * stamp2.height);
+
+	// Clamp to valid ranges
+	stamp1OverlapMinPixelX = std::max(0, std::min(stamp1OverlapMinPixelX, stamp1.width - 1));
+	stamp1OverlapMaxPixelX = std::max(0, std::min(stamp1OverlapMaxPixelX, stamp1.width - 1));
+	stamp1OverlapMinPixelY = std::max(0, std::min(stamp1OverlapMinPixelY, stamp1.height - 1));
+	stamp1OverlapMaxPixelY = std::max(0, std::min(stamp1OverlapMaxPixelY, stamp1.height - 1));
+
+	stamp2OverlapMinPixelX = std::max(0, std::min(stamp2OverlapMinPixelX, stamp2.width - 1));
+	stamp2OverlapMaxPixelX = std::max(0, std::min(stamp2OverlapMaxPixelX, stamp2.width - 1));
+	stamp2OverlapMinPixelY = std::max(0, std::min(stamp2OverlapMinPixelY, stamp2.height - 1));
+	stamp2OverlapMaxPixelY = std::max(0, std::min(stamp2OverlapMaxPixelY, stamp2.height - 1));
+
+	// Now check pixel by pixel in the overlapping region
+	for (int y1 = stamp1OverlapMinPixelY, y2 = stamp2OverlapMinPixelY;
+		y1 <= stamp1OverlapMaxPixelY && y2 <= stamp2OverlapMaxPixelY;
+		y1++, y2++) {
+
+		for (int x1 = stamp1OverlapMinPixelX, x2 = stamp2OverlapMinPixelX;
+			x1 <= stamp1OverlapMaxPixelX && x2 <= stamp2OverlapMaxPixelX;
+			x1++, x2++) {
+
+			// Get alpha values for each pixel
+			float alpha1 = 0.0f;
+			float alpha2 = 0.0f;
+
+			// Get alpha values based on channels
+			if (stamp1.channels == 4) {
+				alpha1 = getPixelValueFromStamp(stamp1, var1, x1, y1, 3) / 255.0f;
+			}
+			else if (stamp1.channels == 1) {
+				alpha1 = getPixelValueFromStamp(stamp1, var1, x1, y1, 0) / 255.0f;
+			}
+			else if (stamp1.channels == 3) {
+				// For RGB, use average intensity as alpha
+				float r = getPixelValueFromStamp(stamp1, var1, x1, y1, 0) / 255.0f;
+				float g = getPixelValueFromStamp(stamp1, var1, x1, y1, 1) / 255.0f;
+				float b = getPixelValueFromStamp(stamp1, var1, x1, y1, 2) / 255.0f;
+				alpha1 = (r + g + b) / 3.0f;
+			}
+
+			if (stamp2.channels == 4) {
+				alpha2 = getPixelValueFromStamp(stamp2, var2, x2, y2, 3) / 255.0f;
+			}
+			else if (stamp2.channels == 1) {
+				alpha2 = getPixelValueFromStamp(stamp2, var2, x2, y2, 0) / 255.0f;
+			}
+			else if (stamp2.channels == 3) {
+				float r = getPixelValueFromStamp(stamp2, var2, x2, y2, 0) / 255.0f;
+				float g = getPixelValueFromStamp(stamp2, var2, x2, y2, 1) / 255.0f;
+				float b = getPixelValueFromStamp(stamp2, var2, x2, y2, 2) / 255.0f;
+				alpha2 = (r + g + b) / 3.0f;
+			}
+
+			// If both pixels have significant alpha, we have a collision
+			if (alpha1 > COLOR_DETECTION_THRESHOLD && alpha2 > COLOR_DETECTION_THRESHOLD) {
+				return true;
+			}
+		}
+	}
+
+	// No pixel-level collision found
+	return false;
+}
+
+std::vector<std::pair<int, int>> findStampCollisions() {
+	std::vector<std::pair<int, int>> collisionPairs;
+
+	// Check each pair of active stamps
+	for (size_t i = 0; i < stamps.size(); i++) {
+		if (!stamps[i].active) continue;
+
+		for (size_t j = i + 1; j < stamps.size(); j++) {
+			if (!stamps[j].active) continue;
+
+			if (checkStampCollision(stamps[i], stamps[j])) {
+				collisionPairs.push_back(std::make_pair(i, j));
+			}
+		}
+	}
+
+	return collisionPairs;
+}
+
+
+
+void reportStampToStampCollisions() {
+	auto collisions = findStampCollisions();
+
+	if (collisions.empty()) {
+		std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
+		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+		std::cout << "===========================================" << std::endl;
+		return;
+	}
+
+	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
+	std::cout << "Found " << collisions.size() << " colliding stamp pairs:" << std::endl;
+
+	for (const auto& pair : collisions) {
+		const auto& stamp1 = stamps[pair.first];
+		const auto& stamp2 = stamps[pair.second];
+
+		std::string var1Name = "unknown";
+		std::string var2Name = "unknown";
+
+		if (stamp1.currentVariationIndex < stamp1.textureNames.size()) {
+			var1Name = stamp1.textureNames[stamp1.currentVariationIndex];
+		}
+
+		if (stamp2.currentVariationIndex < stamp2.textureNames.size()) {
+			var2Name = stamp2.textureNames[stamp2.currentVariationIndex];
+		}
+
+		std::cout << "Collision between Stamp #" << (pair.first + 1)
+			<< " (" << stamp1.baseFilename << ", " << var1Name << ") and Stamp #"
+			<< (pair.second + 1) << " (" << stamp2.baseFilename << ", " << var2Name << ")"
+			<< std::endl;
+	}
+
+	std::cout << "===========================================" << std::endl;
+}
+
+
+
+
+
+
+
+
+
+
 void updateDynamicTexture(Stamp& stamp) {
 	// For each valid texture in the stamp
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
@@ -1088,28 +1305,6 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
-
-
-
-unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
-	// Make sure coordinates and indices are within bounds
-	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
-		channel < 0 || channel >= stamp.channels ||
-		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		return 0;
-	}
-
-	// Calculate the index in the pixel data array
-	int index = (y * stamp.width + x) * stamp.channels + channel;
-
-	// Make sure the index is within bounds
-	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
-		return 0;
-	}
-
-	return stamp.pixelData[variationIndex][index];
-}
 
 
 
@@ -1760,6 +1955,8 @@ void detectCollisions() {
 		{
 			reportStampCollisions();
 		}
+
+		reportStampToStampCollisions();
 
 		// Reset reporting flag
 		reportCollisions = false;
