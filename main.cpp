@@ -947,165 +947,6 @@ void main() {
 }
 )";
 
-
-
-
-
-
-
-unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
-	// Make sure coordinates and indices are within bounds
-	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
-		channel < 0 || channel >= stamp.channels ||
-		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		return 0;
-	}
-
-	// Calculate the index in the pixel data array
-	int index = (y * stamp.width + x) * stamp.channels + channel;
-
-	// Make sure the index is within bounds
-	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
-		return 0;
-	}
-
-	return stamp.pixelData[variationIndex][index];
-}
-
-
-
-
-bool checkStampCollision(const Stamp& stamp1, const Stamp& stamp2) {
-	if (!stamp1.active || !stamp2.active) return false;
-
-	float aspect = HEIGHT / float(WIDTH);
-	int var1 = stamp1.currentVariationIndex;
-	int var2 = stamp2.currentVariationIndex;
-
-	if (var1 >= stamp1.pixelData.size() || stamp1.pixelData[var1].empty() ||
-		var2 >= stamp2.pixelData.size() || stamp2.pixelData[var2].empty()) {
-		return false;
-	}
-
-	// Compute bounding boxes in normalized coordinates
-	float stamp1MinX = stamp1.posX - (stamp1.width / float(WIDTH)) / 2;
-	float stamp1MaxX = stamp1.posX + (stamp1.width / float(WIDTH)) / 2;
-	float stamp1MinY = stamp1.posY - (stamp1.height / float(HEIGHT)) / 2 * aspect;
-	float stamp1MaxY = stamp1.posY + (stamp1.height / float(HEIGHT)) / 2 * aspect;
-
-	float stamp2MinX = stamp2.posX - (stamp2.width / float(WIDTH)) / 2;
-	float stamp2MaxX = stamp2.posX + (stamp2.width / float(WIDTH)) / 2;
-	float stamp2MinY = stamp2.posY - (stamp2.height / float(HEIGHT)) / 2 * aspect;
-	float stamp2MaxY = stamp2.posY + (stamp2.height / float(HEIGHT)) / 2 * aspect;
-
-	// Bounding box collision check
-	if (stamp1MaxX < stamp2MinX || stamp1MinX > stamp2MaxX ||
-		stamp1MaxY < stamp2MinY || stamp1MinY > stamp2MaxY) {
-		return false;
-	}
-
-	// Compute overlap in texture space
-	int overlapMinX = std::max(stamp1MinX, stamp2MinX) * WIDTH;
-	int overlapMaxX = std::min(stamp1MaxX, stamp2MaxX) * WIDTH;
-	int overlapMinY = std::max(stamp1MinY, stamp2MinY) * HEIGHT / aspect;
-	int overlapMaxY = std::min(stamp1MaxY, stamp2MaxY) * HEIGHT / aspect;
-
-	for (int y = overlapMinY; y <= overlapMaxY; y++) {
-		for (int x = overlapMinX; x <= overlapMaxX; x++) {
-			int relX1 = (x - stamp1MinX * WIDTH) * stamp1.width / (stamp1MaxX - stamp1MinX) / WIDTH;
-			int relY1 = (y - stamp1MinY * HEIGHT / aspect) * stamp1.height / (stamp1MaxY - stamp1MinY) / HEIGHT * aspect;
-
-			int relX2 = (x - stamp2MinX * WIDTH) * stamp2.width / (stamp2MaxX - stamp2MinX) / WIDTH;
-			int relY2 = (y - stamp2MinY * HEIGHT / aspect) * stamp2.height / (stamp2MaxY - stamp2MinY) / HEIGHT * aspect;
-
-			relX1 = std::clamp(relX1, 0, stamp1.width - 1);
-			relY1 = std::clamp(relY1, 0, stamp1.height - 1);
-			relX2 = std::clamp(relX2, 0, stamp2.width - 1);
-			relY2 = std::clamp(relY2, 0, stamp2.height - 1);
-
-			float alpha1 = getPixelValueFromStamp(stamp1, var1, relX1, relY1, 3) / 255.0f;
-			float alpha2 = getPixelValueFromStamp(stamp2, var2, relX2, relY2, 3) / 255.0f;
-
-			if (alpha1 > COLOR_DETECTION_THRESHOLD && alpha2 > COLOR_DETECTION_THRESHOLD) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-
-
-
-std::vector<std::pair<int, int>> findStampCollisions() {
-	std::vector<std::pair<int, int>> collisionPairs;
-
-	// Check each pair of active stamps
-	for (size_t i = 0; i < stamps.size(); i++) {
-		if (!stamps[i].active) continue;
-
-		for (size_t j = i + 1; j < stamps.size(); j++) {
-			if (!stamps[j].active) continue;
-
-			if (checkStampCollision(stamps[i], stamps[j])) {
-				collisionPairs.push_back(std::make_pair(i, j));
-			}
-		}
-	}
-
-	return collisionPairs;
-}
-
-
-
-void reportStampToStampCollisions() {
-	auto collisions = findStampCollisions();
-
-	if (collisions.empty()) {
-		std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
-		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
-		std::cout << "===========================================" << std::endl;
-		return;
-	}
-
-	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
-	std::cout << "Found " << collisions.size() << " colliding stamp pairs:" << std::endl;
-
-	for (const auto& pair : collisions) {
-		const auto& stamp1 = stamps[pair.first];
-		const auto& stamp2 = stamps[pair.second];
-
-		std::string var1Name = "unknown";
-		std::string var2Name = "unknown";
-
-		if (stamp1.currentVariationIndex < stamp1.textureNames.size()) {
-			var1Name = stamp1.textureNames[stamp1.currentVariationIndex];
-		}
-
-		if (stamp2.currentVariationIndex < stamp2.textureNames.size()) {
-			var2Name = stamp2.textureNames[stamp2.currentVariationIndex];
-		}
-
-		std::cout << "Collision between Stamp #" << (pair.first + 1)
-			<< " (" << stamp1.baseFilename << ", " << var1Name << ") and Stamp #"
-			<< (pair.second + 1) << " (" << stamp2.baseFilename << ", " << var2Name << ")"
-			<< std::endl;
-	}
-
-	std::cout << "===========================================" << std::endl;
-}
-
-
-
-
-
-
-
-
-
-
 void updateDynamicTexture(Stamp& stamp) {
 	// For each valid texture in the stamp
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
@@ -1247,6 +1088,28 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
+
+
+
+unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
+	// Make sure coordinates and indices are within bounds
+	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
+		channel < 0 || channel >= stamp.channels ||
+		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+		stamp.pixelData[variationIndex].empty()) {
+		return 0;
+	}
+
+	// Calculate the index in the pixel data array
+	int index = (y * stamp.width + x) * stamp.channels + channel;
+
+	// Make sure the index is within bounds
+	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
+		return 0;
+	}
+
+	return stamp.pixelData[variationIndex][index];
+}
 
 
 
@@ -1897,8 +1760,6 @@ void detectCollisions() {
 		{
 			reportStampCollisions();
 		}
-
-		reportStampToStampCollisions();
 
 		// Reset reporting flag
 		reportCollisions = false;
