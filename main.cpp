@@ -975,127 +975,69 @@ unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int
 
 
 
+
 bool checkStampCollision(const Stamp& stamp1, const Stamp& stamp2) {
-	// Skip inactive stamps
 	if (!stamp1.active || !stamp2.active) return false;
 
-	// Get the normalized positions of both stamps
 	float aspect = HEIGHT / float(WIDTH);
-
-	// Get texture indices to use
 	int var1 = stamp1.currentVariationIndex;
 	int var2 = stamp2.currentVariationIndex;
 
-	// Check if both stamps have valid texture data
 	if (var1 >= stamp1.pixelData.size() || stamp1.pixelData[var1].empty() ||
 		var2 >= stamp2.pixelData.size() || stamp2.pixelData[var2].empty()) {
 		return false;
 	}
 
-	// Calculate stamp dimensions in normalized screen coordinates
-	float stampWidth1 = stamp1.width / float(WIDTH);
-	float stampHeight1 = (stamp1.height / float(HEIGHT)) * aspect;
-	float stampWidth2 = stamp2.width / float(WIDTH);
-	float stampHeight2 = (stamp2.height / float(HEIGHT)) * aspect;
+	// Compute bounding boxes in normalized coordinates
+	float stamp1MinX = stamp1.posX - (stamp1.width / float(WIDTH)) / 2;
+	float stamp1MaxX = stamp1.posX + (stamp1.width / float(WIDTH)) / 2;
+	float stamp1MinY = stamp1.posY - (stamp1.height / float(HEIGHT)) / 2 * aspect;
+	float stamp1MaxY = stamp1.posY + (stamp1.height / float(HEIGHT)) / 2 * aspect;
 
-	// Calculate stamp bounds in normalized coordinates
-	float stamp1MinX = stamp1.posX - stampWidth1 / 2;
-	float stamp1MaxX = stamp1.posX + stampWidth1 / 2;
-	float stamp1MinY = stamp1.posY - stampHeight1 / 2;
-	float stamp1MaxY = stamp1.posY + stampHeight1 / 2;
+	float stamp2MinX = stamp2.posX - (stamp2.width / float(WIDTH)) / 2;
+	float stamp2MaxX = stamp2.posX + (stamp2.width / float(WIDTH)) / 2;
+	float stamp2MinY = stamp2.posY - (stamp2.height / float(HEIGHT)) / 2 * aspect;
+	float stamp2MaxY = stamp2.posY + (stamp2.height / float(HEIGHT)) / 2 * aspect;
 
-	float stamp2MinX = stamp2.posX - stampWidth2 / 2;
-	float stamp2MaxX = stamp2.posX + stampWidth2 / 2;
-	float stamp2MinY = stamp2.posY - stampHeight2 / 2;
-	float stamp2MaxY = stamp2.posY + stampHeight2 / 2;
-
-	// Quick bounding box check - if no overlap, return false
+	// Bounding box collision check
 	if (stamp1MaxX < stamp2MinX || stamp1MinX > stamp2MaxX ||
 		stamp1MaxY < stamp2MinY || stamp1MinY > stamp2MaxY) {
 		return false;
 	}
 
-	// Calculate the overlap region in normalized coordinates
-	float overlapMinX = std::max(stamp1MinX, stamp2MinX);
-	float overlapMaxX = std::min(stamp1MaxX, stamp2MaxX);
-	float overlapMinY = std::max(stamp1MinY, stamp2MinY);
-	float overlapMaxY = std::min(stamp1MaxY, stamp2MaxY);
+	// Compute overlap in texture space
+	int overlapMinX = std::max(stamp1MinX, stamp2MinX) * WIDTH;
+	int overlapMaxX = std::min(stamp1MaxX, stamp2MaxX) * WIDTH;
+	int overlapMinY = std::max(stamp1MinY, stamp2MinY) * HEIGHT / aspect;
+	int overlapMaxY = std::min(stamp1MaxY, stamp2MaxY) * HEIGHT / aspect;
 
-	// Convert the overlap region to pixel coordinates for each stamp
-	// For stamp1:
-	int stamp1OverlapMinPixelX = static_cast<int>((overlapMinX - stamp1MinX) / stampWidth1 * stamp1.width);
-	int stamp1OverlapMaxPixelX = static_cast<int>((overlapMaxX - stamp1MinX) / stampWidth1 * stamp1.width);
-	int stamp1OverlapMinPixelY = static_cast<int>((overlapMinY - stamp1MinY) / stampHeight1 * stamp1.height);
-	int stamp1OverlapMaxPixelY = static_cast<int>((overlapMaxY - stamp1MinY) / stampHeight1 * stamp1.height);
+	for (int y = overlapMinY; y <= overlapMaxY; y++) {
+		for (int x = overlapMinX; x <= overlapMaxX; x++) {
+			int relX1 = (x - stamp1MinX * WIDTH) * stamp1.width / (stamp1MaxX - stamp1MinX) / WIDTH;
+			int relY1 = (y - stamp1MinY * HEIGHT / aspect) * stamp1.height / (stamp1MaxY - stamp1MinY) / HEIGHT * aspect;
 
-	// For stamp2:
-	int stamp2OverlapMinPixelX = static_cast<int>((overlapMinX - stamp2MinX) / stampWidth2 * stamp2.width);
-	int stamp2OverlapMaxPixelX = static_cast<int>((overlapMaxX - stamp2MinX) / stampWidth2 * stamp2.width);
-	int stamp2OverlapMinPixelY = static_cast<int>((overlapMinY - stamp2MinY) / stampHeight2 * stamp2.height);
-	int stamp2OverlapMaxPixelY = static_cast<int>((overlapMaxY - stamp2MinY) / stampHeight2 * stamp2.height);
+			int relX2 = (x - stamp2MinX * WIDTH) * stamp2.width / (stamp2MaxX - stamp2MinX) / WIDTH;
+			int relY2 = (y - stamp2MinY * HEIGHT / aspect) * stamp2.height / (stamp2MaxY - stamp2MinY) / HEIGHT * aspect;
 
-	// Clamp to valid ranges
-	stamp1OverlapMinPixelX = std::max(0, std::min(stamp1OverlapMinPixelX, stamp1.width - 1));
-	stamp1OverlapMaxPixelX = std::max(0, std::min(stamp1OverlapMaxPixelX, stamp1.width - 1));
-	stamp1OverlapMinPixelY = std::max(0, std::min(stamp1OverlapMinPixelY, stamp1.height - 1));
-	stamp1OverlapMaxPixelY = std::max(0, std::min(stamp1OverlapMaxPixelY, stamp1.height - 1));
+			relX1 = std::clamp(relX1, 0, stamp1.width - 1);
+			relY1 = std::clamp(relY1, 0, stamp1.height - 1);
+			relX2 = std::clamp(relX2, 0, stamp2.width - 1);
+			relY2 = std::clamp(relY2, 0, stamp2.height - 1);
 
-	stamp2OverlapMinPixelX = std::max(0, std::min(stamp2OverlapMinPixelX, stamp2.width - 1));
-	stamp2OverlapMaxPixelX = std::max(0, std::min(stamp2OverlapMaxPixelX, stamp2.width - 1));
-	stamp2OverlapMinPixelY = std::max(0, std::min(stamp2OverlapMinPixelY, stamp2.height - 1));
-	stamp2OverlapMaxPixelY = std::max(0, std::min(stamp2OverlapMaxPixelY, stamp2.height - 1));
+			float alpha1 = getPixelValueFromStamp(stamp1, var1, relX1, relY1, 3) / 255.0f;
+			float alpha2 = getPixelValueFromStamp(stamp2, var2, relX2, relY2, 3) / 255.0f;
 
-	// Now check pixel by pixel in the overlapping region
-	for (int y1 = stamp1OverlapMinPixelY, y2 = stamp2OverlapMinPixelY;
-		y1 <= stamp1OverlapMaxPixelY && y2 <= stamp2OverlapMaxPixelY;
-		y1++, y2++) {
-
-		for (int x1 = stamp1OverlapMinPixelX, x2 = stamp2OverlapMinPixelX;
-			x1 <= stamp1OverlapMaxPixelX && x2 <= stamp2OverlapMaxPixelX;
-			x1++, x2++) {
-
-			// Get alpha values for each pixel
-			float alpha1 = 0.0f;
-			float alpha2 = 0.0f;
-
-			// Get alpha values based on channels
-			if (stamp1.channels == 4) {
-				alpha1 = getPixelValueFromStamp(stamp1, var1, x1, y1, 3) / 255.0f;
-			}
-			else if (stamp1.channels == 1) {
-				alpha1 = getPixelValueFromStamp(stamp1, var1, x1, y1, 0) / 255.0f;
-			}
-			else if (stamp1.channels == 3) {
-				// For RGB, use average intensity as alpha
-				float r = getPixelValueFromStamp(stamp1, var1, x1, y1, 0) / 255.0f;
-				float g = getPixelValueFromStamp(stamp1, var1, x1, y1, 1) / 255.0f;
-				float b = getPixelValueFromStamp(stamp1, var1, x1, y1, 2) / 255.0f;
-				alpha1 = (r + g + b) / 3.0f;
-			}
-
-			if (stamp2.channels == 4) {
-				alpha2 = getPixelValueFromStamp(stamp2, var2, x2, y2, 3) / 255.0f;
-			}
-			else if (stamp2.channels == 1) {
-				alpha2 = getPixelValueFromStamp(stamp2, var2, x2, y2, 0) / 255.0f;
-			}
-			else if (stamp2.channels == 3) {
-				float r = getPixelValueFromStamp(stamp2, var2, x2, y2, 0) / 255.0f;
-				float g = getPixelValueFromStamp(stamp2, var2, x2, y2, 1) / 255.0f;
-				float b = getPixelValueFromStamp(stamp2, var2, x2, y2, 2) / 255.0f;
-				alpha2 = (r + g + b) / 3.0f;
-			}
-
-			// If both pixels have significant alpha, we have a collision
 			if (alpha1 > COLOR_DETECTION_THRESHOLD && alpha2 > COLOR_DETECTION_THRESHOLD) {
 				return true;
 			}
 		}
 	}
 
-	// No pixel-level collision found
 	return false;
 }
+
+
+
 
 std::vector<std::pair<int, int>> findStampCollisions() {
 	std::vector<std::pair<int, int>> collisionPairs;
