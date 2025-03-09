@@ -61,6 +61,10 @@ struct Stamp {
 	float posX, posY;                       // Normalized position (0-1)
 	int currentVariationIndex;              // Which texture variation to use
 
+	float bboxMinX = 0, bboxMinY = 0; // Bottom-left corner (normalized coordinates)
+	float bboxMaxX = 0, bboxMaxY = 0; // Top-right corner (normalized coordinates)
+
+
 	Stamp() : width(0), height(0), channels(0), active(false),
 		posX(0), posY(0), currentVariationIndex(0) {}
 };
@@ -70,6 +74,49 @@ int currentStampIndex = 0;
 
 
 
+
+void updateBoundingBox(Stamp& stamp) {
+	// Calculate aspect ratio
+	float aspect = WIDTH / static_cast<float>(HEIGHT);
+
+	// For the stamp positioning, we need to match how the stamp is rendered
+	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
+	// We also need to apply the 1.5 divisor used in the shader
+	float scale = 1.0 / 1.5f;// 1.5f;
+
+	// Calculate the actual width and height in normalized coordinates
+	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+	float halfHeightNorm = (stamp.height / 2.0f) / HEIGHT;
+
+	// Apply the same aspect ratio adjustments as in the shader
+	float stampY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+	// Apply the scaling factor to match the shader
+	halfWidthNorm /= scale;
+	halfHeightNorm /= scale;
+
+	// Set the bounding box coordinates
+	stamp.bboxMinX = stamp.posX - halfWidthNorm;
+	stamp.bboxMinY = stampY - halfHeightNorm;
+	stamp.bboxMaxX = stamp.posX + halfWidthNorm;
+	stamp.bboxMaxY = stampY + halfHeightNorm;
+}
+
+
+
+
+void drawBoundingBox(const Stamp& stamp) {
+	if (!stamp.active) return;
+
+	glColor3f(1.0f, 0.0f, 0.0f); // Set the bounding box color (yellow)
+
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(stamp.bboxMinX, stamp.bboxMinY); // Bottom-left
+	glVertex2f(stamp.bboxMaxX, stamp.bboxMinY); // Bottom-right
+	glVertex2f(stamp.bboxMaxX, stamp.bboxMaxY); // Top-right
+	glVertex2f(stamp.bboxMinX, stamp.bboxMaxY); // Top-left
+	glEnd();
+}
 
 //
 //struct StampTexture {
@@ -1220,6 +1267,9 @@ bool loadStampTextures() {
 
 			// Initialize the stamp as a template (not active/positioned yet)
 			newStamp.active = false;
+
+			updateBoundingBox(newStamp);
+
 			stamps.push_back(std::move(newStamp));
 			loadedAny = true;
 			index++;
@@ -1558,6 +1608,11 @@ void applyBitmapObstacle() {
 		}
 
 		// Add to our active stamps
+
+		updateBoundingBox(newStamp);
+
+
+
 		stamps.push_back(newStamp);
 
 		// Log information about the newly added stamp
@@ -2252,6 +2307,8 @@ void updateObstacle() {
 			}
 		}
 
+		updateBoundingBox(newStamp);
+
 		stamps.push_back(newStamp);
 
 		// Get variation name for logging
@@ -2443,6 +2500,8 @@ void renderToScreen() {
 	// Cleanup the first render program
 	glDeleteProgram(renderProgram);
 
+
+
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
 	glEnable(GL_BLEND);
@@ -2493,8 +2552,20 @@ void renderToScreen() {
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 
+
+
+
+
+
 	// Disable blending when done
 	glDisable(GL_BLEND);
+
+
+	for (const auto& stamp : stamps) {
+		drawBoundingBox(stamp);
+	}
+
+
 }
 
 
