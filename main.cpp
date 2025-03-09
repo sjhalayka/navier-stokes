@@ -82,7 +82,7 @@ void updateBoundingBox(Stamp& stamp) {
 	// For the stamp positioning, we need to match how the stamp is rendered
 	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
 	// We also need to apply the 1.5 divisor used in the shader
-	float scale = 1.0 / 1.5f;// 1.5f;
+	float scale = 1.5;// 1.0 / 1.5f;// 1.5f;
 
 	// Calculate the actual width and height in normalized coordinates
 	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
@@ -98,8 +98,8 @@ void updateBoundingBox(Stamp& stamp) {
 	// Set the bounding box coordinates
 	stamp.bboxMinX = stamp.posX - halfWidthNorm;
 	stamp.bboxMinY = stampY - halfHeightNorm;
-	stamp.bboxMaxX = stamp.posX + halfWidthNorm;
-	stamp.bboxMaxY = stampY + halfHeightNorm;
+	stamp.bboxMaxX = stamp.posX + halfWidthNorm * scale;
+	stamp.bboxMaxY = stampY + halfHeightNorm * scale;
 }
 
 
@@ -108,15 +108,22 @@ void updateBoundingBox(Stamp& stamp) {
 void drawBoundingBox(const Stamp& stamp) {
 	if (!stamp.active) return;
 
-	glColor3f(1.0f, 0.0f, 0.0f); // Set the bounding box color (yellow)
+	// Convert normalized coordinates to NDC coordinates (-1 to 1)
+	float ndcMinX = stamp.bboxMinX * 2.0f - 1.0f;
+	float ndcMinY = stamp.bboxMinY * 2.0f - 1.0f;
+	float ndcMaxX = stamp.bboxMaxX * 2.0f - 1.0f;
+	float ndcMaxY = stamp.bboxMaxY * 2.0f - 1.0f;
+
+	glColor3f(1.0f, 0.0f, 0.0f); // Red for bounding box
 
 	glBegin(GL_LINE_LOOP);
-	glVertex2f(stamp.bboxMinX, stamp.bboxMinY); // Bottom-left
-	glVertex2f(stamp.bboxMaxX, stamp.bboxMinY); // Bottom-right
-	glVertex2f(stamp.bboxMaxX, stamp.bboxMaxY); // Top-right
-	glVertex2f(stamp.bboxMinX, stamp.bboxMaxY); // Top-left
+	glVertex2f(ndcMinX, ndcMinY); // Bottom-left
+	glVertex2f(ndcMaxX, ndcMinY); // Bottom-right
+	glVertex2f(ndcMaxX, ndcMaxY); // Top-right
+	glVertex2f(ndcMinX, ndcMaxY); // Top-left
 	glEnd();
 }
+
 
 //
 //struct StampTexture {
