@@ -24,6 +24,8 @@ using namespace std;
 
 
 
+// TODO: make sure to update bounding box every time a stamp moves
+
 
 // Simulation parameters
 int WIDTH = 960;
@@ -133,6 +135,66 @@ bool isBoundingBoxOverlap(const Stamp& a, const Stamp& b) {
 		a.bboxMaxY < b.bboxMinY || a.bboxMinY > b.bboxMaxY);
 }
 
+
+
+
+unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
+	// Make sure coordinates and indices are within bounds
+	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
+		channel < 0 || channel >= stamp.channels ||
+		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+		stamp.pixelData[variationIndex].empty()) {
+		return 0;
+	}
+
+	// Calculate the index in the pixel data array
+	int index = (y * stamp.width + x) * stamp.channels + channel;
+
+	// Make sure the index is within bounds
+	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
+		return 0;
+	}
+
+	return stamp.pixelData[variationIndex][index];
+}
+
+
+
+
+bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
+	if (!isBoundingBoxOverlap(a, b)) return false;
+
+	// Calculate overlapping region in normalized coordinates
+	float overlapMinX = std::max(a.bboxMinX, b.bboxMinX);
+	float overlapMaxX = std::min(a.bboxMaxX, b.bboxMaxX);
+	float overlapMinY = std::max(a.bboxMinY, b.bboxMinY);
+	float overlapMaxY = std::min(a.bboxMaxY, b.bboxMaxY);
+
+	// Convert to pixel coordinates for both stamps
+	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
+		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
+			// Map to texture space for both stamps
+			int texAx = (x - a.bboxMinX) / (a.bboxMaxX - a.bboxMinX) * a.width;
+			int texAy = (y - a.bboxMinY) / (a.bboxMaxY - a.bboxMinY) * a.height;
+			int texBx = (x - b.bboxMinX) / (b.bboxMaxX - b.bboxMinX) * b.width;
+			int texBy = (y - b.bboxMinY) / (b.bboxMaxY - b.bboxMinY) * b.height;
+
+			// Get alpha values
+			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
+			float alphaB = getPixelValueFromStamp(b, b.currentVariationIndex, texBx, texBy, 3) / 255.0f;
+
+			if (alphaA > 0.0f && alphaB > 0.0f) {
+				return true; // Pixels overlap with sufficient alpha
+			}
+		}
+	}
+
+	return false;
+}
+
+
+
+
 void reportStampToStampCollisions() {
 	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
 	bool collisionDetected = false;
@@ -143,7 +205,12 @@ void reportStampToStampCollisions() {
 		for (size_t j = i + 1; j < stamps.size(); ++j) {
 			if (!stamps[j].active) continue;
 
-			if (isBoundingBoxOverlap(stamps[i], stamps[j])) {
+
+
+
+			if(isPixelPerfectCollision(stamps[i], stamps[j]))
+//			if (isBoundingBoxOverlap(stamps[i], stamps[j])) 
+			{
 				collisionDetected = true;
 				std::cout << "Collision detected between Stamp #" << i + 1
 					<< " and Stamp #" << j + 1 << std::endl;
@@ -1180,26 +1247,6 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
-
-unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
-	// Make sure coordinates and indices are within bounds
-	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
-		channel < 0 || channel >= stamp.channels ||
-		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		return 0;
-	}
-
-	// Calculate the index in the pixel data array
-	int index = (y * stamp.width + x) * stamp.channels + channel;
-
-	// Make sure the index is within bounds
-	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
-		return 0;
-	}
-
-	return stamp.pixelData[variationIndex][index];
-}
 
 
 
