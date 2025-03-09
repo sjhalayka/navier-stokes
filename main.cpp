@@ -128,6 +128,36 @@ void drawBoundingBox(const Stamp& stamp) {
 	glEnd();
 }
 
+bool isBoundingBoxOverlap(const Stamp& a, const Stamp& b) {
+	return !(a.bboxMaxX < b.bboxMinX || a.bboxMinX > b.bboxMaxX ||
+		a.bboxMaxY < b.bboxMinY || a.bboxMinY > b.bboxMaxY);
+}
+
+void reportStampToStampCollisions() {
+	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
+	bool collisionDetected = false;
+
+	for (size_t i = 0; i < stamps.size(); ++i) {
+		if (!stamps[i].active) continue;
+
+		for (size_t j = i + 1; j < stamps.size(); ++j) {
+			if (!stamps[j].active) continue;
+
+			if (isBoundingBoxOverlap(stamps[i], stamps[j])) {
+				collisionDetected = true;
+				std::cout << "Collision detected between Stamp #" << i + 1
+					<< " and Stamp #" << j + 1 << std::endl;
+			}
+		}
+	}
+
+	if (!collisionDetected) {
+		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+	}
+
+	std::cout << "============================================" << std::endl;
+}
+
 
 //
 //struct StampTexture {
@@ -2460,6 +2490,13 @@ void simulationStep() {
 
 	// Detect collisions between density and obstacles
 	detectCollisions();
+
+	if (frameCount % REPORT_INTERVAL == 0) {
+		reportStampToStampCollisions();
+	}
+
+
+
 }
 
 
