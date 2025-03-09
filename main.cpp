@@ -24,7 +24,7 @@ using namespace std;
 
 
 
-// TODO: make sure to update bounding box every time a stamp moves
+
 
 
 // Simulation parameters
@@ -62,10 +62,6 @@ struct Stamp {
 	bool active;
 	float posX, posY;                       // Normalized position (0-1)
 	int currentVariationIndex;              // Which texture variation to use
-
-	// Removed bounding box fields
-	// float bboxMinX, bboxMinY; // Bottom-left corner (normalized coordinates)
-	// float bboxMaxX, bboxMaxY; // Top-right corner (normalized coordinates)
 
 	Stamp() : width(0), height(0), channels(0), active(false),
 		posX(0), posY(0), currentVariationIndex(0) {}
