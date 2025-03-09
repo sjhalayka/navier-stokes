@@ -82,7 +82,7 @@ void updateBoundingBox(Stamp& stamp) {
 	// For the stamp positioning, we need to match how the stamp is rendered
 	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
 	// We also need to apply the 1.5 divisor used in the shader
-	float scale = 1.5;// 1.0 / 1.5f;// 1.5f;
+	float scale = 2;// 1.0 / 1.5f;// 1.5f;
 
 	// Calculate the actual width and height in normalized coordinates
 	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
@@ -100,6 +100,10 @@ void updateBoundingBox(Stamp& stamp) {
 	stamp.bboxMinY = stampY - halfHeightNorm;
 	stamp.bboxMaxX = stamp.posX + halfWidthNorm * scale;
 	stamp.bboxMaxY = stampY + halfHeightNorm * scale;
+
+
+
+
 }
 
 
