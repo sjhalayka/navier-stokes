@@ -63,13 +63,17 @@ struct Stamp {
 	float posX, posY;                       // Normalized position (0-1)
 	int currentVariationIndex;              // Which texture variation to use
 
-	float bboxMinX = 0, bboxMinY = 0; // Bottom-left corner (normalized coordinates)
-	float bboxMaxX = 0, bboxMaxY = 0; // Top-right corner (normalized coordinates)
-
+	// Removed bounding box fields
+	// float bboxMinX, bboxMinY; // Bottom-left corner (normalized coordinates)
+	// float bboxMaxX, bboxMaxY; // Top-right corner (normalized coordinates)
 
 	Stamp() : width(0), height(0), channels(0), active(false),
 		posX(0), posY(0), currentVariationIndex(0) {}
 };
+
+
+
+
 
 std::vector<Stamp> stamps;
 int currentStampIndex = 0;
@@ -77,14 +81,13 @@ int currentStampIndex = 0;
 
 
 
-void updateBoundingBox(Stamp& stamp) {
+void calculateBoundingBox(const Stamp& stamp, float& minX, float& minY, float& maxX, float& maxY) {
 	// Calculate aspect ratio
 	float aspect = WIDTH / static_cast<float>(HEIGHT);
 
 	// For the stamp positioning, we need to match how the stamp is rendered
 	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
-	// We also need to apply the 1.5 divisor used in the shader
-	float scale = 2;// 1.0 / 1.5f;// 1.5f;
+	float scale = 2.0f;
 
 	// Calculate the actual width and height in normalized coordinates
 	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
@@ -98,27 +101,25 @@ void updateBoundingBox(Stamp& stamp) {
 	halfHeightNorm /= scale;
 
 	// Set the bounding box coordinates
-	stamp.bboxMinX = stamp.posX - halfWidthNorm;
-	stamp.bboxMinY = stampY - halfHeightNorm;
-	stamp.bboxMaxX = stamp.posX + halfWidthNorm * scale;
-	stamp.bboxMaxY = stampY + halfHeightNorm * scale;
-
-
-
-
+	minX = stamp.posX - halfWidthNorm;
+	minY = stampY - halfHeightNorm;
+	maxX = stamp.posX + halfWidthNorm * scale;
+	maxY = stampY + halfHeightNorm * scale;
 }
-
 
 
 
 void drawBoundingBox(const Stamp& stamp) {
 	if (!stamp.active) return;
 
+	float minX, minY, maxX, maxY;
+	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
 	// Convert normalized coordinates to NDC coordinates (-1 to 1)
-	float ndcMinX = stamp.bboxMinX * 2.0f - 1.0f;
-	float ndcMinY = stamp.bboxMinY * 2.0f - 1.0f;
-	float ndcMaxX = stamp.bboxMaxX * 2.0f - 1.0f;
-	float ndcMaxY = stamp.bboxMaxY * 2.0f - 1.0f;
+	float ndcMinX = minX * 2.0f - 1.0f;
+	float ndcMinY = minY * 2.0f - 1.0f;
+	float ndcMaxX = maxX * 2.0f - 1.0f;
+	float ndcMaxY = maxY * 2.0f - 1.0f;
 
 	glColor3f(1.0f, 0.0f, 0.0f); // Red for bounding box
 
@@ -130,10 +131,22 @@ void drawBoundingBox(const Stamp& stamp) {
 	glEnd();
 }
 
+
+
+
 bool isBoundingBoxOverlap(const Stamp& a, const Stamp& b) {
-	return !(a.bboxMaxX < b.bboxMinX || a.bboxMinX > b.bboxMaxX ||
-		a.bboxMaxY < b.bboxMinY || a.bboxMinY > b.bboxMaxY);
+	float aMinX, aMinY, aMaxX, aMaxY;
+	float bMinX, bMinY, bMaxX, bMaxY;
+
+	calculateBoundingBox(a, aMinX, aMinY, aMaxX, aMaxY);
+	calculateBoundingBox(b, bMinX, bMinY, bMaxX, bMaxY);
+
+	return !(aMaxX < bMinX || aMinX > bMaxX ||
+		aMaxY < bMinY || aMinY > bMaxY);
 }
+
+
+
 
 
 
@@ -159,25 +172,32 @@ unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int
 }
 
 
-
-
 bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
-	if (!isBoundingBoxOverlap(a, b)) return false;
+	float aMinX, aMinY, aMaxX, aMaxY;
+	float bMinX, bMinY, bMaxX, bMaxY;
+
+	calculateBoundingBox(a, aMinX, aMinY, aMaxX, aMaxY);
+	calculateBoundingBox(b, bMinX, bMinY, bMaxX, bMaxY);
+
+	// Quick check if bounding boxes overlap
+	if (!(aMaxX >= bMinX && aMinX <= bMaxX && aMaxY >= bMinY && aMinY <= bMaxY)) {
+		return false;
+	}
 
 	// Calculate overlapping region in normalized coordinates
-	float overlapMinX = std::max(a.bboxMinX, b.bboxMinX);
-	float overlapMaxX = std::min(a.bboxMaxX, b.bboxMaxX);
-	float overlapMinY = std::max(a.bboxMinY, b.bboxMinY);
-	float overlapMaxY = std::min(a.bboxMaxY, b.bboxMaxY);
+	float overlapMinX = std::max(aMinX, bMinX);
+	float overlapMaxX = std::min(aMaxX, bMaxX);
+	float overlapMinY = std::max(aMinY, bMinY);
+	float overlapMaxY = std::min(aMaxY, bMaxY);
 
 	// Convert to pixel coordinates for both stamps
 	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
 		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
 			// Map to texture space for both stamps
-			int texAx = (x - a.bboxMinX) / (a.bboxMaxX - a.bboxMinX) * a.width;
-			int texAy = (y - a.bboxMinY) / (a.bboxMaxY - a.bboxMinY) * a.height;
-			int texBx = (x - b.bboxMinX) / (b.bboxMaxX - b.bboxMinX) * b.width;
-			int texBy = (y - b.bboxMinY) / (b.bboxMaxY - b.bboxMinY) * b.height;
+			int texAx = (x - aMinX) / (aMaxX - aMinX) * a.width;
+			int texAy = (y - aMinY) / (aMaxY - aMinY) * a.height;
+			int texBx = (x - bMinX) / (bMaxX - bMinX) * b.width;
+			int texBy = (y - bMinY) / (bMaxY - bMinY) * b.height;
 
 			// Get alpha values
 			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
@@ -195,21 +215,22 @@ bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
 
 
 
+
+
+
 void reportStampToStampCollisions() {
 	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
 	bool collisionDetected = false;
 
-	for (size_t i = 0; i < stamps.size(); ++i) {
+	for (size_t i = 0; i < stamps.size(); ++i) 
+	{
 		if (!stamps[i].active) continue;
 
-		for (size_t j = i + 1; j < stamps.size(); ++j) {
+		for (size_t j = i + 1; j < stamps.size(); ++j)
+		{
 			if (!stamps[j].active) continue;
 
-
-
-
 			if(isPixelPerfectCollision(stamps[i], stamps[j]))
-//			if (isBoundingBoxOverlap(stamps[i], stamps[j])) 
 			{
 				collisionDetected = true;
 				std::cout << "Collision detected between Stamp #" << i + 1
@@ -1356,8 +1377,6 @@ bool loadStampTextures() {
 			// Initialize the stamp as a template (not active/positioned yet)
 			newStamp.active = false;
 
-			updateBoundingBox(newStamp);
-
 			stamps.push_back(std::move(newStamp));
 			loadedAny = true;
 			index++;
@@ -1431,7 +1450,6 @@ bool loadStampTextures() {
 
 
 
-
 bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	if (!stamp.active) return false;
 
@@ -1454,7 +1472,10 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	}
 
 	if (stamp.pixelData[variationIndex].empty()) {
-		// No pixel data available, fall back to the original bounding box check
+		// No pixel data available, fall back to the bounding box check
+		float minX, minY, maxX, maxY;
+		calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
 		float aspect = HEIGHT / float(WIDTH);
 
 		// Convert pixel coordinates to normalized coordinates (0-1)
@@ -1464,18 +1485,9 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 		// Apply aspect ratio correction to y-coordinate
 		pointY = (pointY - 0.5f) * aspect + 0.5f;
 
-		// Calculate stamp bounds in normalized coordinates
-		float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
-		float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
-
-		float stampMinX = stamp.posX - halfWidthNorm;
-		float stampMaxX = stamp.posX + halfWidthNorm;
-		float stampMinY = stamp.posY - halfHeightNorm;
-		float stampMaxY = stamp.posY + halfHeightNorm;
-
 		// Simple bounding box check
-		return (pointX >= stampMinX && pointX <= stampMaxX &&
-			pointY >= stampMinY && pointY <= stampMaxY);
+		return (pointX >= minX && pointX <= maxX &&
+			pointY >= minY && pointY <= maxY);
 	}
 
 	// Get the normalized stamp position (0-1 in screen space)
@@ -1491,15 +1503,18 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	float pointX = point.x / float(WIDTH);  // 0-1 range
 	float pointY = point.y / float(HEIGHT);  // 0-1 range
 
+	// Calculate bounding box
+	float minX, minY, maxX, maxY;
+	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
 	// Check if the collision point is within the stamp's bounding box
-	if (pointX < stampX - stampWidth / 2 || pointX > stampX + stampWidth / 2 ||
-		pointY < stampY - stampHeight / 2 || pointY > stampY + stampHeight / 2) {
+	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY) {
 		return false;  // Outside the stamp's bounding box
 	}
 
 	// Map the collision point to texture coordinates
-	float texCoordX = (pointX - (stampX - stampWidth / 2)) / stampWidth;
-	float texCoordY = (pointY - (stampY - stampHeight / 2)) / stampHeight;
+	float texCoordX = (pointX - minX) / (maxX - minX);
+	float texCoordY = (pointY - minY) / (maxY - minY);
 
 	// Convert to pixel coordinates in the texture
 	int pixelX = int(texCoordX * stamp.width);
@@ -1528,6 +1543,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	// Check if the pixel is opaque enough for a collision
 	return opacity > COLOR_DETECTION_THRESHOLD;
 }
+
 
 
 
@@ -1694,11 +1710,6 @@ void applyBitmapObstacle() {
 				}
 			}
 		}
-
-		// Add to our active stamps
-
-		updateBoundingBox(newStamp);
-
 
 
 		stamps.push_back(newStamp);
@@ -2395,7 +2406,6 @@ void updateObstacle() {
 			}
 		}
 
-		updateBoundingBox(newStamp);
 
 		stamps.push_back(newStamp);
 
