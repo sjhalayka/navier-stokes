@@ -73,9 +73,8 @@ std::vector<Stamp> allyShips;
 std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
 std::vector<Stamp> enemyBullets;
-
 std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
-//std::vector<Stamp> activeStamps;    // Stores active stamp instances
+
 int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
@@ -1399,8 +1398,13 @@ bool loadStampTextures() {
 		}
 	}
 	stampTemplates.clear();
+
 	// Also clear active stamps to avoid orphaned instances
-//	activeStamps.clear();
+	allyShips.clear();
+	enemyShips.clear();
+	allyBullets.clear();
+	enemyBullets.clear();
+
 
 	int index = 0;
 	bool loadedAny = false;
