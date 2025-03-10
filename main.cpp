@@ -1663,9 +1663,9 @@ void reportStampCollisions() {
 			if (!stamp.active) continue;
 
 			// Debug output - print active stamp info
-			std::cout << "  " << type << " #" << (i + 1) << " at ("
-				<< stamp.posX << ", " << stamp.posY << ") size: "
-				<< stamp.width << "x" << stamp.height << std::endl;
+			//std::cout << "  " << type << " #" << (i + 1) << " at ("
+			//	<< stamp.posX << ", " << stamp.posY << ") size: "
+			//	<< stamp.width << "x" << stamp.height << std::endl;
 
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
@@ -1700,23 +1700,23 @@ void reportStampCollisions() {
 					variationName = stamp.textureNames[stamp.currentVariationIndex];
 				}
 
-				std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
-				std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-				std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-				std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
-				std::cout << "     Collisions: " << stampCollisions << std::endl;
-				std::cout << "     Red: " << redStampCollisions
-					<< ", Blue: " << blueStampCollisions
-					<< ", Both: " << bothStampCollisions << std::endl;
+				//std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
+				//std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
+				//std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
+				//std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
+				//std::cout << "     Collisions: " << stampCollisions << std::endl;
+				//std::cout << "     Red: " << redStampCollisions
+				//	<< ", Blue: " << blueStampCollisions
+				//	<< ", Both: " << bothStampCollisions << std::endl;
 			}
 		}
 
-		std::cout << "Found collisions in " << stampHitCount << " out of "
-			<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
-			<< " active " << type << " stamps." << std::endl;
+		//std::cout << "Found collisions in " << stampHitCount << " out of "
+		//	<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
+		//	<< " active " << type << " stamps." << std::endl;
 	};
 
-	//reportCollisionsForStamps(allyShips, "Ally Ship");
+	reportCollisionsForStamps(allyShips, "Ally Ship");
 	//reportCollisionsForStamps(enemyShips, "Enemy Ship");
 	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
 	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
