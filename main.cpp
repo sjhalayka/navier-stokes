@@ -23,7 +23,7 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-
+// split active stamps vector into ally ship stamps vector, enemy ship stamps vector, ally bullets stamps vector, and enemy bullet stamps vector.obstacle0_* .png constitues the ally ship template, obstacle1_* .png constitutes the bullet template, and obstacle2_* .png and obstacle3_* .png, etc constitute the enemy ship templates
 
 
 
@@ -69,10 +69,13 @@ struct Stamp {
 
 
 
-
+std::vector<Stamp> allyShips;
+std::vector<Stamp> enemyShips;
+std::vector<Stamp> allyBullets;
+std::vector<Stamp> enemyBullets;
 
 std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
-std::vector<Stamp> activeStamps;    // Stores active stamp instances
+//std::vector<Stamp> activeStamps;    // Stores active stamp instances
 int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
@@ -216,31 +219,31 @@ bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
 
 
 void reportStampToStampCollisions() {
-	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
-	bool collisionDetected = false;
+	//std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
+	//bool collisionDetected = false;
 
-	for (size_t i = 0; i < activeStamps.size(); ++i)
-	{
-		if (!activeStamps[i].active) continue;
+	//for (size_t i = 0; i < activeStamps.size(); ++i)
+	//{
+	//	if (!activeStamps[i].active) continue;
 
-		for (size_t j = i + 1; j < activeStamps.size(); ++j)
-		{
-			if (!activeStamps[j].active) continue;
+	//	for (size_t j = i + 1; j < activeStamps.size(); ++j)
+	//	{
+	//		if (!activeStamps[j].active) continue;
 
-			if (isPixelPerfectCollision(activeStamps[i], activeStamps[j]))
-			{
-				collisionDetected = true;
-				std::cout << "Collision detected between Stamp #" << i + 1
-					<< " and Stamp #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(activeStamps[i], activeStamps[j]))
+	//		{
+	//			collisionDetected = true;
+	//			std::cout << "Collision detected between Stamp #" << i + 1
+	//				<< " and Stamp #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	if (!collisionDetected) {
-		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
-	}
+	//if (!collisionDetected) {
+	//	std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+	//}
 
-	std::cout << "============================================" << std::endl;
+	//std::cout << "============================================" << std::endl;
 }
 
 
@@ -1148,9 +1151,40 @@ void clearObstacleTexture() {
 }
 
 
-
 void reapplyAllStamps() {
-	if (activeStamps.empty()) return;
+	auto processStamps = [&](const std::vector<Stamp>& stamps) {
+		for (const auto& stamp : stamps) {
+			if (!stamp.active) continue;
+
+			int variationIndex = stamp.currentVariationIndex;
+			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+				stamp.textureIDs[variationIndex] == 0) {
+				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+					if (stamp.textureIDs[i] != 0) {
+						variationIndex = i;
+						break;
+					}
+				}
+				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+					stamp.textureIDs[variationIndex] == 0) {
+					continue;
+				}
+			}
+
+			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
+			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		}
+	};
+
+	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -1162,42 +1196,11 @@ void reapplyAllStamps() {
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
 
-	for (const auto& stamp : activeStamps) {
-		if (!stamp.active) continue;
-
-		// Determine which texture variation to use
-		int variationIndex = stamp.currentVariationIndex;
-
-		// Make sure the variation index is valid
-		if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-			stamp.textureIDs[variationIndex] == 0) {
-			// Fall back to the first available texture
-			for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-				if (stamp.textureIDs[i] != 0) {
-					variationIndex = i;
-					break;
-				}
-			}
-			// If still no valid texture, skip this stamp
-			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-				stamp.textureIDs[variationIndex] == 0) {
-				continue;
-			}
-		}
-
-		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
-		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
-
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	}
+	processStamps(allyShips);
+	processStamps(enemyShips);
+	processStamps(allyBullets);
+	processStamps(enemyBullets);
 }
-
 
 
 
@@ -1286,7 +1289,7 @@ bool loadStampTextures() {
 	}
 	stampTemplates.clear();
 	// Also clear active stamps to avoid orphaned instances
-	activeStamps.clear();
+//	activeStamps.clear();
 
 	int index = 0;
 	bool loadedAny = false;
@@ -1502,8 +1505,6 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 
 
 
-
-
 void reportStampCollisions() {
 	if (collisionPoints.empty()) {
 		std::cout << "\n===== Stamp Collision Report =====" << std::endl;
@@ -1514,93 +1515,76 @@ void reportStampCollisions() {
 
 	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
 
-	if (activeStamps.empty()) {
-		std::cout << "No active stamps found. Use right mouse button to place stamps." << std::endl;
-		std::cout << "=================================" << std::endl;
-		return;
-	}
+	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) {
+		int totalStampCollisions = 0;
+		int totalRedStampCollisions = 0;
+		int totalBlueStampCollisions = 0;
+		int totalBothStampCollisions = 0;
 
-	std::cout << "Number of active stamps: " << std::count_if(activeStamps.begin(), activeStamps.end(),
-		[](const Stamp& s) { return s.active; }) << std::endl;
-	std::cout << "Number of collision points: " << collisionPoints.size() << std::endl;
+		for (size_t i = 0; i < stamps.size(); i++) {
+			const auto& stamp = stamps[i];
+			if (!stamp.active) continue;
 
-	// Track overall collision statistics across all stamps
-	int totalStampCollisions = 0;
-	int totalRedStampCollisions = 0;
-	int totalBlueStampCollisions = 0;
-	int totalBothStampCollisions = 0;
+			int stampCollisions = 0;
+			int redStampCollisions = 0;
+			int blueStampCollisions = 0;
+			int bothStampCollisions = 0;
 
-	// Process each stamp
-	for (size_t i = 0; i < activeStamps.size(); i++) {
-		const auto& stamp = activeStamps[i];
-		if (!stamp.active) continue;
+			for (const auto& point : collisionPoints) {
+				if (isCollisionInStampBoundingBox(point, stamp)) {
+					stampCollisions++;
 
-		// Per-stamp collision counters
-		int stampCollisions = 0;
-		int redStampCollisions = 0;
-		int blueStampCollisions = 0;
-		int bothStampCollisions = 0;
+					if (point.r > 0) {
+						redStampCollisions++;
+						totalRedStampCollisions++;
+					}
 
-		// Check all collision points against this stamp
-		for (const auto& point : collisionPoints) 
-		{
-			if (isCollisionInStampBoundingBox(point, stamp)) 
-			{
-				stampCollisions++;
+					if (point.b > 0) {
+						blueStampCollisions++;
+						totalBlueStampCollisions++;
+					}
 
-				// keep track of fire-smoke alpha. less alpha, less damage per second
-				cout << "RED: " << point.r << endl;
-				cout << "BLUE: " << point.b << endl;
+					if (point.r > 0 && point.b > 0) {
+						bothStampCollisions++;
+						totalBothStampCollisions++;
+					}
 
-				if (point.r > 0) {
-					redStampCollisions++;
-					totalRedStampCollisions++;
+					totalStampCollisions++;
+				}
+			}
+
+			if (stampCollisions > 0) {
+				std::string textureName = stamp.baseFilename;
+				std::string variationName = "unknown";
+				if (stamp.currentVariationIndex < stamp.textureNames.size()) {
+					variationName = stamp.textureNames[stamp.currentVariationIndex];
 				}
 
-				if (point.b > 0) {
-					blueStampCollisions++;
-					totalBlueStampCollisions++;
-				}
-
-				if (point.r > 0 && point.b > 0) {
-					bothStampCollisions++;
-					totalBothStampCollisions++;
-				}
-
-				totalStampCollisions++;
+				std::cout << "\n" << type << " #" << (i + 1) << ":" << std::endl;
+				std::cout << "  Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
+				std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
+				std::cout << "  Texture: " << textureName << " (" << variationName << ")" << std::endl;
+				std::cout << "  Collisions: " << stampCollisions << std::endl;
+				std::cout << "  Red: " << redStampCollisions
+					<< ", Blue: " << blueStampCollisions
+					<< ", Both: " << bothStampCollisions << std::endl;
 			}
 		}
 
-		// Output the results for this stamp
-		std::string textureName = stamp.baseFilename;
-		std::string variationName = "unknown";
+		std::cout << "\nOverall " << type << " Statistics:" << std::endl;
+		std::cout << "  Total stamp collisions: " << totalStampCollisions << std::endl;
+		std::cout << "  Red collisions: " << totalRedStampCollisions << std::endl;
+		std::cout << "  Blue collisions: " << totalBlueStampCollisions << std::endl;
+		std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
+	};
 
-		if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
-			variationName = stamp.textureNames[stamp.currentVariationIndex];
-		}
+	reportCollisionsForStamps(allyShips, "Ally Ship");
+	reportCollisionsForStamps(enemyShips, "Enemy Ship");
+	reportCollisionsForStamps(allyBullets, "Ally Bullet");
+	reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
 
-		if (stampCollisions > 0) {
-			std::cout << "\nStamp #" << (i + 1) << ":" << std::endl;
-			std::cout << "  Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-			std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-			std::cout << "  Texture: " << textureName << " (" << variationName << ")" << std::endl;
-			std::cout << "  Collisions: " << stampCollisions << std::endl;
-			std::cout << "  Red: " << redStampCollisions
-				<< ", Blue: " << blueStampCollisions
-				<< ", Both: " << bothStampCollisions << std::endl;
-		}
-	}
-
-	// Output overall summary
-	std::cout << "\nOverall Statistics:" << std::endl;
-	std::cout << "  Total stamp collisions: " << totalStampCollisions << std::endl;
-	std::cout << "  Red collisions: " << totalRedStampCollisions << std::endl;
-	std::cout << "  Blue collisions: " << totalBlueStampCollisions << std::endl;
-	std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
 	std::cout << "=================================" << std::endl;
 }
-
-
 
 
 
@@ -2247,7 +2231,6 @@ void addForce() {
 
 
 
-
 void updateObstacle() {
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
@@ -2295,15 +2278,33 @@ void updateObstacle() {
 			}
 		}
 
-		activeStamps.push_back(newStamp);
+		// Add the stamp to the appropriate vector based on the template index
+		if (currentTemplateIndex == 0) {
+			allyShips.push_back(newStamp);
+		}
+		else if (currentTemplateIndex == 1) {
+			allyBullets.push_back(newStamp);
+		}
+		else {
+			enemyShips.push_back(newStamp);
+		}
 
 		std::string variationName = "unknown";
 		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
 			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
 		}
 
-		std::cout << "Added new stamp #" << activeStamps.size() << " at position ("
-			<< mousePosX << ", " << mousePosY << ") with texture: "
+		std::cout << "Added new stamp to ";
+		if (currentTemplateIndex == 0) {
+			std::cout << "ally ships";
+		}
+		else if (currentTemplateIndex == 1) {
+			std::cout << "ally bullets";
+		}
+		else {
+			std::cout << "enemy ships";
+		}
+		std::cout << " at position (" << mousePosX << ", " << mousePosY << ") with texture: "
 			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
 	}
 
@@ -2387,59 +2388,43 @@ void addColor()
 
 
 
-
-
 void simulationStep() {
-	// First clear obstacle texture and reapply all stamps
 	clearObstacleTexture();
 	reapplyAllStamps();
 
-	// Update all dynamic textures
-	for (auto& stamp : activeStamps) {
-		if (stamp.active) {
-			updateDynamicTexture(stamp);
+	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps) {
+		for (auto& stamp : stamps) {
+			if (stamp.active) {
+				updateDynamicTexture(stamp);
+			}
 		}
-	}
+	};
 
-	// Continue with existing code...
-	// Add force from mouse interaction
+	updateDynamicTextures(allyShips);
+	updateDynamicTextures(enemyShips);
+	updateDynamicTextures(allyBullets);
+	updateDynamicTextures(enemyBullets);
+
 	addForce();
-
-	// Add color from mouse interaction
 	addColor();
-
-	// Update obstacles from mouse interaction
 	updateObstacle();
-
-	// Advect velocity
 	advectVelocity();
-
-	// Diffuse velocity - add this line
 	diffuseVelocity();
-
-	// Advect both color sets
 	advectColor();
 	advectFriendlyColor();
-
-	// Diffuse both color sets
 	diffuseColor();
 	diffuseFriendlyColor();
-
-	// Project velocity to be divergence-free
 	computeDivergence();
-	solvePressure(20);  // 20 iterations of Jacobi method
+	solvePressure(20);
 	subtractPressureGradient();
-
-	// Detect collisions between density and obstacles
 	detectCollisions();
 
 	if (frameCount % REPORT_INTERVAL == 0) {
-		reportStampToStampCollisions();
+		reportStampCollisions();
 	}
-
-
-
 }
+
+
 
 
 
@@ -2499,63 +2484,66 @@ void renderToScreen() {
 
 	glUseProgram(stampTextureProgram);
 
-	// Process each active stamp
-	for (const auto& stamp : activeStamps) {
-		if (!stamp.active) continue;
+	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
+		for (const auto& stamp : stamps) {
+			if (!stamp.active) continue;
 
-		// Determine which texture variation to use
-		int variationIndex = stamp.currentVariationIndex;
-
-		// Make sure the variation index is valid
-		if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-			stamp.textureIDs[variationIndex] == 0) {
-			// Fall back to the first available texture
-			for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-				if (stamp.textureIDs[i] != 0) {
-					variationIndex = i;
-					break;
-				}
-			}
-			// If still no valid texture, skip this stamp
+			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
-				continue;
+				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+					if (stamp.textureIDs[i] != 0) {
+						variationIndex = i;
+						break;
+					}
+				}
+				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+					stamp.textureIDs[variationIndex] == 0) {
+					continue;
+				}
 			}
+
+			float aspect = WIDTH / float(HEIGHT);
+			float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
+			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 		}
+	};
 
-		float aspect = WIDTH / float(HEIGHT);
-		float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+	renderStamps(allyShips);
+	renderStamps(enemyShips);
+	renderStamps(allyBullets);
+	renderStamps(enemyBullets);
 
-		// Set stamp-specific uniforms
-		glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
-		glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f); // Lower threshold for visual display
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
-
-		// Bind the appropriate texture variation
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
-
-		// Render full-screen quad for this stamp
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	}
-
-
-
-
-
-
-	// Disable blending when done
 	glDisable(GL_BLEND);
 
 
-	for (const auto& stamp : activeStamps) {
+
+	for (const auto& stamp : allyShips) {
 		drawBoundingBox(stamp);
 	}
 
+	for (const auto& stamp : enemyShips) {
+		drawBoundingBox(stamp);
+	}
 
+	for (const auto& stamp : allyBullets) {
+		drawBoundingBox(stamp);
+	}
+
+	for (const auto& stamp : enemyBullets) {
+		drawBoundingBox(stamp);
+	}
 }
 
 
@@ -2726,7 +2714,7 @@ void specialKeyboard(int key, int x, int y) {
 		downKeyPressed = false;
 
 		// Adjust the texture for all active stamps
-		for (auto& stamp : activeStamps) {
+		for (auto& stamp : allyShips) {
 			if (stamp.active && stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
 				stamp.currentVariationIndex = 1; // up variation
 			}
@@ -2738,7 +2726,7 @@ void specialKeyboard(int key, int x, int y) {
 		downKeyPressed = true;
 
 		// Adjust the texture for all active stamps
-		for (auto& stamp : activeStamps) {
+		for (auto& stamp : allyShips) {
 			if (stamp.active && stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
 				stamp.currentVariationIndex = 2; // down variation
 			}
@@ -2755,7 +2743,7 @@ void specialKeyboardUp(int key, int x, int y) {
 		downKeyPressed = false;
 
 		// Revert to center texture for all active stamps
-		for (auto& stamp : activeStamps) {
+		for (auto& stamp : allyShips) {
 			if (stamp.active && stamp.textureIDs[0] != 0) {
 				stamp.currentVariationIndex = 0; // center variation
 			}
@@ -2811,14 +2799,38 @@ void reshape(int w, int h) {
 	stampTemplates.clear();
 
 	// Delete stamp textures from active stamps
-	for (auto& stamp : activeStamps) {
+	for (auto& stamp : allyShips) {
 		for (auto& textureID : stamp.textureIDs) {
 			if (textureID != 0) {
 				glDeleteTextures(1, &textureID);
 			}
 		}
 	}
-	activeStamps.clear();
+
+	// Delete stamp textures from active stamps
+	for (auto& stamp : enemyShips) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
+	for (auto& stamp : allyBullets) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
+	for (auto& stamp : enemyBullets) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
 
 	// Reinitialize OpenGL
 	initGL();
