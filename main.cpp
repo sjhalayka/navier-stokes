@@ -1684,11 +1684,11 @@ void reportStampCollisions() {
 			}
 		}
 
-		std::cout << "\nOverall " << type << " Statistics:" << std::endl;
-		std::cout << "  Total stamp collisions: " << totalStampCollisions << std::endl;
-		std::cout << "  Red collisions: " << totalRedStampCollisions << std::endl;
-		std::cout << "  Blue collisions: " << totalBlueStampCollisions << std::endl;
-		std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
+		//std::cout << "\nOverall " << type << " Statistics:" << std::endl;
+		//std::cout << "  Total stamp collisions: " << totalStampCollisions << std::endl;
+		//std::cout << "  Red collisions: " << totalRedStampCollisions << std::endl;
+		//std::cout << "  Blue collisions: " << totalBlueStampCollisions << std::endl;
+		//std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
 	};
 
 	reportCollisionsForStamps(allyShips, "Ally Ship");
