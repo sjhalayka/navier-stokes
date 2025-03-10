@@ -69,11 +69,11 @@ struct Stamp {
 	int channels;                           // Store the number of channels
 
 	// StampInfo properties
-	bool active;
+//	bool active;
 	float posX, posY;                       // Normalized position (0-1)
 	int currentVariationIndex;              // Which texture variation to use
 
-	Stamp() : width(0), height(0), channels(0), active(false),
+	Stamp() : width(0), height(0), channels(0), //active(false),
 		posX(0), posY(0), currentVariationIndex(0) {}
 };
 
@@ -145,7 +145,7 @@ void drawBoundingBox(float minX, float minY, float maxX, float maxY) {
 
 // 5. Modified drawBoundingBox for stamp to use our improved calculation
 void drawBoundingBox(const Stamp& stamp) {
-	if (!stamp.active) return;
+	//if (!stamp.active) return;
 
 	float minX, minY, maxX, maxY;
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
@@ -260,10 +260,10 @@ void reportStampToStampCollisions() {
 	// Check ally bullets with enemy ships (attack collision)
 	std::cout << "** Ally Bullets vs Enemy Ships **" << std::endl;
 	for (size_t i = 0; i < allyBullets.size(); ++i) {
-		if (!allyBullets[i].active) continue;
+		//if (!allyBullets[i].active) continue;
 
 		for (size_t j = 0; j < enemyShips.size(); ++j) {
-			if (!enemyShips[j].active) continue;
+			//if (!enemyShips[j].active) continue;
 
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j])) {
 				collisionDetected = true;
@@ -276,10 +276,10 @@ void reportStampToStampCollisions() {
 	// Check enemy bullets with ally ships (attack collision)
 	std::cout << "\n** Enemy Bullets vs Ally Ships **" << std::endl;
 	for (size_t i = 0; i < enemyBullets.size(); ++i) {
-		if (!enemyBullets[i].active) continue;
+		//if (!enemyBullets[i].active) continue;
 
 		for (size_t j = 0; j < allyShips.size(); ++j) {
-			if (!allyShips[j].active) continue;
+			//if (!allyShips[j].active) continue;
 
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j])) {
 				collisionDetected = true;
@@ -292,10 +292,10 @@ void reportStampToStampCollisions() {
 	// Check ally ships with enemy ships (ship-to-ship collision)
 	std::cout << "\n** Ally Ships vs Enemy Ships **" << std::endl;
 	for (size_t i = 0; i < allyShips.size(); ++i) {
-		if (!allyShips[i].active) continue;
+		//if (!allyShips[i].active) continue;
 
 		for (size_t j = 0; j < enemyShips.size(); ++j) {
-			if (!enemyShips[j].active) continue;
+			//if (!enemyShips[j].active) continue;
 
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j])) {
 				collisionDetected = true;
@@ -308,10 +308,10 @@ void reportStampToStampCollisions() {
 	// Check ally ships with ally ships (friendly collision)
 	std::cout << "\n** Ally Ships vs Ally Ships **" << std::endl;
 	for (size_t i = 0; i < allyShips.size(); ++i) {
-		if (!allyShips[i].active) continue;
+		//if (!allyShips[i].active) continue;
 
 		for (size_t j = i + 1; j < allyShips.size(); ++j) {
-			if (!allyShips[j].active) continue;
+			//if (!allyShips[j].active) continue;
 
 			if (isPixelPerfectCollision(allyShips[i], allyShips[j])) {
 				collisionDetected = true;
@@ -324,10 +324,10 @@ void reportStampToStampCollisions() {
 	// Check enemy ships with enemy ships (enemy friendly collision)
 	std::cout << "\n** Enemy Ships vs Enemy Ships **" << std::endl;
 	for (size_t i = 0; i < enemyShips.size(); ++i) {
-		if (!enemyShips[i].active) continue;
+		//if (!enemyShips[i].active) continue;
 
 		for (size_t j = i + 1; j < enemyShips.size(); ++j) {
-			if (!enemyShips[j].active) continue;
+			//if (!enemyShips[j].active) continue;
 
 			if (isPixelPerfectCollision(enemyShips[i], enemyShips[j])) {
 				collisionDetected = true;
@@ -340,10 +340,10 @@ void reportStampToStampCollisions() {
 	// Check ally bullets with ally bullets (friendly fire crossover)
 	std::cout << "\n** Ally Bullets vs Ally Bullets **" << std::endl;
 	for (size_t i = 0; i < allyBullets.size(); ++i) {
-		if (!allyBullets[i].active) continue;
+		//if (!allyBullets[i].active) continue;
 
 		for (size_t j = i + 1; j < allyBullets.size(); ++j) {
-			if (!allyBullets[j].active) continue;
+			//if (!allyBullets[j].active) continue;
 
 			if (isPixelPerfectCollision(allyBullets[i], allyBullets[j])) {
 				collisionDetected = true;
@@ -356,10 +356,10 @@ void reportStampToStampCollisions() {
 	// Check enemy bullets with enemy bullets (enemy fire crossover)
 	std::cout << "\n** Enemy Bullets vs Enemy Bullets **" << std::endl;
 	for (size_t i = 0; i < enemyBullets.size(); ++i) {
-		if (!enemyBullets[i].active) continue;
+		//if (!enemyBullets[i].active) continue;
 
 		for (size_t j = i + 1; j < enemyBullets.size(); ++j) {
-			if (!enemyBullets[j].active) continue;
+			//if (!enemyBullets[j].active) continue;
 
 			if (isPixelPerfectCollision(enemyBullets[i], enemyBullets[j])) {
 				collisionDetected = true;
@@ -372,10 +372,10 @@ void reportStampToStampCollisions() {
 	// Check ally bullets with enemy bullets (opposing fire collision)
 	std::cout << "\n** Ally Bullets vs Enemy Bullets **" << std::endl;
 	for (size_t i = 0; i < allyBullets.size(); ++i) {
-		if (!allyBullets[i].active) continue;
+		//if (!allyBullets[i].active) continue;
 
 		for (size_t j = 0; j < enemyBullets.size(); ++j) {
-			if (!enemyBullets[j].active) continue;
+			//if (!enemyBullets[j].active) continue;
 
 			if (isPixelPerfectCollision(allyBullets[i], enemyBullets[j])) {
 				collisionDetected = true;
@@ -1268,7 +1268,7 @@ void clearObstacleTexture() {
 void reapplyAllStamps() {
 	auto processStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-			if (!stamp.active) continue;
+			//if (!stamp.active) continue;
 
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
@@ -1444,7 +1444,7 @@ bool loadStampTextures() {
 
 		if (loadedAtLeastOne) {
 			// Ensure stamp is a template (not active)
-			newStamp.active = false;
+			//newStamp.active = false;
 			stampTemplates.push_back(std::move(newStamp));
 			loadedAny = true;
 			index++;
@@ -1669,9 +1669,9 @@ bool loadStampTextures() {
 
 
 bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& stamp) {
-	if (!stamp.active) return false;
+	//if (!stamp.active) return false;
 
-	// Validate variation index
+	//// Validate variation index
 	int variationIndex = stamp.currentVariationIndex;
 	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
 		stamp.pixelData[variationIndex].empty()) {
@@ -1724,6 +1724,12 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 	// Calculate bounding box
 	float minX, minY, maxX, maxY;
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+	global_minXs.push_back(minX);
+	global_minYs.push_back(minY);
+	global_maxXs.push_back(maxX);
+	global_maxYs.push_back(maxY);
+
 
 	// Check if the collision point is within the stamp's bounding box
 	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
@@ -1795,7 +1801,7 @@ void reportStampCollisions() {
 
 		for (size_t i = 0; i < stamps.size(); i++) {
 			const auto& stamp = stamps[i];
-			if (!stamp.active) continue;
+			//if (!stamp.active) continue;
 
 			// Debug output - print active stamp info with bounding box
 			float minX, minY, maxX, maxY;
@@ -1867,9 +1873,9 @@ void reportStampCollisions() {
 			}
 		}
 
-		std::cout << "Found collisions in " << stampHitCount << " out of "
-			<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
-			<< " active " << type << " stamps." << std::endl;
+		//std::cout << "Found collisions in " << stampHitCount << end/* " out of "
+		//	<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
+		//	<< " active " << type << " stamps." << std::endl;*/
 	};
 
 	// Report collisions for all stamp types
@@ -2540,7 +2546,7 @@ void updateObstacle() {
 
 		// Create new stamp from the current template
 		Stamp newStamp = stampTemplates[currentTemplateIndex];
-		newStamp.active = true;
+		//newStamp.active = true;
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
 
@@ -2690,8 +2696,10 @@ void simulationStep() {
 	reapplyAllStamps();
 
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps) {
-		for (auto& stamp : stamps) {
-			if (stamp.active) {
+		for (auto& stamp : stamps)
+		{
+			if (1)/*stamp.active)*/
+			{
 				updateDynamicTexture(stamp);
 			}
 		}
@@ -2782,7 +2790,7 @@ void renderToScreen() {
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-			if (!stamp.active) continue;
+			//if (!stamp.active) continue;
 
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
@@ -2850,15 +2858,17 @@ void renderToScreen() {
 
 	// Debug visualization of global bounding box
 
+
 	for (size_t i = 0; i < global_minXs.size(); i++)
 	{
 		drawBoundingBox(global_minXs[i], global_minYs[i], global_maxXs[i], global_maxYs[i]);
 	}
 
-	global_minXs.clear();
-	global_minYs.clear();
-	global_maxXs.clear();
-	global_maxYs.clear();
+
+		global_minXs.clear();
+		global_minYs.clear();
+		global_maxXs.clear();
+		global_maxYs.clear();
 
 
 }
@@ -3031,7 +3041,7 @@ void specialKeyboard(int key, int x, int y) {
 
 		// Adjust the texture for all active stamps
 		for (auto& stamp : allyShips) {
-			if (stamp.active && stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
+			if (stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
 				stamp.currentVariationIndex = 1; // up variation
 			}
 		}
@@ -3043,7 +3053,7 @@ void specialKeyboard(int key, int x, int y) {
 
 		// Adjust the texture for all active stamps
 		for (auto& stamp : allyShips) {
-			if (stamp.active && stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
+			if (stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
 				stamp.currentVariationIndex = 2; // down variation
 			}
 		}
@@ -3060,7 +3070,7 @@ void specialKeyboardUp(int key, int x, int y) {
 
 		// Revert to center texture for all active stamps
 		for (auto& stamp : allyShips) {
-			if (stamp.active && stamp.textureIDs[0] != 0) {
+			if (stamp.textureIDs[0] != 0) {
 				stamp.currentVariationIndex = 0; // center variation
 			}
 		}
