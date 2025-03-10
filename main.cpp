@@ -36,10 +36,10 @@ const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
+const float COLLISION_THRESHOLD = 0.01f; // Threshold for color-obstacle collision
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
-const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching should be
+const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
 
 bool red_mode = true;
@@ -1712,18 +1712,18 @@ void reportStampCollisions() {
 				float normX = point.x / float(WIDTH);
 				float normY = point.y / float(HEIGHT);
 
-				// Simple bounding box check for debugging
-				bool inBox = (normX >= minX && normX <= maxX && normY >= minY && normY <= maxY);
+				//// Simple bounding box check for debugging
+				//bool inBox = (normX >= minX && normX <= maxX && normY >= minY && normY <= maxY);
 
 				// Perform the actual collision check
 				bool collides = isCollisionInStampBoundingBox(point, stamp);
 
 				// Debug any discrepancies
-				if (inBox != collides) {
-					std::cout << "    DEBUG: Point (" << normX << "," << normY
-						<< ") - bounding box check: " << (inBox ? "YES" : "NO")
-						<< ", collision check: " << (collides ? "YES" : "NO") << std::endl;
-				}
+				//if (inBox != collides) {
+				//	std::cout << "    DEBUG: Point (" << normX << "," << normY
+				//		<< ") - bounding box check: " << (inBox ? "YES" : "NO")
+				//		<< ", collision check: " << (collides ? "YES" : "NO") << std::endl;
+				//}
 
 				if (collides) {
 					stampCollisions++;
@@ -1984,7 +1984,7 @@ void detectCollisions() {
 			reportStampCollisions();
 		}
 		else {
-			std::cout << "\nNo collision points detected." << std::endl;
+			//std::cout << "\nNo collision points detected." << std::endl;
 		}
 
 		// Reset reporting flag
@@ -2719,29 +2719,29 @@ void renderToScreen() {
 	glDisable(GL_BLEND);
 
 	// Draw bounding boxes for all stamps to debug
-	for (const auto& stamp : allyShips) {
-		if (stamp.active) {
-			drawBoundingBox(stamp);
-		}
-	}
+	//for (const auto& stamp : allyShips) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
 
-	for (const auto& stamp : enemyShips) {
-		if (stamp.active) {
-			drawBoundingBox(stamp);
-		}
-	}
+	//for (const auto& stamp : enemyShips) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
 
-	for (const auto& stamp : allyBullets) {
-		if (stamp.active) {
-			drawBoundingBox(stamp);
-		}
-	}
+	//for (const auto& stamp : allyBullets) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
 
-	for (const auto& stamp : enemyBullets) {
-		if (stamp.active) {
-			drawBoundingBox(stamp);
-		}
-	}
+	//for (const auto& stamp : enemyBullets) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
 
 	// Debug visualization of global bounding box
 	drawBoundingBox(global_minX, global_minY, global_maxX, global_maxY);
