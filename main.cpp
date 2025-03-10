@@ -1795,7 +1795,7 @@ void reportStampCollisions() {
 	};
 
 	reportCollisionsForStamps(allyShips, "Ally Ship");
-	//reportCollisionsForStamps(enemyShips, "Enemy Ship");
+	reportCollisionsForStamps(enemyShips, "Enemy Ship");
 	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
 	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
 
