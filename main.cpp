@@ -23,6 +23,8 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+// split active stamps vector into ally ship stamps vector, enemy ship stamps vector, ally bullets stamps vector, and enemy bullet stamps vector.obstacle0_* .png constitues the ally ship template, obstacle1_* .png constitutes the bullet template, and obstacle2_* .png and obstacle3_* .png, etc constitute the enemy ship templates
+
 
 
 // Simulation parameters
@@ -71,8 +73,9 @@ std::vector<Stamp> allyShips;
 std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
 std::vector<Stamp> enemyBullets;
-std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
 
+std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
+//std::vector<Stamp> activeStamps;    // Stores active stamp instances
 int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
@@ -1396,13 +1399,8 @@ bool loadStampTextures() {
 		}
 	}
 	stampTemplates.clear();
-
 	// Also clear active stamps to avoid orphaned instances
-	allyShips.clear();
-	enemyShips.clear();
-	allyBullets.clear();
-	enemyBullets.clear();
-
+//	activeStamps.clear();
 
 	int index = 0;
 	bool loadedAny = false;
