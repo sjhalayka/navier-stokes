@@ -16,6 +16,7 @@
 #include <cmath>
 #include <iomanip>
 #include <fstream>
+#include <map>
 #include <sstream>
 using namespace std;
 
@@ -1634,95 +1635,89 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 
 
 
-
 void reportStampCollisions() {
 	if (collisionPoints.empty()) {
 		return;
 	}
 
-	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
+	std::cout << "\n===== Fluid-to-Stamp Collision Report =====" << std::endl;
 	std::cout << "Total collision points detected: " << collisionPoints.size() << std::endl;
 
-	// Print a few sample collision points for debugging
-	std::cout << "Sample collision points (normalized coordinates):" << std::endl;
-	for (size_t i = 0; i < std::min(size_t(5), collisionPoints.size()); i++) {
-		const auto& point = collisionPoints[i];
-		float normX = point.x / float(WIDTH);
-		float normY = point.y / float(HEIGHT);
-		std::cout << "  Point #" << (i + 1) << ": (" << normX << ", " << normY
-			<< ") r=" << point.r << ", b=" << point.b << std::endl;
-	}
-
-	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) {
-		int stampHitCount = 0;
-
-		std::cout << "\nChecking " << stamps.size() << " " << type << " stamps for collisions..." << std::endl;
-
-		for (size_t i = 0; i < stamps.size(); i++) {
-			const auto& stamp = stamps[i];
-			if (!stamp.active) continue;
-
-			// Debug output - print active stamp info
-			//std::cout << "  " << type << " #" << (i + 1) << " at ("
-			//	<< stamp.posX << ", " << stamp.posY << ") size: "
-			//	<< stamp.width << "x" << stamp.height << std::endl;
-
-			int stampCollisions = 0;
-			int redStampCollisions = 0;
-			int blueStampCollisions = 0;
-			int bothStampCollisions = 0;
-
-			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints) {
-				if (isCollisionInStampBoundingBox(point, stamp)) {
-					stampCollisions++;
-
-					if (point.r > 0) {
-						redStampCollisions++;
-					}
-
-					if (point.b > 0) {
-						blueStampCollisions++;
-					}
-
-					if (point.r > 0 && point.b > 0) {
-						bothStampCollisions++;
-					}
-				}
-			}
-
-			// Report collisions for this stamp
-			if (stampCollisions > 0) {
-				stampHitCount++;
-				std::string textureName = stamp.baseFilename;
-				std::string variationName = "unknown";
-				if (stamp.currentVariationIndex < stamp.textureNames.size()) {
-					variationName = stamp.textureNames[stamp.currentVariationIndex];
-				}
-
-				//std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
-				//std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-				//std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-				//std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
-				//std::cout << "     Collisions: " << stampCollisions << std::endl;
-				//std::cout << "     Red: " << redStampCollisions
-				//	<< ", Blue: " << blueStampCollisions
-				//	<< ", Both: " << bothStampCollisions << std::endl;
-			}
-		}
-
-		//std::cout << "Found collisions in " << stampHitCount << " out of "
-		//	<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
-		//	<< " active " << type << " stamps." << std::endl;
+	// Create a structure to keep track of hit counts for each stamp type
+	struct StampCollisionStats {
+		int totalHits = 0;
+		int redHits = 0;    // Hits from red fluid (enemy fire)
+		int blueHits = 0;   // Hits from blue fluid (ally fire)
+		int bothHits = 0;   // Hits from both fluids
 	};
 
-	reportCollisionsForStamps(allyShips, "Ally Ship");
-	//reportCollisionsForStamps(enemyShips, "Enemy Ship");
-	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
-	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
+	// Maps to track collisions for each stamp
+	std::map<size_t, StampCollisionStats> allyShipCollisions;
+	std::map<size_t, StampCollisionStats> enemyShipCollisions;
+	std::map<size_t, StampCollisionStats> allyBulletCollisions;
+	std::map<size_t, StampCollisionStats> enemyBulletCollisions;
 
-//	std::cout << "=================================" << std::endl;
+	// Process each stamp type
+	auto processStampVector = [&](const std::vector<Stamp>& stamps,
+		std::map<size_t, StampCollisionStats>& collisionMap,
+		const std::string& stampType) {
+			for (size_t i = 0; i < stamps.size(); i++) {
+				const auto& stamp = stamps[i];
+				if (!stamp.active) continue;
+
+				// Create stats entry for this stamp if it doesn't exist
+				if (collisionMap.find(i) == collisionMap.end()) {
+					collisionMap[i] = StampCollisionStats();
+				}
+
+				// Check each collision point against this stamp
+				for (const auto& point : collisionPoints) {
+					if (isCollisionInStampBoundingBox(point, stamp)) {
+						collisionMap[i].totalHits++;
+
+						if (point.r > 0) collisionMap[i].redHits++;
+						if (point.b > 0) collisionMap[i].blueHits++;
+						if (point.r > 0 && point.b > 0) collisionMap[i].bothHits++;
+					}
+				}
+			}
+
+			// Report collisions for this stamp type
+			int hitStamps = 0;
+			for (const auto& [index, stats] : collisionMap) {
+				if (stats.totalHits > 0) {
+					hitStamps++;
+					std::cout << stampType << " #" << (index + 1) << " hit by fluid:" << std::endl;
+					std::cout << "  Total hits: " << stats.totalHits << std::endl;
+					std::cout << "  Red fluid hits: " << stats.redHits << std::endl;
+					std::cout << "  Blue fluid hits: " << stats.blueHits << std::endl;
+					std::cout << "  Both fluids hits: " << stats.bothHits << std::endl;
+				}
+			}
+
+			int activeStamps = std::count_if(stamps.begin(), stamps.end(),
+				[](const Stamp& s) { return s.active; });
+			std::cout << stampType << " affected: " << hitStamps << " of " << activeStamps << std::endl;
+	};
+
+	// Process each stamp vector
+	std::cout << "\n--- Ally Ships ---" << std::endl;
+	processStampVector(allyShips, allyShipCollisions, "Ally Ship");
+
+	std::cout << "\n--- Enemy Ships ---" << std::endl;
+	processStampVector(enemyShips, enemyShipCollisions, "Enemy Ship");
+
+	std::cout << "\n--- Ally Bullets ---" << std::endl;
+	processStampVector(allyBullets, allyBulletCollisions, "Ally Bullet");
+
+	std::cout << "\n--- Enemy Bullets ---" << std::endl;
+	processStampVector(enemyBullets, enemyBulletCollisions, "Enemy Bullet");
+
+	std::cout << "=====================================" << std::endl;
 }
+
+
+
 
 
 
@@ -1929,7 +1924,7 @@ void detectCollisions() {
 
 		if (collisionPoints.size() > 0)
 		{
-			reportStampCollisions();
+			//reportStampCollisions();
 		}
 
 		// Reset reporting flag
