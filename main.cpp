@@ -1716,12 +1716,12 @@ void reportStampCollisions() {
 			<< " active " << type << " stamps." << std::endl;
 	};
 
-	reportCollisionsForStamps(allyShips, "Ally Ship");
-	reportCollisionsForStamps(enemyShips, "Enemy Ship");
-	reportCollisionsForStamps(allyBullets, "Ally Bullet");
-	reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
+	//reportCollisionsForStamps(allyShips, "Ally Ship");
+	//reportCollisionsForStamps(enemyShips, "Enemy Ship");
+	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
+	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
 
-	std::cout << "=================================" << std::endl;
+//	std::cout << "=================================" << std::endl;
 }
 
 
