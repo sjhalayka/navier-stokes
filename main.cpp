@@ -1721,6 +1721,9 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 	float pointX = point.x / float(WIDTH);  // 0-1 range
 	float pointY = point.y / float(HEIGHT);  // 0-1 range
 
+	// SUPER IMPORTANT
+	pointY = (pointY - 0.5f) / aspect + 0.5f;
+
 	// Calculate bounding box
 	float minX, minY, maxX, maxY;
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
@@ -2586,10 +2589,12 @@ void updateObstacle() {
 		if (currentTemplateIndex == 0) {
 			allyShips.push_back(newStamp);
 		}
-		else if (currentTemplateIndex == 1) {
+		else if (currentTemplateIndex == 1) 
+		{
 			allyBullets.push_back(newStamp);
 		}
-		else {
+		else if (currentTemplateIndex == 2)
+		{
 			enemyShips.push_back(newStamp);
 		}
 
@@ -2747,7 +2752,7 @@ void renderToScreen() {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Use a render shader program
-	
+
 	glUseProgram(renderProgram);
 
 	static float time = 0.0f;
@@ -3121,6 +3126,7 @@ void reshape(int w, int h) {
 			}
 		}
 	}
+
 	stampTemplates.clear();
 
 	// Delete stamp textures from active stamps
