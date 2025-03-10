@@ -429,7 +429,7 @@ GLuint diffuseColorProgram;
 GLuint diffuseVelocityProgram;
 GLuint stampObstacleProgram;
 GLuint stampTextureProgram;
-
+GLuint renderProgram;
 
 
 
@@ -711,7 +711,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.99;
+const float fake_dispersion = 0.95;
 
 void main() {
     // Check if we're in an obstacle
@@ -1673,40 +1673,40 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 
 	//// Validate variation index
 	int variationIndex = stamp.currentVariationIndex;
-	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		// Fall back to first available texture
-		for (size_t i = 0; i < stamp.pixelData.size(); i++) {
-			if (!stamp.pixelData[i].empty()) {
-				variationIndex = i;
-				break;
-			}
-		}
-		// If still no valid texture, return false
-		if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-			stamp.pixelData[variationIndex].empty()) {
-			return false;
-		}
-	}
+	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//	stamp.pixelData[variationIndex].empty()) {
+	//	// Fall back to first available texture
+	//	for (size_t i = 0; i < stamp.pixelData.size(); i++) {
+	//		if (!stamp.pixelData[i].empty()) {
+	//			variationIndex = i;
+	//			break;
+	//		}
+	//	}
+	//	// If still no valid texture, return false
+	//	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//		stamp.pixelData[variationIndex].empty()) {
+	//		return false;
+	//	}
+	//}
 
-	if (stamp.pixelData[variationIndex].empty()) {
-		// No pixel data available, fall back to the bounding box check
-		float minX, minY, maxX, maxY;
-		calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+	//if (stamp.pixelData[variationIndex].empty()) {
+	//	// No pixel data available, fall back to the bounding box check
+	//	float minX, minY, maxX, maxY;
+	//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
 
-		float aspect = HEIGHT / float(WIDTH);
+	//	float aspect = HEIGHT / float(WIDTH);
 
-		// Convert pixel coordinates to normalized coordinates (0-1)
-		float pointX = point.x / (float)WIDTH;
-		float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
+	//	// Convert pixel coordinates to normalized coordinates (0-1)
+	//	float pointX = point.x / (float)WIDTH;
+	//	float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
 
-		// Apply aspect ratio correction to y-coordinate
-		pointY = (pointY - 0.5f) * aspect + 0.5f;
+	//	// Apply aspect ratio correction to y-coordinate
+	//	pointY = (pointY - 0.5f) * aspect + 0.5f;
 
-		// Simple bounding box check
-		return (pointX >= minX && pointX <= maxX &&
-			pointY >= minY && pointY <= maxY);
-	}
+	//	// Simple bounding box check
+	//	return (pointX >= minX && pointX <= maxX &&
+	//		pointY >= minY && pointY <= maxY);
+	//}
 
 	// Get the normalized stamp position (0-1 in screen space)
 	float stampX = stamp.posX;  // Normalized X position
@@ -2204,7 +2204,7 @@ void initGL() {
 	stampObstacleProgram = createShaderProgram(vertexShaderSource, stampObstacleFragmentShader);
 	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
 	stampTextureProgram = createShaderProgram(vertexShaderSource, stampTextureFragmentShader);
-
+	renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
 
 
 
@@ -2747,7 +2747,7 @@ void renderToScreen() {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Use a render shader program
-	GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
+	
 	glUseProgram(renderProgram);
 
 	static float time = 0.0f;
@@ -2778,8 +2778,6 @@ void renderToScreen() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Cleanup the first render program
-	glDeleteProgram(renderProgram);
 
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
@@ -3098,6 +3096,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(stampObstacleProgram);
 	glDeleteProgram(diffuseVelocityProgram);
 	glDeleteProgram(stampTextureProgram);
+	glDeleteProgram(renderProgram);
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
