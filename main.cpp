@@ -1593,7 +1593,7 @@ void reportStampCollisions() {
 
 	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
 
-	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) 
+	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type)
 	{
 		int totalStampCollisions = 0;
 		int totalRedStampCollisions = 0;
