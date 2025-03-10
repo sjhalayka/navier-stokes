@@ -1091,6 +1091,9 @@ void main() {
 
     if (obstacle > 0.0) 
 	{
+		//FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+		//return;
+
         // Render obstacles as background coloured
 		FragColor = texture(backgroundTexture, scrolledCoord);
 		return;
@@ -1456,9 +1459,8 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
 
 	// Check if the collision point is within the stamp's bounding box
-	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY) {
+	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
 		return false;  // Outside the stamp's bounding box
-	}
 	else
 		return true;
 
@@ -2432,7 +2434,7 @@ void simulationStep() {
 	detectCollisions();
 
 	if (frameCount % REPORT_INTERVAL == 0) {
-		//reportStampToStampCollisions();
+		reportStampToStampCollisions();
 	}
 
 
