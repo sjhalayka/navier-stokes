@@ -2865,10 +2865,10 @@ void renderToScreen() {
 	}
 
 
-		global_minXs.clear();
-		global_minYs.clear();
-		global_maxXs.clear();
-		global_maxYs.clear();
+	global_minXs.clear();
+	global_minYs.clear();
+	global_maxXs.clear();
+	global_maxYs.clear();
 
 
 }
@@ -3049,7 +3049,7 @@ void specialKeyboard(int key, int x, int y) {
 
 	case GLUT_KEY_DOWN:
 		upKeyPressed = false;
-		downKeyPressed = true;	
+		downKeyPressed = true;
 
 		// Adjust the texture for all active stamps
 		for (auto& stamp : allyShips) {
