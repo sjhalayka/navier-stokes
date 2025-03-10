@@ -358,35 +358,6 @@ void reportStampToStampCollisions() {
 
 
 
-//
-//struct StampTexture {
-//	std::vector<GLuint> textureIDs;          // Multiple texture IDs
-//	int width;
-//	int height;
-//	std::string baseFilename;                // Base filename without suffix
-//	std::vector<std::string> textureNames;   // Names of the specific textures (e.g., "up", "down", "center")
-//	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
-//	int channels;  // Store the number of channels (needed for pixel access)
-//	int currentTextureIndex;                 // Currently active texture index
-//
-//	StampTexture() : width(0), height(0), channels(0), currentTextureIndex(0) {}
-//};
-
-
-
-//std::vector<StampTexture> stampTextures;
-//int currentStampIndex = 0;
-//
-//struct StampInfo {
-//	bool active;
-//	float posX, posY;  // Normalized position (0-1)
-//	float width, height;  // In pixels
-//	int textureIndex;     // Index of the stamp texture used
-//	int variationIndex;   // Which texture variation to use (up, down, center)
-//
-//	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), textureIndex(0), variationIndex(0) {}
-//};
-
 
 
 bool upKeyPressed = false;
@@ -394,10 +365,6 @@ bool downKeyPressed = false;
 int lastVariationIndex = 0; // Track last variation to detect changes
 
 
-
-// Add this to the other global variables
-//std::vector<StampInfo> stamps;
-//StampInfo currentStamp;
 
 
 
@@ -1626,7 +1593,8 @@ void reportStampCollisions() {
 
 	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
 
-	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) {
+	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) 
+	{
 		int totalStampCollisions = 0;
 		int totalRedStampCollisions = 0;
 		int totalBlueStampCollisions = 0;
