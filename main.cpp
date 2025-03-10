@@ -36,7 +36,7 @@ const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
-const float COLLISION_THRESHOLD = 0.01f; // Threshold for color-obstacle collision
+const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
 const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
@@ -47,7 +47,14 @@ bool red_mode = true;
 bool lastRightMouseDown = false;
 
 
-float global_minX, global_minY, global_maxX, global_maxY;
+vector<float> global_minXs;
+vector<float> global_minYs;
+vector<float> global_maxXs;
+vector<float> global_maxYs;
+
+
+//
+//float global_minX, global_minY, global_maxX, global_maxY;
 
 
 
@@ -80,6 +87,8 @@ std::vector<Stamp> enemyBullets;
 std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
 //std::vector<Stamp> activeStamps;    // Stores active stamp instances
 int currentTemplateIndex = 0;       // Index for selecting template stamps
+
+
 
 
 
@@ -1607,55 +1616,151 @@ bool loadStampTextures() {
 
 
 
+//
+//bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& stamp) {
+//	if (!stamp.active) return false;
+//
+//	// Convert collision point to normalized screen coordinates
+//	float pointX = point.x / float(WIDTH);  // 0-1 range
+//	float pointY = point.y / float(HEIGHT);  // 0-1 range
+//
+//	// Calculate bounding box with proper aspect ratio handling
+//	float minX, minY, maxX, maxY;
+//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+//
+//	// Store for visualization (optional)
+//	global_minXs.push_back(minX);
+//	global_minYs.push_back(minY);
+//	global_maxXs.push_back(maxX);
+//	global_maxYs.push_back(maxY);
+//
+//	// Check if the collision point is within the stamp's bounding box
+//	if (pointX >= minX && pointX <= maxX && pointY >= minY && pointY <= maxY) {
+//		// For more accurate collision detection, we can add pixel-perfect testing here
+//		// Map the collision point to texture coordinates within the stamp
+//		float texCoordX = (pointX - minX) / (maxX - minX);
+//		float texCoordY = (pointY - minY) / (maxY - minY);
+//
+//		// Convert to pixel coordinates in the texture
+//		int pixelX = int(texCoordX * stamp.width);
+//		int pixelY = int(texCoordY * stamp.height);
+//
+//		// Ensure pixel coordinates are within bounds
+//		pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
+//		pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
+//
+//		// Get alpha value at this pixel for current variation
+//		int variationIndex = stamp.currentVariationIndex;
+//		if (variationIndex >= 0 && variationIndex < stamp.pixelData.size() &&
+//			!stamp.pixelData[variationIndex].empty() && stamp.channels == 4) {
+//
+//			// Use alpha channel for RGBA textures
+//			float alpha = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
+//
+//			// Only consider collision if pixel is not fully transparent
+//			return alpha > COLOR_DETECTION_THRESHOLD;
+//		}
+//
+//		return true; // If we can't check pixel data, use bounding box result
+//	}
+//
+//	return false; // Outside bounding box
+//}
+
 
 bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& stamp) {
 	if (!stamp.active) return false;
+
+	// Validate variation index
+	int variationIndex = stamp.currentVariationIndex;
+	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+		stamp.pixelData[variationIndex].empty()) {
+		// Fall back to first available texture
+		for (size_t i = 0; i < stamp.pixelData.size(); i++) {
+			if (!stamp.pixelData[i].empty()) {
+				variationIndex = i;
+				break;
+			}
+		}
+		// If still no valid texture, return false
+		if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+			stamp.pixelData[variationIndex].empty()) {
+			return false;
+		}
+	}
+
+	if (stamp.pixelData[variationIndex].empty()) {
+		// No pixel data available, fall back to the bounding box check
+		float minX, minY, maxX, maxY;
+		calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+		float aspect = HEIGHT / float(WIDTH);
+
+		// Convert pixel coordinates to normalized coordinates (0-1)
+		float pointX = point.x / (float)WIDTH;
+		float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
+
+		// Apply aspect ratio correction to y-coordinate
+		pointY = (pointY - 0.5f) * aspect + 0.5f;
+
+		// Simple bounding box check
+		return (pointX >= minX && pointX <= maxX &&
+			pointY >= minY && pointY <= maxY);
+	}
+
+	// Get the normalized stamp position (0-1 in screen space)
+	float stampX = stamp.posX;  // Normalized X position
+	float stampY = stamp.posY;  // Normalized Y position
+
+	// Calculate the screen-space dimensions of the stamp
+	float aspect = HEIGHT / float(WIDTH);
+	float stampWidth = stamp.width / float(WIDTH);  // In normalized screen units
+	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
 
 	// Convert collision point to normalized screen coordinates
 	float pointX = point.x / float(WIDTH);  // 0-1 range
 	float pointY = point.y / float(HEIGHT);  // 0-1 range
 
-	// Calculate bounding box with proper aspect ratio handling
+	// Calculate bounding box
 	float minX, minY, maxX, maxY;
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
 
-	// Store for visualization (optional)
-	global_minX = minX;
-	global_minY = minY;
-	global_maxX = maxX;
-	global_maxY = maxY;
-
 	// Check if the collision point is within the stamp's bounding box
-	if (pointX >= minX && pointX <= maxX && pointY >= minY && pointY <= maxY) {
-		// For more accurate collision detection, we can add pixel-perfect testing here
-		// Map the collision point to texture coordinates within the stamp
-		float texCoordX = (pointX - minX) / (maxX - minX);
-		float texCoordY = (pointY - minY) / (maxY - minY);
+	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
+		return false;  // Outside the stamp's bounding box
+	else
+		return true;
 
-		// Convert to pixel coordinates in the texture
-		int pixelX = int(texCoordX * stamp.width);
-		int pixelY = int(texCoordY * stamp.height);
+	//// Map the collision point to texture coordinates
+	//float texCoordX = (pointX - minX) / (maxX - minX);
+	//float texCoordY = (pointY - minY) / (maxY - minY);
 
-		// Ensure pixel coordinates are within bounds
-		pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
-		pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
+	//// Convert to pixel coordinates in the texture
+	//int pixelX = int(texCoordX * stamp.width);
+	//int pixelY = int(texCoordY * stamp.height);
+	//pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
+	//pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
 
-		// Get alpha value at this pixel for current variation
-		int variationIndex = stamp.currentVariationIndex;
-		if (variationIndex >= 0 && variationIndex < stamp.pixelData.size() &&
-			!stamp.pixelData[variationIndex].empty() && stamp.channels == 4) {
+	//// Get the alpha/opacity at this pixel for the current variation
+	//float opacity = 0.0f;
+	//if (stamp.channels == 4) {
+	//	// Use alpha channel for RGBA textures
+	//	opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
+	//}
+	//else if (stamp.channels == 1) {
+	//	// Use intensity for grayscale
+	//	opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+	//}
+	//else if (stamp.channels == 3) {
+	//	// For RGB, use average intensity as opacity
+	//	float r = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+	//	float g = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 1) / 255.0f;
+	//	float b = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 2) / 255.0f;
+	//	opacity = (r + g + b) / 3.0f;
+	//}
 
-			// Use alpha channel for RGBA textures
-			float alpha = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
-
-			// Only consider collision if pixel is not fully transparent
-			return alpha > COLOR_DETECTION_THRESHOLD;
-		}
-
-		return true; // If we can't check pixel data, use bounding box result
-	}
-
-	return false; // Outside bounding box
+	//// Check if the pixel is opaque enough for a collision
+	//return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
 
@@ -2744,7 +2849,18 @@ void renderToScreen() {
 	//}
 
 	// Debug visualization of global bounding box
-	drawBoundingBox(global_minX, global_minY, global_maxX, global_maxY);
+
+	for (size_t i = 0; i < global_minXs.size(); i++)
+	{
+		drawBoundingBox(global_minXs[i], global_minYs[i], global_maxXs[i], global_maxYs[i]);
+	}
+
+	global_minXs.clear();
+	global_minYs.clear();
+	global_maxXs.clear();
+	global_maxYs.clear();
+
+
 }
 
 
