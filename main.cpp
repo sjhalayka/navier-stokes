@@ -23,8 +23,6 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-// split active stamps vector into ally ship stamps vector, enemy ship stamps vector, ally bullets stamps vector, and enemy bullet stamps vector.obstacle0_* .png constitues the ally ship template, obstacle1_* .png constitutes the bullet template, and obstacle2_* .png and obstacle3_* .png, etc constitute the enemy ship templates
-
 
 
 // Simulation parameters
@@ -1622,9 +1620,9 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 
 void reportStampCollisions() {
 	if (collisionPoints.empty()) {
-		std::cout << "\n===== Stamp Collision Report =====" << std::endl;
-		std::cout << "No collisions detected." << std::endl;
-		std::cout << "=================================" << std::endl;
+		//std::cout << "\n===== Stamp Collision Report =====" << std::endl;
+		//std::cout << "No collisions detected." << std::endl;
+		//std::cout << "=================================" << std::endl;
 		return;
 	}
 
@@ -2535,7 +2533,7 @@ void simulationStep() {
 
 	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
 	if (frameCount % REPORT_INTERVAL == 0) {
-		reportStampToStampCollisions();
+		//reportStampToStampCollisions();
 		reportStampCollisions();
 	}
 }
@@ -2774,53 +2772,53 @@ void keyboard(unsigned char key, int x, int y) {
 		}
 		break;
 
-	//case 's':  // Clear all stamps
-	//case 'S':
-	//{
-	//	// Keep the template stamps but remove all active ones
-	//	std::vector<Stamp> templates;
-	//	for (size_t i = 0; i < stamps.size(); i++) {
-	//		if (!stamps[i].active) {
-	//			templates.push_back(stamps[i]);
-	//		}
-	//	}
-	//	if (templates.size() < stamps.size()) {
-	//		stamps = templates;
-	//		std::cout << "Cleared all active stamps" << std::endl;
-	//	}
-	//	else {
-	//		std::cout << "No active stamps to clear" << std::endl;
-	//	}
-	//}
-	//break;
+		//case 's':  // Clear all stamps
+		//case 'S':
+		//{
+		//	// Keep the template stamps but remove all active ones
+		//	std::vector<Stamp> templates;
+		//	for (size_t i = 0; i < stamps.size(); i++) {
+		//		if (!stamps[i].active) {
+		//			templates.push_back(stamps[i]);
+		//		}
+		//	}
+		//	if (templates.size() < stamps.size()) {
+		//		stamps = templates;
+		//		std::cout << "Cleared all active stamps" << std::endl;
+		//	}
+		//	else {
+		//		std::cout << "No active stamps to clear" << std::endl;
+		//	}
+		//}
+		//break;
 
 
-	//case 'p':  // Print debug info about stamps
-	//case 'P':
-	//{
-	//	int activeCount = std::count_if(stamps.begin(), stamps.end(),
-	//		[](const Stamp& s) { return s.active; });
-	//	std::cout << "Debug: Current stamps (" << stamps.size() << " total, "
-	//		<< activeCount << " active):" << std::endl;
+		//case 'p':  // Print debug info about stamps
+		//case 'P':
+		//{
+		//	int activeCount = std::count_if(stamps.begin(), stamps.end(),
+		//		[](const Stamp& s) { return s.active; });
+		//	std::cout << "Debug: Current stamps (" << stamps.size() << " total, "
+		//		<< activeCount << " active):" << std::endl;
 
-	//	for (size_t i = 0; i < stamps.size(); i++) {
-	//		const auto& stamp = stamps[i];
-	//		std::string variationName = "unknown";
+		//	for (size_t i = 0; i < stamps.size(); i++) {
+		//		const auto& stamp = stamps[i];
+		//		std::string variationName = "unknown";
 
-	//		if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
-	//			variationName = stamp.textureNames[stamp.currentVariationIndex];
-	//		}
+		//		if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
+		//			variationName = stamp.textureNames[stamp.currentVariationIndex];
+		//		}
 
-	//		if (stamp.active) {
-	//			std::cout << "  Stamp #" << (i + 1) << ": active=" << (stamp.active ? "yes" : "no")
-	//				<< ", pos=(" << stamp.posX << "," << stamp.posY << ")"
-	//				<< ", size=" << stamp.width << "x" << stamp.height
-	//				<< ", texture=" << stamp.baseFilename
-	//				<< ", variation=" << variationName << std::endl;
-	//		}
-	//	}
-	//}
-	//break;
+		//		if (stamp.active) {
+		//			std::cout << "  Stamp #" << (i + 1) << ": active=" << (stamp.active ? "yes" : "no")
+		//				<< ", pos=(" << stamp.posX << "," << stamp.posY << ")"
+		//				<< ", size=" << stamp.width << "x" << stamp.height
+		//				<< ", texture=" << stamp.baseFilename
+		//				<< ", variation=" << variationName << std::endl;
+		//		}
+		//	}
+		//}
+		//break;
 	}
 }
 
