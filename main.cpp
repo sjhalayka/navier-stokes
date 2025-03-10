@@ -1668,7 +1668,7 @@ bool loadStampTextures() {
 //}
 
 
-bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& stamp) {
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	//if (!stamp.active) return false;
 
 	//// Validate variation index
@@ -1737,39 +1737,39 @@ bool isCollisionInStampBoundingBox(const CollisionPoint& point, const Stamp& sta
 	// Check if the collision point is within the stamp's bounding box
 	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
 		return false;  // Outside the stamp's bounding box
-	else
-		return true;
+//	else
+	//	return true;
 
-	//// Map the collision point to texture coordinates
-	//float texCoordX = (pointX - minX) / (maxX - minX);
-	//float texCoordY = (pointY - minY) / (maxY - minY);
+	// Map the collision point to texture coordinates
+	float texCoordX = (pointX - minX) / (maxX - minX);
+	float texCoordY = (pointY - minY) / (maxY - minY);
 
-	//// Convert to pixel coordinates in the texture
-	//int pixelX = int(texCoordX * stamp.width);
-	//int pixelY = int(texCoordY * stamp.height);
-	//pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
-	//pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
+	// Convert to pixel coordinates in the texture
+	int pixelX = int(texCoordX * stamp.width);
+	int pixelY = int(texCoordY * stamp.height);
+	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
+	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
 
-	//// Get the alpha/opacity at this pixel for the current variation
-	//float opacity = 0.0f;
-	//if (stamp.channels == 4) {
-	//	// Use alpha channel for RGBA textures
-	//	opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
-	//}
-	//else if (stamp.channels == 1) {
-	//	// Use intensity for grayscale
-	//	opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
-	//}
-	//else if (stamp.channels == 3) {
-	//	// For RGB, use average intensity as opacity
-	//	float r = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
-	//	float g = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 1) / 255.0f;
-	//	float b = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 2) / 255.0f;
-	//	opacity = (r + g + b) / 3.0f;
-	//}
+	// Get the alpha/opacity at this pixel for the current variation
+	float opacity = 0.0f;
+	if (stamp.channels == 4) {
+		// Use alpha channel for RGBA textures
+		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
+	}
+	else if (stamp.channels == 1) {
+		// Use intensity for grayscale
+		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+	}
+	else if (stamp.channels == 3) {
+		// For RGB, use average intensity as opacity
+		float r = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+		float g = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 1) / 255.0f;
+		float b = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 2) / 255.0f;
+		opacity = (r + g + b) / 3.0f;
+	}
 
-	//// Check if the pixel is opaque enough for a collision
-	//return opacity > COLOR_DETECTION_THRESHOLD;
+	// Check if the pixel is opaque enough for a collision
+	return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
 
@@ -1830,7 +1830,7 @@ void reportStampCollisions() {
 				//bool inBox = (normX >= minX && normX <= maxX && normY >= minY && normY <= maxY);
 
 				// Perform the actual collision check
-				bool collides = isCollisionInStampBoundingBox(point, stamp);
+				bool collides = isCollisionInStamp(point, stamp);
 
 				// Debug any discrepancies
 				//if (inBox != collides) {
