@@ -1735,7 +1735,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 
 	// Check if the collision point is within the stamp's bounding box
 	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
-		return false;  // Outside the stamp's bounding box
+		return false;
 
 	// Map the collision point to texture coordinates
 	float texCoordX = (pointX - minX) / (maxX - minX);
