@@ -23,6 +23,12 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+// to do: do ally-enemy ship collisions. immediate death
+// to do: do ally ship-enemy fire collisions. damage is based on dt
+// to do: do enemy ship-ally fire collisions. damage is based on dt
+// to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
+// to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
+// to do: for example, a dead enemy disappears and is replaced by an explosion that consists of force and colour on multiple scales
 
 
 
