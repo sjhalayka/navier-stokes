@@ -1390,8 +1390,6 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
-
-
 bool loadStampTextures() {
 	// Clear previous template textures
 	for (auto& stamp : stampTemplates) {
@@ -1402,55 +1400,57 @@ bool loadStampTextures() {
 		}
 	}
 	stampTemplates.clear();
-	// Also clear active stamps to avoid orphaned instances
-//	activeStamps.clear();
 
-	int index = 0;
-	bool loadedAny = false;
-
+	// Define the file prefixes for each type of game object
+	const std::vector<std::string> prefixes = { "obstacle", "bullet", "enemy" };
 	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
 
-	while (true) {
-		std::string baseFilename = "obstacle" + std::to_string(index);
-		Stamp newStamp;
-		newStamp.baseFilename = baseFilename;
-		newStamp.textureNames = { "centre", "up", "down" };
-		newStamp.currentVariationIndex = 0; // Default to center
+	bool loadedAny = false;
 
-		bool loadedAtLeastOne = false;
+	// For each prefix, attempt to load all indexed textures
+	for (const auto& prefix : prefixes) {
+		int index = 0;
 
-		for (size_t i = 0; i < variations.size(); i++) {
-			std::string filename = baseFilename + variations[i] + ".png";
-			GLuint textureID = 0;
-			int width = 0, height = 0, channels = 0;
-			std::vector<unsigned char> pixelData;
+		while (true) {
+			std::string baseFilename = prefix + std::to_string(index);
+			Stamp newStamp;
+			newStamp.baseFilename = baseFilename;
+			newStamp.textureNames = { "centre", "up", "down" };
+			newStamp.currentVariationIndex = 0; // Default to center
 
-			if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
-				if (newStamp.pixelData.empty()) {
-					newStamp.width = width;
-					newStamp.height = height;
-					newStamp.channels = channels;
+			bool loadedAtLeastOne = false;
+
+			for (size_t i = 0; i < variations.size(); i++) {
+				std::string filename = baseFilename + variations[i] + ".png";
+				GLuint textureID = 0;
+				int width = 0, height = 0, channels = 0;
+				std::vector<unsigned char> pixelData;
+
+				if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
+					if (newStamp.pixelData.empty()) {
+						newStamp.width = width;
+						newStamp.height = height;
+						newStamp.channels = channels;
+					}
+					newStamp.textureIDs.push_back(textureID);
+					newStamp.pixelData.push_back(std::move(pixelData));
+					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
+					loadedAtLeastOne = true;
 				}
-				newStamp.textureIDs.push_back(textureID);
-				newStamp.pixelData.push_back(std::move(pixelData));
-				std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
-				loadedAtLeastOne = true;
+				else {
+					newStamp.textureIDs.push_back(0);
+					newStamp.pixelData.push_back(std::vector<unsigned char>());
+				}
+			}
+
+			if (loadedAtLeastOne) {
+				stampTemplates.push_back(std::move(newStamp));
+				loadedAny = true;
+				index++;
 			}
 			else {
-				newStamp.textureIDs.push_back(0);
-				newStamp.pixelData.push_back(std::vector<unsigned char>());
+				break; // No more textures with this prefix
 			}
-		}
-
-		if (loadedAtLeastOne) {
-			// Ensure stamp is a template (not active)
-			//newStamp.active = false;
-			stampTemplates.push_back(std::move(newStamp));
-			loadedAny = true;
-			index++;
-		}
-		else {
-			break;
 		}
 	}
 
@@ -1460,6 +1460,9 @@ bool loadStampTextures() {
 
 	return loadedAny;
 }
+
+
+
 
 
 
@@ -2534,7 +2537,6 @@ void addForce() {
 
 
 
-
 void updateObstacle() {
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
@@ -2546,7 +2548,6 @@ void updateObstacle() {
 
 		// Create new stamp from the current template
 		Stamp newStamp = stampTemplates[currentTemplateIndex];
-		//newStamp.active = true;
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
 
@@ -2582,17 +2583,35 @@ void updateObstacle() {
 			}
 		}
 
-		// Add the stamp to the appropriate vector based on the template index
-		if (currentTemplateIndex == 0) {
+		// Add the stamp to the appropriate vector based on the file prefix in baseFilename
+		std::string prefix = newStamp.baseFilename.substr(0, newStamp.baseFilename.find_first_of("0123456789"));
+
+		if (prefix == "obstacle") {
 			allyShips.push_back(newStamp);
+			std::cout << "Added new ally ship";
 		}
-		else if (currentTemplateIndex == 1) 
-		{
+		else if (prefix == "bullet") {
 			allyBullets.push_back(newStamp);
+			std::cout << "Added new ally bullet";
 		}
-		else if (currentTemplateIndex == 2)
-		{
+		else if (prefix == "enemy") {
 			enemyShips.push_back(newStamp);
+			std::cout << "Added new enemy ship";
+		}
+		else {
+			// Fallback for unknown prefixes (legacy support)
+			if (currentTemplateIndex == 0) {
+				allyShips.push_back(newStamp);
+				std::cout << "Added new ally ship";
+			}
+			else if (currentTemplateIndex == 1) {
+				allyBullets.push_back(newStamp);
+				std::cout << "Added new ally bullet";
+			}
+			else {
+				enemyShips.push_back(newStamp);
+				std::cout << "Added new enemy ship";
+			}
 		}
 
 		std::string variationName = "unknown";
@@ -2600,22 +2619,13 @@ void updateObstacle() {
 			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
 		}
 
-		std::cout << "Added new stamp to ";
-		if (currentTemplateIndex == 0) {
-			std::cout << "ally ships";
-		}
-		else if (currentTemplateIndex == 1) {
-			std::cout << "ally bullets";
-		}
-		else {
-			std::cout << "enemy ships";
-		}
 		std::cout << " at position (" << mousePosX << ", " << mousePosY << ") with texture: "
 			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 }
+
 
 
 
@@ -2934,7 +2944,6 @@ void mouseMotion(int x, int y) {
 
 
 // GLUT keyboard callback
-
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 'r':
@@ -2977,59 +2986,25 @@ void keyboard(unsigned char key, int x, int y) {
 				<< stampTemplates[currentTemplateIndex].baseFilename
 				<< " (" << (currentTemplateIndex + 1) << " of "
 				<< stampTemplates.size() << ")" << std::endl;
+
+			// Identify the stamp type based on the prefix
+			std::string prefix = stampTemplates[currentTemplateIndex].baseFilename.substr(
+				0, stampTemplates[currentTemplateIndex].baseFilename.find_first_of("0123456789"));
+
+			if (prefix == "obstacle") {
+				std::cout << "Type: Ally Ship" << std::endl;
+			}
+			else if (prefix == "bullet") {
+				std::cout << "Type: Bullet" << std::endl;
+			}
+			else if (prefix == "enemy") {
+				std::cout << "Type: Enemy Ship" << std::endl;
+			}
 		}
 		else {
 			std::cout << "No stamp textures loaded. Press 'L' to load textures." << std::endl;
 		}
 		break;
-
-		//case 's':  // Clear all stamps
-		//case 'S':
-		//{
-		//	// Keep the template stamps but remove all active ones
-		//	std::vector<Stamp> templates;
-		//	for (size_t i = 0; i < stamps.size(); i++) {
-		//		if (!stamps[i].active) {
-		//			templates.push_back(stamps[i]);
-		//		}
-		//	}
-		//	if (templates.size() < stamps.size()) {
-		//		stamps = templates;
-		//		std::cout << "Cleared all active stamps" << std::endl;
-		//	}
-		//	else {
-		//		std::cout << "No active stamps to clear" << std::endl;
-		//	}
-		//}
-		//break;
-
-
-		//case 'p':  // Print debug info about stamps
-		//case 'P':
-		//{
-		//	int activeCount = std::count_if(stamps.begin(), stamps.end(),
-		//		[](const Stamp& s) { return s.active; });
-		//	std::cout << "Debug: Current stamps (" << stamps.size() << " total, "
-		//		<< activeCount << " active):" << std::endl;
-
-		//	for (size_t i = 0; i < stamps.size(); i++) {
-		//		const auto& stamp = stamps[i];
-		//		std::string variationName = "unknown";
-
-		//		if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
-		//			variationName = stamp.textureNames[stamp.currentVariationIndex];
-		//		}
-
-		//		if (stamp.active) {
-		//			std::cout << "  Stamp #" << (i + 1) << ": active=" << (stamp.active ? "yes" : "no")
-		//				<< ", pos=(" << stamp.posX << "," << stamp.posY << ")"
-		//				<< ", size=" << stamp.width << "x" << stamp.height
-		//				<< ", texture=" << stamp.baseFilename
-		//				<< ", variation=" << variationName << std::endl;
-		//		}
-		//	}
-		//}
-		//break;
 	}
 }
 
@@ -3171,23 +3146,28 @@ void reshape(int w, int h) {
 
 
 
-
-
 void printInstructions() {
 	std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
 	std::cout << "-----------------------------------" << std::endl;
 	std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
-	std::cout << "Right Mouse Button: Add obstacles/stamps" << std::endl;
-	std::cout << "F1: Reset simulation" << std::endl;
+	std::cout << "Right Mouse Button: Add game objects using current template" << std::endl;
 	std::cout << "R: Toggle between red and blue color modes" << std::endl;
 	std::cout << "C: Generate collision report immediately" << std::endl;
-	std::cout << "L: Load bitmap as obstacle stamp" << std::endl;
-	std::cout << "S: Clear all stamps" << std::endl;
-	std::cout << "X: Remove the most recent stamp" << std::endl;
-	std::cout << "ESC: Exit" << std::endl;
+	std::cout << "L: Load all available game object textures" << std::endl;
+	std::cout << "T: Cycle through loaded textures (obstacles=ally ships, bullets, enemy)" << std::endl;
+	std::cout << "UP/DOWN Arrow Keys: Change ship orientation when placing" << std::endl;
 	std::cout << "Highlights show colour-obstacle collisions" << std::endl;
 	std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
+	std::cout << "-----------------------------------" << std::endl;
+	std::cout << "File Naming Convention:" << std::endl;
+	std::cout << "  obstacle*.png - Ally ships" << std::endl;
+	std::cout << "  bullet*.png - Bullets" << std::endl;
+	std::cout << "  enemy*.png - Enemy ships" << std::endl;
+	std::cout << "Each can have _centre, _up, and _down variations" << std::endl;
 }
+
+
+
 
 // Then update the main function to call this instead of printing directly
 int main(int argc, char** argv) {
