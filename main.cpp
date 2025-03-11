@@ -1808,73 +1808,72 @@ void reportStampCollisions() {
 		return;
 	}
 
-	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
-	std::cout << "Total collision points detected: " << collisionPoints.size() << std::endl;
+	//std::cout << "\n===== Stamp Collision Report =====" << std::endl;
+	//std::cout << "Total collision points detected: " << collisionPoints.size() << std::endl;
 
-	// Print ALL collision points for debugging
-	std::cout << "Sample collision points (normalized coordinates):" << std::endl;
-	for (size_t i = 0; i < std::min(size_t(5), collisionPoints.size()); i++) {
-		const auto& point = collisionPoints[i];
-		float normX = point.x / float(WIDTH);
-		float normY = point.y / float(HEIGHT);
-		std::cout << "  Point #" << (i + 1) << ": (" << normX << ", " << normY
-			<< ") r=" << point.r << ", b=" << point.b << std::endl;
-	}
+	//// Print ALL collision points for debugging
+	//std::cout << "Sample collision points (normalized coordinates):" << std::endl;
+	//for (size_t i = 0; i < std::min(size_t(5), collisionPoints.size()); i++) {
+	//	const auto& point = collisionPoints[i];
+	//	float normX = point.x / float(WIDTH);
+	//	float normY = point.y / float(HEIGHT);
+	//	std::cout << "  Point #" << (i + 1) << ": (" << normX << ", " << normY
+	//		<< ") r=" << point.r << ", b=" << point.b << std::endl;
+	//}
 
-	auto reportCollisionsForStamps = [&](const std::vector<Stamp>& stamps, const std::string& type) {
+	auto reportCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
 
 		std::cout << "\nChecking " << stamps.size() << " " << type << " stamps for collisions..." << std::endl;
 
-		for (size_t i = 0; i < stamps.size(); i++) {
-			const auto& stamp = stamps[i];
-			//if (!stamp.active) continue;
+		for (size_t i = 0; i < stamps.size(); i++) 
+		{
+			//auto& stamp = stamps[i];
 
 			// Debug output - print active stamp info with bounding box
 			float minX, minY, maxX, maxY;
-			calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
-			std::cout << "  " << type << " #" << (i + 1) << " at ("
-				<< stamp.posX << ", " << stamp.posY << ") size: "
-				<< stamp.width << "x" << stamp.height
-				<< " bounding box: (" << minX << "," << minY << ") to ("
-				<< maxX << "," << maxY << ")" << std::endl;
+			//std::cout << "  " << type << " #" << (i + 1) << " at ("
+			//	<< stamp.posX << ", " << stamp.posY << ") size: "
+			//	<< stamp.width << "x" << stamp.height
+			//	<< " bounding box: (" << minX << "," << minY << ") to ("
+			//	<< maxX << "," << maxY << ")" << std::endl;
 
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
 			int blueStampCollisions = 0;
 			int bothStampCollisions = 0;
 
+			float red_count = 0;
+			float blue_count = 0;
+
 			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints) {
+			for (const auto& point : collisionPoints)
+			{
 				float normX = point.x / float(WIDTH);
 				float normY = point.y / float(HEIGHT);
 
-				//// Simple bounding box check for debugging
-				//bool inBox = (normX >= minX && normX <= maxX && normY >= minY && normY <= maxY);
-
 				// Perform the actual collision check
-				bool collides = isCollisionInStamp(point, stamp);
-
-				// Debug any discrepancies
-				//if (inBox != collides) {
-				//	std::cout << "    DEBUG: Point (" << normX << "," << normY
-				//		<< ") - bounding box check: " << (inBox ? "YES" : "NO")
-				//		<< ", collision check: " << (collides ? "YES" : "NO") << std::endl;
-				//}
+				bool collides = isCollisionInStamp(point, stamps[i]);
 
 				if (collides) {
 					stampCollisions++;
 
 					if (point.r > 0) {
+						red_count += point.r;
 						redStampCollisions++;
 					}
 
 					if (point.b > 0) {
+						blue_count += point.b;
 						blueStampCollisions++;
 					}
 
 					if (point.r > 0 && point.b > 0) {
+						red_count += point.r;
+						blue_count += point.b;
+
 						bothStampCollisions++;
 					}
 				}
@@ -1883,20 +1882,30 @@ void reportStampCollisions() {
 			// Report collisions for this stamp
 			if (stampCollisions > 0) {
 				stampHitCount++;
-				std::string textureName = stamp.baseFilename;
+				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
-				if (stamp.currentVariationIndex < stamp.textureNames.size()) {
-					variationName = stamp.textureNames[stamp.currentVariationIndex];
+				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size()) {
+					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
 				}
 
-				std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
-				std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-				std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-				std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
-				std::cout << "     Collisions: " << stampCollisions << std::endl;
-				std::cout << "     Red: " << redStampCollisions
-					<< ", Blue: " << blueStampCollisions
-					<< ", Both: " << bothStampCollisions << std::endl;
+				double damage = 0.0;
+
+				if (type == "Ally Ship")
+					damage = blue_count;
+				else
+					damage = red_count;
+
+				stamps[i].health -= damage;
+				
+
+				//std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
+				//std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
+				//std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
+				//std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
+				//std::cout << "     Collisions: " << stampCollisions << std::endl;
+				//std::cout << "     Red: " << redStampCollisions
+				//	<< ", Blue: " << blueStampCollisions
+				//	<< ", Both: " << bothStampCollisions << std::endl;
 			}
 		}
 
@@ -2850,8 +2859,16 @@ void move_ships(void)
 }
 
 
+void mark_dying_ships(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+		if (allyShips[i].health <= 0)
+			allyShips[i].to_be_culled = true;
 
-
+	for (size_t i = 0; i < enemyShips.size(); ++i)
+		if (enemyShips[i].health <= 0)
+			enemyShips[i].to_be_culled = true;
+}
 
 void mark_colliding_ships(void)
 {
@@ -2887,6 +2904,23 @@ void mark_offscreen_ships(void)
 
 
 
+void proceed_stamp_opacity(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				stamps[i].stamp_opacity -= DT;
+			}
+		}
+	};
+
+	update_ships(allyShips, "Ally");
+	update_ships(enemyShips, "Enemy");
+}
+
 
 void cull_marked_ships(void)
 {
@@ -2894,7 +2928,7 @@ void cull_marked_ships(void)
 	{
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
-			if (stamps[i].to_be_culled)
+			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
 			{
 				cout << "culling " << type << " ship" << endl;
 				stamps.erase(stamps.begin() + i);
@@ -2943,7 +2977,6 @@ void simulationStep() {
 	subtractPressureGradient();
 	detectCollisions();
 
-
 	move_bullets();
 	mark_colliding_bullets();
 	mark_offscreen_bullets();
@@ -2952,13 +2985,15 @@ void simulationStep() {
 	move_ships();
 	mark_colliding_ships();
 	mark_offscreen_ships();
+	mark_dying_ships();
+	proceed_stamp_opacity();
 	cull_marked_ships();
 
 
 	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
 	if (frameCount % REPORT_INTERVAL == 0) {
 		//reportStampToStampCollisions();
-		//reportStampCollisions();
+		reportStampCollisions();
 	}
 }
 
