@@ -28,7 +28,7 @@ using namespace std;
 // to do: do enemy ship-ally fire collisions. damage is based on dt
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
-// to do: for example, a dead enemy disappears and is replaced by an explosion that consists of force and colour on multiple scales
+// to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
 // to do: do ally-enemy ship collisions. immediate death
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 
@@ -3046,6 +3046,8 @@ void renderToScreen() {
 			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
 			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
+			// TO DO: add in opacity as a uniform, so that the stamp can fade away over time upon death
+
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
