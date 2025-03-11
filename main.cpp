@@ -3185,9 +3185,22 @@ void specialKeyboard(int key, int x, int y) {
 	switch (key) {
 	case GLUT_KEY_UP:
 		upKeyPressed = true;
+		for (auto& stamp : allyShips) {
+			if (stamp.textureIDs[0] != 0) {
+				stamp.currentVariationIndex = 1; // up variation
+			}
+		}
+
 		break;
 	case GLUT_KEY_DOWN:
 		downKeyPressed = true;
+
+		for (auto& stamp : allyShips) {
+			if (stamp.textureIDs[0] != 0) {
+				stamp.currentVariationIndex = 2; // down variation
+			}
+		}
+
 		break;
 	case GLUT_KEY_LEFT:
 		leftKeyPressed = true;
@@ -3204,16 +3217,16 @@ void specialKeyboard(int key, int x, int y) {
 
 		// Combine key states to allow diagonal movement
 		if (upKeyPressed) {
-			allyShips[0].velY = 0.001;
+			allyShips[0].velY = 1;
 		}
 		if (downKeyPressed) {
-			allyShips[0].velY = -0.001;
+			allyShips[0].velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].velX = -0.001;
+			allyShips[0].velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].velX = 0.001;
+			allyShips[0].velX = 1;
 		}
 
 		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
@@ -3246,22 +3259,29 @@ void specialKeyboardUp(int key, int x, int y) {
 		break;
 	}
 
+
+	for (auto& stamp : allyShips) {
+		if (stamp.textureIDs[0] != 0) {
+			stamp.currentVariationIndex = 0; // center variation
+		}
+	}
+
 	if (allyShips.size() > 0) {
 		// Reset velocity if no keys are pressed
 		allyShips[0].velX = 0.0;
 		allyShips[0].velY = 0.0;
 
 		if (upKeyPressed) {
-			allyShips[0].velY = 0.001;
+			allyShips[0].velY = 1;
 		}
 		if (downKeyPressed) {
-			allyShips[0].velY = -0.001;
+			allyShips[0].velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].velX = -0.001;
+			allyShips[0].velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].velX = 0.001;
+			allyShips[0].velX = 1;
 		}
 
 		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
