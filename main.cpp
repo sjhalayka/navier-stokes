@@ -2624,7 +2624,18 @@ void updateObstacle()
 			allyBullets.push_back(newStamp);
 			std::cout << "Added new ally bullet";
 		}
-		else if (prefix == "enemy") {
+		else if (prefix == "enemy") 
+		{
+
+			newStamp.velX = rand() / float(RAND_MAX) * 0.001;
+			newStamp.velY = rand() / float(RAND_MAX) * 0.001;
+
+			if (rand() % 2)
+				newStamp.velX = -newStamp.velX;
+
+			if (rand() % 2)
+				newStamp.velY = -newStamp.velY;
+
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
 		}
@@ -2760,8 +2771,8 @@ void mark_offscreen_bullets(void)
 			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			// Check if the stamp is outside the visible area
-			if (stamp.posX < 0 || stamp.posX > 1 ||
-				adjustedPosY < 0 || adjustedPosY > 1)
+			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
+				adjustedPosY < -0.1 || adjustedPosY > 1.1)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -2853,8 +2864,14 @@ void mark_offscreen_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			if (stamp.posX <= 0 || stamp.posX >= 1 ||
-				stamp.posY <= 0 || stamp.posY >= 1)
+			float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			// Check if the stamp is outside the visible area
+			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
+				adjustedPosY < -0.1 || adjustedPosY > 1.1)
 			{
 				stamp.to_be_culled = true;
 			}
