@@ -2639,14 +2639,14 @@ void updateObstacle()
 		}
 		else if (prefix == "enemy") 
 		{
-			newStamp.velX = rand() / float(RAND_MAX) * 0.001;
-			newStamp.velY = rand() / float(RAND_MAX) * 0.001;
+			//newStamp.velX = rand() / float(RAND_MAX) * 0.001;
+			//newStamp.velY = rand() / float(RAND_MAX) * 0.001;
 
-			if (rand() % 2)
-				newStamp.velX = -newStamp.velX;
+			//if (rand() % 2)
+			//	newStamp.velX = -newStamp.velX;
 
-			if (rand() % 2)
-				newStamp.velY = -newStamp.velY;
+			//if (rand() % 2)
+			//	newStamp.velY = -newStamp.velY;
 
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
@@ -2873,9 +2873,16 @@ void mark_dying_ships(void)
 void mark_colliding_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
+		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
+			{
+				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
+			}
+		}
+	}
 }
 
 void mark_offscreen_ships(void)
