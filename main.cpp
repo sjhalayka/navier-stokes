@@ -2754,8 +2754,14 @@ void mark_offscreen_bullets(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			if (stamp.posX <= 0 || stamp.posX >= 1 ||
-				stamp.posY <= 0 || stamp.posY >= 1)
+			float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			// Check if the stamp is outside the visible area
+			if (stamp.posX < 0 || stamp.posX > 1 ||
+				adjustedPosY < 0 || adjustedPosY > 1)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -2765,6 +2771,7 @@ void mark_offscreen_bullets(void)
 	update_bullets(allyBullets);
 	update_bullets(enemyBullets);
 }
+
 
 void cull_marked_bullets(void)
 {
@@ -2793,21 +2800,43 @@ void cull_marked_bullets(void)
 
 
 
-
 void move_ships(void)
 {
-	auto update_ships = [&](std::vector<Stamp>& stamps)
+	auto update_ships = [&](std::vector<Stamp>& stamps, bool keep_within_screen_bounds)
 	{
 		for (auto& stamp : stamps)
 		{
 			stamp.posX += stamp.velX;
 			stamp.posY += stamp.velY;
+
+			const float aspect = WIDTH / float(HEIGHT);
+
+			if (keep_within_screen_bounds)
+			{
+				// Calculate adjusted Y coordinate that accounts for aspect ratio
+				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+				// Constrain X position
+				if (stamp.posX < 0)
+					stamp.posX = 0;
+				if (stamp.posX > 1)
+					stamp.posX = 1;
+
+				// Constrain Y position, accounting for aspect ratio
+				if (adjustedPosY < 0)
+					stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+				if (adjustedPosY > 1)
+					stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+			}
 		}
 	};
 
-	update_ships(allyShips);
-	update_ships(enemyShips);
+	update_ships(allyShips, true);
+	update_ships(enemyShips, false);
 }
+
+
+
 
 
 void mark_colliding_ships(void)
@@ -2832,7 +2861,7 @@ void mark_offscreen_ships(void)
 		}
 	};
 
-	update_ships(allyShips);
+	//update_ships(allyShips);
 	update_ships(enemyShips);
 }
 
@@ -2847,7 +2876,7 @@ void cull_marked_ships(void)
 		{
 			if (stamps[i].to_be_culled)
 			{
-				cout << "culling " << type << " bullet" << endl;
+				cout << "culling " << type << " ship" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
 			}
@@ -3185,6 +3214,7 @@ void specialKeyboard(int key, int x, int y) {
 	switch (key) {
 	case GLUT_KEY_UP:
 		upKeyPressed = true;
+
 		for (auto& stamp : allyShips) {
 			if (stamp.textureIDs[0] != 0) {
 				stamp.currentVariationIndex = 1; // up variation
@@ -3236,8 +3266,8 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.001;
-			allyShips[0].velY *= 0.001;
+			allyShips[0].velX *= 0.0025;
+			allyShips[0].velY *= 0.0025;
 		}
 	}
 }
@@ -3291,8 +3321,8 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.001;
-			allyShips[0].velY *= 0.001;
+			allyShips[0].velX *= 0.0025;
+			allyShips[0].velY *= 0.0025;
 		}
 	}
 }
