@@ -410,6 +410,10 @@ void reportStampToStampCollisions() {
 
 bool upKeyPressed = false;
 bool downKeyPressed = false;
+bool rightKeyPressed = false;
+bool leftKeyPressed = false;
+
+
 int lastVariationIndex = 0; // Track last variation to detect changes
 
 
@@ -3172,86 +3176,86 @@ void keyboard(unsigned char key, int x, int y) {
 	}
 }
 
+
+
+
+
+// Modified specialKeyboard function to handle diagonal movement
 void specialKeyboard(int key, int x, int y) {
 	switch (key) {
 	case GLUT_KEY_UP:
 		upKeyPressed = true;
-		downKeyPressed = false;
+		break;
+	case GLUT_KEY_DOWN:
+		downKeyPressed = true;
+		break;
+	case GLUT_KEY_LEFT:
+		leftKeyPressed = true;
+		break;
+	case GLUT_KEY_RIGHT:
+		rightKeyPressed = true;
+		break;
+	}
 
-		if (allyShips.size() > 0)
-		{
-			allyShips[0].velX = 0;
+	if (allyShips.size() > 0) {
+		// Reset velocity
+		allyShips[0].velX = 0.0;
+		allyShips[0].velY = 0.0;
+
+		// Combine key states to allow diagonal movement
+		if (upKeyPressed) {
 			allyShips[0].velY = 0.001;
 		}
-
-		// Adjust the texture for all active stamps
-		for (auto& stamp : allyShips) {
-			if (stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
-				stamp.currentVariationIndex = 1; // up variation
-			}
-		}
-		break;
-
-	case GLUT_KEY_DOWN:
-		upKeyPressed = false;
-		downKeyPressed = true;
-
-		if (allyShips.size() > 0)
-		{
-			allyShips[0].velX = 0;
+		if (downKeyPressed) {
 			allyShips[0].velY = -0.001;
 		}
-
-		// Adjust the texture for all active stamps
-		for (auto& stamp : allyShips) {
-			if (stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
-				stamp.currentVariationIndex = 2; // down variation
-			}
+		if (leftKeyPressed) {
+			allyShips[0].velX = -0.001;
 		}
+		if (rightKeyPressed) {
+			allyShips[0].velX = 0.001;
+		}
+	}
+}
+
+// Modified specialKeyboardUp function to reset key states
+void specialKeyboardUp(int key, int x, int y) {
+	switch (key) {
+	case GLUT_KEY_UP:
+		upKeyPressed = false;
+		break;
+	case GLUT_KEY_DOWN:
+		downKeyPressed = false;
+		break;
+	case GLUT_KEY_LEFT:
+		leftKeyPressed = false;
+		break;
+	case GLUT_KEY_RIGHT:
+		rightKeyPressed = false;
 		break;
 	}
-}
 
-void specialKeyboardUp(int key, int x, int y) 
-{
-	if (allyShips.size() > 0)
-	{
-		allyShips[0].velX = 0;
+	if (allyShips.size() > 0) {
+		// Reset velocity if no keys are pressed
+		allyShips[0].velX = 0.0;
 		allyShips[0].velY = 0.0;
-	}
 
-	for (auto& stamp : allyShips) {
-		if (stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
-			stamp.currentVariationIndex = 0; // down variation
+		if (upKeyPressed) {
+			allyShips[0].velY = 0.001;
+		}
+		if (downKeyPressed) {
+			allyShips[0].velY = -0.001;
+		}
+		if (leftKeyPressed) {
+			allyShips[0].velX = -0.001;
+		}
+		if (rightKeyPressed) {
+			allyShips[0].velX = 0.001;
 		}
 	}
-
-	//switch (key) {
-	//case GLUT_KEY_UP:
-
-
-	//	break;
-	//case GLUT_KEY_DOWN:
-	//	upKeyPressed = false;
-	//	downKeyPressed = false;
-
-	//	if (allyShips.size() > 0)
-	//	{
-	//		allyShips[0].velX = 0;
-	//		allyShips[0].velY = 0;
-	//	}
-
-	//	// Revert to center texture for all active stamps
-	//	for (auto& stamp : allyShips) {
-	//		if (stamp.textureIDs[0] != 0) {
-	//			stamp.currentVariationIndex = 0; // center variation
-	//		}
-	//	}
-	//	break;
-	//}
-
-
 }
+
+
 
 
 // GLUT reshape callback// GLUT reshape callback
