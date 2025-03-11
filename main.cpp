@@ -289,100 +289,100 @@ void reportStampToStampCollisions() {
 	}
 
 	// Check ally ships with enemy ships (ship-to-ship collision)
-	std::cout << "\n** Ally Ships vs Enemy Ships **" << std::endl;
-	for (size_t i = 0; i < allyShips.size(); ++i) {
-		//if (!allyShips[i].active) continue;
+	//std::cout << "\n** Ally Ships vs Enemy Ships **" << std::endl;
+	//for (size_t i = 0; i < allyShips.size(); ++i) {
+	//	//if (!allyShips[i].active) continue;
 
-		for (size_t j = 0; j < enemyShips.size(); ++j) {
-			//if (!enemyShips[j].active) continue;
+	//	for (size_t j = 0; j < enemyShips.size(); ++j) {
+	//		//if (!enemyShips[j].active) continue;
 
-			if (isPixelPerfectCollision(allyShips[i], enemyShips[j])) {
-				collisionDetected = true;
-				std::cout << "Ship collision: Ally Ship #" << i + 1
-					<< " collided with Enemy Ship #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(allyShips[i], enemyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Ship collision: Ally Ship #" << i + 1
+	//				<< " collided with Enemy Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	// Check ally ships with ally ships (friendly collision)
-	std::cout << "\n** Ally Ships vs Ally Ships **" << std::endl;
-	for (size_t i = 0; i < allyShips.size(); ++i) {
-		//if (!allyShips[i].active) continue;
+	//// Check ally ships with ally ships (friendly collision)
+	//std::cout << "\n** Ally Ships vs Ally Ships **" << std::endl;
+	//for (size_t i = 0; i < allyShips.size(); ++i) {
+	//	//if (!allyShips[i].active) continue;
 
-		for (size_t j = i + 1; j < allyShips.size(); ++j) {
-			//if (!allyShips[j].active) continue;
+	//	for (size_t j = i + 1; j < allyShips.size(); ++j) {
+	//		//if (!allyShips[j].active) continue;
 
-			if (isPixelPerfectCollision(allyShips[i], allyShips[j])) {
-				collisionDetected = true;
-				std::cout << "Friendly collision: Ally Ship #" << i + 1
-					<< " collided with Ally Ship #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(allyShips[i], allyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Friendly collision: Ally Ship #" << i + 1
+	//				<< " collided with Ally Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	// Check enemy ships with enemy ships (enemy friendly collision)
-	std::cout << "\n** Enemy Ships vs Enemy Ships **" << std::endl;
-	for (size_t i = 0; i < enemyShips.size(); ++i) {
-		//if (!enemyShips[i].active) continue;
+	//// Check enemy ships with enemy ships (enemy friendly collision)
+	//std::cout << "\n** Enemy Ships vs Enemy Ships **" << std::endl;
+	//for (size_t i = 0; i < enemyShips.size(); ++i) {
+	//	//if (!enemyShips[i].active) continue;
 
-		for (size_t j = i + 1; j < enemyShips.size(); ++j) {
-			//if (!enemyShips[j].active) continue;
+	//	for (size_t j = i + 1; j < enemyShips.size(); ++j) {
+	//		//if (!enemyShips[j].active) continue;
 
-			if (isPixelPerfectCollision(enemyShips[i], enemyShips[j])) {
-				collisionDetected = true;
-				std::cout << "Enemy collision: Enemy Ship #" << i + 1
-					<< " collided with Enemy Ship #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(enemyShips[i], enemyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Enemy collision: Enemy Ship #" << i + 1
+	//				<< " collided with Enemy Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	// Check ally bullets with ally bullets (friendly fire crossover)
-	std::cout << "\n** Ally Bullets vs Ally Bullets **" << std::endl;
-	for (size_t i = 0; i < allyBullets.size(); ++i) {
-		//if (!allyBullets[i].active) continue;
+	//// Check ally bullets with ally bullets (friendly fire crossover)
+	//std::cout << "\n** Ally Bullets vs Ally Bullets **" << std::endl;
+	//for (size_t i = 0; i < allyBullets.size(); ++i) {
+	//	//if (!allyBullets[i].active) continue;
 
-		for (size_t j = i + 1; j < allyBullets.size(); ++j) {
-			//if (!allyBullets[j].active) continue;
+	//	for (size_t j = i + 1; j < allyBullets.size(); ++j) {
+	//		//if (!allyBullets[j].active) continue;
 
-			if (isPixelPerfectCollision(allyBullets[i], allyBullets[j])) {
-				collisionDetected = true;
-				std::cout << "Friendly fire crossover: Ally Bullet #" << i + 1
-					<< " crossed with Ally Bullet #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(allyBullets[i], allyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Friendly fire crossover: Ally Bullet #" << i + 1
+	//				<< " crossed with Ally Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	// Check enemy bullets with enemy bullets (enemy fire crossover)
-	std::cout << "\n** Enemy Bullets vs Enemy Bullets **" << std::endl;
-	for (size_t i = 0; i < enemyBullets.size(); ++i) {
-		//if (!enemyBullets[i].active) continue;
+	//// Check enemy bullets with enemy bullets (enemy fire crossover)
+	//std::cout << "\n** Enemy Bullets vs Enemy Bullets **" << std::endl;
+	//for (size_t i = 0; i < enemyBullets.size(); ++i) {
+	//	//if (!enemyBullets[i].active) continue;
 
-		for (size_t j = i + 1; j < enemyBullets.size(); ++j) {
-			//if (!enemyBullets[j].active) continue;
+	//	for (size_t j = i + 1; j < enemyBullets.size(); ++j) {
+	//		//if (!enemyBullets[j].active) continue;
 
-			if (isPixelPerfectCollision(enemyBullets[i], enemyBullets[j])) {
-				collisionDetected = true;
-				std::cout << "Enemy fire crossover: Enemy Bullet #" << i + 1
-					<< " crossed with Enemy Bullet #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(enemyBullets[i], enemyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Enemy fire crossover: Enemy Bullet #" << i + 1
+	//				<< " crossed with Enemy Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
-	// Check ally bullets with enemy bullets (opposing fire collision)
-	std::cout << "\n** Ally Bullets vs Enemy Bullets **" << std::endl;
-	for (size_t i = 0; i < allyBullets.size(); ++i) {
-		//if (!allyBullets[i].active) continue;
+	//// Check ally bullets with enemy bullets (opposing fire collision)
+	//std::cout << "\n** Ally Bullets vs Enemy Bullets **" << std::endl;
+	//for (size_t i = 0; i < allyBullets.size(); ++i) {
+	//	//if (!allyBullets[i].active) continue;
 
-		for (size_t j = 0; j < enemyBullets.size(); ++j) {
-			//if (!enemyBullets[j].active) continue;
+	//	for (size_t j = 0; j < enemyBullets.size(); ++j) {
+	//		//if (!enemyBullets[j].active) continue;
 
-			if (isPixelPerfectCollision(allyBullets[i], enemyBullets[j])) {
-				collisionDetected = true;
-				std::cout << "Opposing fire collision: Ally Bullet #" << i + 1
-					<< " collided with Enemy Bullet #" << j + 1 << std::endl;
-			}
-		}
-	}
+	//		if (isPixelPerfectCollision(allyBullets[i], enemyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Opposing fire collision: Ally Bullet #" << i + 1
+	//				<< " collided with Enemy Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
 
 	if (!collisionDetected) {
 		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
@@ -1770,7 +1770,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	}
 
 	// Check if the pixel is opaque enough for a collision
-	return opacity > COLOR_DETECTION_THRESHOLD;
+	return opacity > 0.5;/// COLOR_DETECTION_THRESHOLD;
 }
 
 
@@ -2589,28 +2589,25 @@ void updateObstacle()
 			allyShips.push_back(newStamp);
 			std::cout << "Added new ally ship";
 		}
-		else if (prefix == "bullet") {
+		else if (prefix == "bullet") 
+		{
+			newStamp.velX = rand() / float(RAND_MAX) * 0.001;
+			newStamp.velY = rand() / float(RAND_MAX) * 0.001;
+
+			if (rand() % 2)
+				newStamp.velX = -newStamp.velX;
+
+			if (rand() % 2)
+				newStamp.velY = -newStamp.velY;
+
+
+
 			allyBullets.push_back(newStamp);
 			std::cout << "Added new ally bullet";
 		}
 		else if (prefix == "enemy") {
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
-		}
-		else {
-			// Fallback for unknown prefixes (legacy support)
-			if (currentTemplateIndex == 0) {
-				allyShips.push_back(newStamp);
-				std::cout << "Added new ally ship";
-			}
-			else if (currentTemplateIndex == 1) {
-				allyBullets.push_back(newStamp);
-				std::cout << "Added new ally bullet";
-			}
-			else {
-				enemyShips.push_back(newStamp);
-				std::cout << "Added new enemy ship";
-			}
 		}
 
 		std::string variationName = "unknown";
@@ -2721,12 +2718,53 @@ void move_bullets(void)
 
 void mark_colliding_bullets(void)
 {
+	for (size_t i = 0; i < allyBullets.size(); ++i) 
+		for (size_t j = 0; j < enemyShips.size(); ++j) 
+			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j])) 
+				allyBullets[i].to_be_culled = true;
 
-
-
+	for (size_t i = 0; i < enemyBullets.size(); ++i)
+		for (size_t j = 0; j < allyShips.size(); ++j)
+			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
+				enemyBullets[i].to_be_culled = true;
 }
 
+void mark_offscreen_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			if (stamp.posX < 0 || stamp.posX > 1 ||
+				stamp.posY < 0 || stamp.posY > 1)
+			{
+				stamp.to_be_culled = true;
+			}
+		}
+	};
 
+	update_bullets(allyBullets);
+	update_bullets(enemyBullets);
+}
+
+void cull_marked_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for(size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				cout << "culling " << type << " bullet" << endl;
+				stamps.erase(stamps.begin() + i);
+				i = 0;
+			}
+		}
+	};
+
+	update_bullets(allyBullets, "Ally");
+	update_bullets(enemyBullets, "Enemy");
+}
 
 void simulationStep() {
 	clearObstacleTexture();
@@ -2761,9 +2799,9 @@ void simulationStep() {
 
 
 	move_bullets();
-	//mark_colliding_bullets();
-	//mark_offscreen_bullets();
-	//cull_marked_bullets();
+	mark_colliding_bullets();
+	mark_offscreen_bullets();
+	cull_marked_bullets();
 
 
 
@@ -2771,7 +2809,7 @@ void simulationStep() {
 	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
 	if (frameCount % REPORT_INTERVAL == 0) {
 		//reportStampToStampCollisions();
-		reportStampCollisions();
+		//reportStampCollisions();
 	}
 }
 
