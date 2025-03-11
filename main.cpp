@@ -3215,6 +3215,17 @@ void specialKeyboard(int key, int x, int y) {
 		if (rightKeyPressed) {
 			allyShips[0].velX = 0.001;
 		}
+
+		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+
+		if (vel_length > 0)
+		{
+			allyShips[0].velX /= vel_length;
+			allyShips[0].velY /= vel_length;
+
+			allyShips[0].velX *= 0.001;
+			allyShips[0].velY *= 0.001;
+		}
 	}
 }
 
@@ -3251,6 +3262,17 @@ void specialKeyboardUp(int key, int x, int y) {
 		}
 		if (rightKeyPressed) {
 			allyShips[0].velX = 0.001;
+		}
+
+		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+
+		if (vel_length > 0)
+		{
+			allyShips[0].velX /= vel_length;
+			allyShips[0].velY /= vel_length;
+
+			allyShips[0].velX *= 0.001;
+			allyShips[0].velY *= 0.001;
 		}
 	}
 }
