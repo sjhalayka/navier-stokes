@@ -1312,6 +1312,8 @@ void reapplyAllStamps() {
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
+
+	// Don't treat bullets as obstacles
 	//processStamps(allyBullets);
 	//processStamps(enemyBullets);
 }
