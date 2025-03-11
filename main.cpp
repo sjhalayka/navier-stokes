@@ -1737,6 +1737,8 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	//global_maxXs.push_back(maxX);
 	//global_maxYs.push_back(maxY);
 
+
+
 	// Check if the collision point is within the stamp's bounding box
 	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
 		return false;
@@ -2735,8 +2737,8 @@ void mark_offscreen_bullets(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			if (stamp.posX < 0 || stamp.posX > 1 ||
-				stamp.posY < 0 || stamp.posY > 1)
+			if (stamp.posX <= 0 || stamp.posX >= 1 ||
+				stamp.posY <= 0 || stamp.posY >= 1)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -2770,18 +2772,16 @@ void simulationStep() {
 	clearObstacleTexture();
 	reapplyAllStamps();
 
-	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps) {
+	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
+	{
 		for (auto& stamp : stamps)
-		{
 			updateDynamicTexture(stamp);
-		}
 	};
 
 	updateDynamicTextures(allyShips);
 	updateDynamicTextures(enemyShips);
 	updateDynamicTextures(allyBullets);
 	updateDynamicTextures(enemyBullets);
-
 
 	addForce();
 	addColor();
