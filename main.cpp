@@ -30,6 +30,9 @@ using namespace std;
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears and is replaced by an explosion that consists of force and colour on multiple scales
 // to do: do ally-enemy ship collisions. immediate death
+// to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
+
+
 
 
 // Simulation parameters
@@ -2626,7 +2629,6 @@ void updateObstacle()
 		}
 		else if (prefix == "enemy") 
 		{
-
 			newStamp.velX = rand() / float(RAND_MAX) * 0.001;
 			newStamp.velY = rand() / float(RAND_MAX) * 0.001;
 
