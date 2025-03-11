@@ -79,6 +79,7 @@ struct Stamp {
 	bool to_be_culled = false;
 	float health = 1;
 	float birth_time = 0;
+	float stamp_opacity = 1;
 
 	// A negative death time means that the bullet is immortal 
 	// (it is culled only when colliding with the ally/enemy or goes off screen)
@@ -614,7 +615,7 @@ uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize;
-
+uniform float stamp_opacity;
 in vec2 TexCoord;
 out vec4 FragColor;
 
@@ -641,19 +642,16 @@ void main()
 
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
-        stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
-        
+        stampCoord.y >= 0.0 && stampCoord.y <= 1.0) 
+	{
         // Sample stamp texture (use all channels for RGBA output)
         vec4 stampColor = texture(stampTexture, stampCoord);
-        
-        // Only show pixels that are above the threshold (use alpha for transparency)
-        if (stampColor.a > threshold) {
-            FragColor = stampColor;
-        } else {
-            // Transparent for pixels below threshold
-            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-        }
-    } else {
+
+		stampColor.a *= stamp_opacity;      
+        FragColor = stampColor;
+    } 
+	else
+	{
         // Outside stamp bounds - transparent
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     }
@@ -3046,8 +3044,9 @@ void renderToScreen() {
 			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
 			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
-			// TO DO: add in opacity as a uniform, so that the stamp can fade away over time upon death
 
+			// added in opacity as a uniform, so that the stamp can fade away over time upon death
+			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
