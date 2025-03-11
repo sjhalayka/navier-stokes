@@ -1312,8 +1312,8 @@ void reapplyAllStamps() {
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
-	processStamps(allyBullets);
-	processStamps(enemyBullets);
+	//processStamps(allyBullets);
+	//processStamps(enemyBullets);
 }
 
 
@@ -1884,8 +1884,8 @@ void reportStampCollisions() {
 	// Report collisions for all stamp types
 	reportCollisionsForStamps(allyShips, "Ally Ship");
 	reportCollisionsForStamps(enemyShips, "Enemy Ship");
-	reportCollisionsForStamps(allyBullets, "Ally Bullet");
-	reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
+	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
+	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
 
 	std::cout << "=================================" << std::endl;
 }
@@ -1898,7 +1898,8 @@ void reportStampCollisions() {
 
 
 
-void applyBitmapObstacle() {
+void applyBitmapObstacle() 
+{
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -1908,10 +1909,6 @@ void applyBitmapObstacle() {
 
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
-
-	if (rightMouseDown && !lastRightMouseDown) {
-		// Logic moved to updateObstacle
-	}
 
 	lastRightMouseDown = rightMouseDown;
 
