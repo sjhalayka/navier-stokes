@@ -23,13 +23,13 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-// to do: do ally-enemy ship collisions. immediate death
+
 // to do: do ally ship-enemy fire collisions. damage is based on dt
 // to do: do enemy ship-ally fire collisions. damage is based on dt
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears and is replaced by an explosion that consists of force and colour on multiple scales
-
+// to do: do ally-enemy ship collisions. immediate death
 
 
 // Simulation parameters
@@ -74,6 +74,13 @@ struct Stamp {
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
+	float health = 1;
+	float birth_time = 0;
+
+	// A negative death time means that the bullet is immortal 
+	// (it is culled only when colliding with the ally/enemy or goes off screen)
+	// A mortal bullet dies after a certain amount of time too
+	float death_time = -1;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
