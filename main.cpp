@@ -60,19 +60,20 @@ vector<float> global_maxYs;
 struct Stamp {
 	// StampTexture properties
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
-	int width;
-	int height;
+	int width = 0; // pixels
+	int height = 0; // pixels
 	std::string baseFilename;               // Base filename without suffix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
-	int channels;                           // Store the number of channels
+	int channels = 0;                         // Store the number of channels
+
+	bool to_be_culled = false;
 
 	// StampInfo properties
-	float posX, posY;                       // Normalized position (0-1)
-	int currentVariationIndex;              // Which texture variation to use
+	float posX = 0, posY = 0;                       // Normalized position (0-1)
+	float velX = 0, velY = 0;
 
-	Stamp() : width(0), height(0), channels(0), //active(false),
-		posX(0), posY(0), currentVariationIndex(0) {}
+	int currentVariationIndex = 0;              // Which texture variation to use
 };
 
 
@@ -2534,7 +2535,8 @@ void addForce() {
 
 
 
-void updateObstacle() {
+void updateObstacle() 
+{
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
 	if (rightMouseDown && !lastRightMouseDown) {
@@ -2700,6 +2702,32 @@ void addColor()
 }
 
 
+
+void move_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			stamp.posX += stamp.velX;
+			stamp.posY += stamp.velY;
+		}
+	};
+
+	update_bullets(allyBullets);
+	update_bullets(enemyBullets);
+}
+
+
+void mark_colliding_bullets(void)
+{
+
+
+
+}
+
+
+
 void simulationStep() {
 	clearObstacleTexture();
 	reapplyAllStamps();
@@ -2707,10 +2735,7 @@ void simulationStep() {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps) {
 		for (auto& stamp : stamps)
 		{
-			if (1)/*stamp.active)*/
-			{
-				updateDynamicTexture(stamp);
-			}
+			updateDynamicTexture(stamp);
 		}
 	};
 
@@ -2718,6 +2743,7 @@ void simulationStep() {
 	updateDynamicTextures(enemyShips);
 	updateDynamicTextures(allyBullets);
 	updateDynamicTextures(enemyBullets);
+
 
 	addForce();
 	addColor();
@@ -2732,6 +2758,15 @@ void simulationStep() {
 	solvePressure(20);
 	subtractPressureGradient();
 	detectCollisions();
+
+
+	move_bullets();
+	//mark_colliding_bullets();
+	//mark_offscreen_bullets();
+	//cull_marked_bullets();
+
+
+
 
 	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
 	if (frameCount % REPORT_INTERVAL == 0) {
@@ -2864,8 +2899,6 @@ void renderToScreen() {
 	//}
 
 	// Debug visualization of global bounding box
-
-
 	for (size_t i = 0; i < global_minXs.size(); i++)
 	{
 		drawBoundingBox(global_minXs[i], global_minYs[i], global_maxXs[i], global_maxYs[i]);
