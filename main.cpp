@@ -2781,6 +2781,86 @@ void cull_marked_bullets(void)
 	update_bullets(enemyBullets, "Enemy");
 }
 
+
+
+
+
+
+
+
+
+
+void move_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			stamp.posX += stamp.velX;
+			stamp.posY += stamp.velY;
+		}
+	};
+
+	update_ships(allyShips);
+	update_ships(enemyShips);
+}
+
+
+void mark_colliding_ships(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+		for (size_t j = 0; j < enemyShips.size(); ++j)
+			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
+				allyShips[i].to_be_culled = true;
+}
+
+void mark_offscreen_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			if (stamp.posX <= 0 || stamp.posX >= 1 ||
+				stamp.posY <= 0 || stamp.posY >= 1)
+			{
+				stamp.to_be_culled = true;
+			}
+		}
+	};
+
+	update_ships(allyShips);
+	update_ships(enemyShips);
+}
+
+
+
+
+void cull_marked_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				cout << "culling " << type << " bullet" << endl;
+				stamps.erase(stamps.begin() + i);
+				i = 0;
+			}
+		}
+	};
+
+	update_ships(allyShips, "Ally");
+	update_ships(enemyShips, "Enemy");
+}
+
+
+
+
+
+
+
+
 void simulationStep() {
 	clearObstacleTexture();
 	reapplyAllStamps();
@@ -2816,7 +2896,10 @@ void simulationStep() {
 	mark_offscreen_bullets();
 	cull_marked_bullets();
 
-
+	move_ships();
+	mark_colliding_ships();
+	mark_offscreen_ships();
+	cull_marked_ships();
 
 
 	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
@@ -3095,6 +3178,12 @@ void specialKeyboard(int key, int x, int y) {
 		upKeyPressed = true;
 		downKeyPressed = false;
 
+		if (allyShips.size() > 0)
+		{
+			allyShips[0].velX = 0;
+			allyShips[0].velY = 0.001;
+		}
+
 		// Adjust the texture for all active stamps
 		for (auto& stamp : allyShips) {
 			if (stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
@@ -3107,6 +3196,12 @@ void specialKeyboard(int key, int x, int y) {
 		upKeyPressed = false;
 		downKeyPressed = true;
 
+		if (allyShips.size() > 0)
+		{
+			allyShips[0].velX = 0;
+			allyShips[0].velY = -0.001;
+		}
+
 		// Adjust the texture for all active stamps
 		for (auto& stamp : allyShips) {
 			if (stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
@@ -3117,21 +3212,45 @@ void specialKeyboard(int key, int x, int y) {
 	}
 }
 
-void specialKeyboardUp(int key, int x, int y) {
-	switch (key) {
-	case GLUT_KEY_UP:
-	case GLUT_KEY_DOWN:
-		upKeyPressed = false;
-		downKeyPressed = false;
-
-		// Revert to center texture for all active stamps
-		for (auto& stamp : allyShips) {
-			if (stamp.textureIDs[0] != 0) {
-				stamp.currentVariationIndex = 0; // center variation
-			}
-		}
-		break;
+void specialKeyboardUp(int key, int x, int y) 
+{
+	if (allyShips.size() > 0)
+	{
+		allyShips[0].velX = 0;
+		allyShips[0].velY = 0.0;
 	}
+
+	for (auto& stamp : allyShips) {
+		if (stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
+			stamp.currentVariationIndex = 0; // down variation
+		}
+	}
+
+	//switch (key) {
+	//case GLUT_KEY_UP:
+
+
+	//	break;
+	//case GLUT_KEY_DOWN:
+	//	upKeyPressed = false;
+	//	downKeyPressed = false;
+
+	//	if (allyShips.size() > 0)
+	//	{
+	//		allyShips[0].velX = 0;
+	//		allyShips[0].velY = 0;
+	//	}
+
+	//	// Revert to center texture for all active stamps
+	//	for (auto& stamp : allyShips) {
+	//		if (stamp.textureIDs[0] != 0) {
+	//			stamp.currentVariationIndex = 0; // center variation
+	//		}
+	//	}
+	//	break;
+	//}
+
+
 }
 
 
