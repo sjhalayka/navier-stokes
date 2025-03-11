@@ -1770,7 +1770,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	}
 
 	// Check if the pixel is opaque enough for a collision
-	return opacity > 0.5;/// COLOR_DETECTION_THRESHOLD;
+	return opacity > COLOR_DETECTION_THRESHOLD;
 }
 
 
