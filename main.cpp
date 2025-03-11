@@ -23,7 +23,6 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-// split active stamps vector into ally ship stamps vector, enemy ship stamps vector, ally bullets stamps vector, and enemy bullet stamps vector.obstacle0_* .png constitues the ally ship template, obstacle1_* .png constitutes the bullet template, and obstacle2_* .png and obstacle3_* .png, etc constitute the enemy ship templates
 
 
 
@@ -69,7 +68,6 @@ struct Stamp {
 	int channels;                           // Store the number of channels
 
 	// StampInfo properties
-//	bool active;
 	float posX, posY;                       // Normalized position (0-1)
 	int currentVariationIndex;              // Which texture variation to use
 
