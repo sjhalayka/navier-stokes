@@ -1287,7 +1287,10 @@ void clearObstacleTexture() {
 void reapplyAllStamps() {
 	auto processStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-			//if (!stamp.active) continue;
+
+			// If the stamp is dead then don't use it for an obstacle
+			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
+			if (stamp.to_be_culled) continue;
 
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
