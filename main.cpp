@@ -77,7 +77,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 	
-	float health = 10;
+	float health = 1;
 	
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -1665,6 +1665,7 @@ void generateFluidStampCollisionsDamage()
 				const float fps_coeff = float(FLUID_STAMP_COLLISION_REPORT_INTERVAL) / FPS;
 
 				stamps[i].health -= damage*DT*fps_coeff;
+				cout << stamps[i].health << endl;
 			}
 		}
 	};
@@ -2259,13 +2260,6 @@ void subtractPressureGradient() {
 
 
 
-
-
-
-
-
-
-
 // Add force to the velocity field
 void addForce(float posX, float posY, float velX, float velY, float radius) 
 {
@@ -2274,8 +2268,8 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addForceProgram);
 
-	float x_shift = 0.1 * rand() / float(RAND_MAX);
-	float y_shift = 0.1 * rand() / float(RAND_MAX);
+	float x_shift = 0.01 * rand() / float(RAND_MAX);
+	float y_shift = 0.01 * rand() / float(RAND_MAX);
 
 	float mousePosX = posX + x_shift;
 	float mousePosY = posY + y_shift;
@@ -2283,15 +2277,13 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 	float mouseVelX = velX;
 	float mouseVelY = velY;
 
-	float vel_length = sqrt(mouseVelX * mouseVelX + mouseVelY * mouseVelY);
-
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 1);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2305,14 +2297,55 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
-
-	// Update previous mouse position
-	prevMouseX = mouseX;
-	prevMouseY = mouseY;
 }
 
-
-
+//
+//void addForce() {
+//	if (!mouseDown) return;
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+//
+//	glUseProgram(addForceProgram);
+//
+//	float aspect = HEIGHT / float(WIDTH);
+//
+//	// Get normalized mouse position (0 to 1 range)
+//	float mousePosX = mouseX / (float)WIDTH;
+//	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+//
+//	// Center the Y coordinate, apply aspect ratio, then un-center
+//	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+//
+//	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
+//	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+//
+//
+//	// Set uniforms
+//	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
+//	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
+//	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+//	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
+//	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+//
+//	// Bind textures
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	// Render full-screen quad
+//	glBindVertexArray(vao);
+//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+//
+//	// Swap texture indices
+//	velocityIndex = 1 - velocityIndex;
+//
+//	// Update previous mouse position
+//	prevMouseX = mouseX;
+//	prevMouseY = mouseY;
+//}
 
 
 void addColor(float posX, float posY, float velX, float velY, float radius)
@@ -2379,7 +2412,75 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	}
 }
 
-
+//
+//void addColor()
+//{
+//	if (!mouseDown) return;
+//
+//	// Determine which color texture to modify based on the active mode
+//	GLuint targetTexture;
+//	int* targetIndex;
+//
+//	if (red_mode)
+//	{
+//		targetTexture = colorTexture[1 - colorIndex];
+//		targetIndex = &colorIndex;
+//	}
+//	else
+//	{
+//		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
+//		targetIndex = &friendlyColorIndex;
+//	}
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
+//
+//	glUseProgram(addColorProgram);
+//
+//	float aspect = HEIGHT / float(WIDTH);
+//
+//	// Get normalized mouse position (0 to 1 range)
+//	float mousePosX = mouseX / (float)WIDTH;
+//	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+//
+//	// Center the Y coordinate, apply aspect ratio, then un-center
+//	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+//
+//	// Set uniforms
+//	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
+//	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
+//	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+//	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
+//
+//	// Bind the appropriate texture based on mode
+//	glActiveTexture(GL_TEXTURE0);
+//
+//	if (red_mode)
+//	{
+//		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+//	}
+//	else
+//	{
+//		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+//	}
+//
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	// Render full-screen quad
+//	glBindVertexArray(vao);
+//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+//
+//	// Swap the appropriate texture index
+//	if (red_mode)
+//	{
+//		colorIndex = 1 - colorIndex;
+//	}
+//	else
+//	{
+//		friendlyColorIndex = 1 - friendlyColorIndex;
+//	}
+//}
 
 
 
@@ -2448,8 +2549,8 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet") 
 		{
-			newStamp.velX = rand() / float(RAND_MAX) * 0.05;
-			newStamp.velY = rand() / float(RAND_MAX) * 0.05;
+			newStamp.velX = rand() / float(RAND_MAX) * 0.01;
+			newStamp.velY = rand() / float(RAND_MAX) * 0.01;
 
 			if (rand() % 2)
 				newStamp.velX = -newStamp.velX;
@@ -2742,7 +2843,7 @@ void simulationStep() {
 	updateDynamicTextures(enemyBullets);
 
 
-
+	bool old_red_mode = red_mode;
 	// to do: do this for each bullet
 	red_mode = true;
 
@@ -2760,6 +2861,7 @@ void simulationStep() {
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
+	red_mode = old_red_mode;
 
 
 
