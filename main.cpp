@@ -2283,7 +2283,7 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 1);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2299,53 +2299,53 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 	velocityIndex = 1 - velocityIndex;
 }
 
-//
-//void addForce() {
-//	if (!mouseDown) return;
-//
-//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-//
-//	glUseProgram(addForceProgram);
-//
-//	float aspect = HEIGHT / float(WIDTH);
-//
-//	// Get normalized mouse position (0 to 1 range)
-//	float mousePosX = mouseX / (float)WIDTH;
-//	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
-//
-//	// Center the Y coordinate, apply aspect ratio, then un-center
-//	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-//
-//	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-//	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
-//
-//
-//	// Set uniforms
-//	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-//	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-//	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-//	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-//	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-//	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
-//
-//	// Bind textures
-//	glActiveTexture(GL_TEXTURE0);
-//	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-//	glActiveTexture(GL_TEXTURE1);
-//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-//
-//	// Render full-screen quad
-//	glBindVertexArray(vao);
-//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-//
-//	// Swap texture indices
-//	velocityIndex = 1 - velocityIndex;
-//
-//	// Update previous mouse position
-//	prevMouseX = mouseX;
-//	prevMouseY = mouseY;
-//}
+
+void addForce() {
+	if (!mouseDown) return;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+
+	glUseProgram(addForceProgram);
+
+	float aspect = HEIGHT / float(WIDTH);
+
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
+
+	// Update previous mouse position
+	prevMouseX = mouseX;
+	prevMouseY = mouseY;
+}
 
 
 void addColor(float posX, float posY, float velX, float velY, float radius)
@@ -2412,75 +2412,75 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	}
 }
 
-//
-//void addColor()
-//{
-//	if (!mouseDown) return;
-//
-//	// Determine which color texture to modify based on the active mode
-//	GLuint targetTexture;
-//	int* targetIndex;
-//
-//	if (red_mode)
-//	{
-//		targetTexture = colorTexture[1 - colorIndex];
-//		targetIndex = &colorIndex;
-//	}
-//	else
-//	{
-//		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
-//		targetIndex = &friendlyColorIndex;
-//	}
-//
-//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
-//
-//	glUseProgram(addColorProgram);
-//
-//	float aspect = HEIGHT / float(WIDTH);
-//
-//	// Get normalized mouse position (0 to 1 range)
-//	float mousePosX = mouseX / (float)WIDTH;
-//	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
-//
-//	// Center the Y coordinate, apply aspect ratio, then un-center
-//	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-//
-//	// Set uniforms
-//	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
-//	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
-//	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
-//	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
-//
-//	// Bind the appropriate texture based on mode
-//	glActiveTexture(GL_TEXTURE0);
-//
-//	if (red_mode)
-//	{
-//		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-//	}
-//	else
-//	{
-//		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-//	}
-//
-//	glActiveTexture(GL_TEXTURE1);
-//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-//
-//	// Render full-screen quad
-//	glBindVertexArray(vao);
-//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-//
-//	// Swap the appropriate texture index
-//	if (red_mode)
-//	{
-//		colorIndex = 1 - colorIndex;
-//	}
-//	else
-//	{
-//		friendlyColorIndex = 1 - friendlyColorIndex;
-//	}
-//}
+
+void addColor()
+{
+	if (!mouseDown) return;
+
+	// Determine which color texture to modify based on the active mode
+	GLuint targetTexture;
+	int* targetIndex;
+
+	if (red_mode)
+	{
+		targetTexture = colorTexture[1 - colorIndex];
+		targetIndex = &colorIndex;
+	}
+	else
+	{
+		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
+		targetIndex = &friendlyColorIndex;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
+
+	glUseProgram(addColorProgram);
+
+	float aspect = HEIGHT / float(WIDTH);
+
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
+	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.05f);
+
+	// Bind the appropriate texture based on mode
+	glActiveTexture(GL_TEXTURE0);
+
+	if (red_mode)
+	{
+		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	}
+	else
+	{
+		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	}
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap the appropriate texture index
+	if (red_mode)
+	{
+		colorIndex = 1 - colorIndex;
+	}
+	else
+	{
+		friendlyColorIndex = 1 - friendlyColorIndex;
+	}
+}
 
 
 
@@ -2865,8 +2865,8 @@ void simulationStep() {
 
 
 
-	//addForce();
-	//addColor();
+	addForce();
+	addColor();
 
 
 	updateObstacle();
