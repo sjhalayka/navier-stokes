@@ -24,12 +24,9 @@ using namespace std;
 
 
 
-// to do: do ally ship-enemy fire collisions. damage is based on dt
-// to do: do enemy ship-ally fire collisions. damage is based on dt
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
-// to do: do ally-enemy ship collisions. immediate death
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 
 
@@ -49,6 +46,7 @@ const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
+float global_time = 0.0f;
 
 bool red_mode = true;
 
@@ -77,14 +75,18 @@ struct Stamp {
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
-	float health = 1;
+	
+	float health = 10;
+	
 	float birth_time = 0;
-	float stamp_opacity = 1;
-
 	// A negative death time means that the bullet is immortal 
 	// (it is culled only when colliding with the ally/enemy or goes off screen)
 	// A mortal bullet dies after a certain amount of time too
 	float death_time = -1;
+
+	float stamp_opacity = 1;
+
+
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -1895,7 +1897,9 @@ void reportStampCollisions() {
 				else
 					damage = red_count;
 
-				stamps[i].health -= damage;
+				stamps[i].health -= damage*DT;
+
+				cout << damage * DT << endl;
 				
 
 				//std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
@@ -2632,7 +2636,8 @@ void updateObstacle()
 			if (rand() % 2)
 				newStamp.velY = -newStamp.velY;
 
-
+			newStamp.birth_time = global_time;
+			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 			allyBullets.push_back(newStamp);
 			std::cout << "Added new ally bullet";
@@ -2769,6 +2774,27 @@ void mark_colliding_bullets(void)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].to_be_culled = true;
+}
+
+void mark_old_bullets(void)
+{
+	for (size_t i = 0; i < allyBullets.size(); ++i)
+	{
+		if (allyBullets[i].death_time < 0.0)
+			continue;
+
+		if (allyBullets[i].death_time <= global_time)
+			allyBullets[i].to_be_culled = true;
+	}
+
+	//for (size_t i = 0; i < allyBullets.size(); ++i)
+	//{
+	//	if (allyBullets[i].death_time < 0.0)
+	//		continue;
+
+	//	if (allyBullets[i].death_time <= global_time)
+	//		allyBullets[i].to_be_culled = true;
+	//}
 }
 
 void mark_offscreen_bullets(void)
@@ -2986,6 +3012,7 @@ void simulationStep() {
 
 	move_bullets();
 	mark_colliding_bullets();
+	mark_old_bullets();
 	mark_offscreen_bullets();
 	cull_marked_bullets();
 
@@ -3023,8 +3050,8 @@ void renderToScreen() {
 
 	glUseProgram(renderProgram);
 
-	static float time = 0.0f;
-	time += 0.016f; // Approximate time for 60fps, adjust as needed
+
+	global_time += DT; // Approximate time for 60fps, adjust as needed
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
@@ -3033,7 +3060,7 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
 	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), global_time);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
