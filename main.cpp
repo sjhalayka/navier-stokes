@@ -2284,7 +2284,7 @@ void addMouseForce(float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 500);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 1);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
