@@ -89,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.01;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -2262,7 +2262,7 @@ void subtractPressureGradient() {
 
 
 
-void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) {
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2318,7 +2318,8 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 
 
 
-void addMouseForce(float radius, float strength) {
+void addMouseForce(float radius, float strength, float shift_scale)
+{
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
@@ -2328,7 +2329,7 @@ void addMouseForce(float radius, float strength) {
 	float mouseVelY = -(mouseY - prevMouseY) / (float)HEIGHT; // Normalize to texture space
 
 	// Apply the force using the core implementation
-	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength);
+	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength, shift_scale);
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
@@ -2337,12 +2338,12 @@ void addMouseForce(float radius, float strength) {
 
 
 
-void addForce(float posX, float posY, float velX, float velY, float radius, float strength) {
-	applyForceCore(posX, posY, velX, velY, radius, strength);
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
+	applyForceCore(posX, posY, velX, velY, radius, strength, shift_scale);
 }
 
 
-void addColor(float posX, float posY, float velX, float velY, float radius)
+void addColor(float posX, float posY, float velX, float velY, float radius, float shift_scale)
 {
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
@@ -2364,8 +2365,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0.025 * rand() / float(RAND_MAX);
-	float y_shift = 0.025 * rand() / float(RAND_MAX);
+	float x_shift = shift_scale * rand() / float(RAND_MAX);
+	float y_shift = shift_scale * rand() / float(RAND_MAX);
 
 	float mousePosX = posX +x_shift;
 	float mousePosY = posY +y_shift;
@@ -2846,23 +2847,23 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, 0);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, 0.5* allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
 
-	for (size_t i = 0; i < enemyBullets.size(); i++)
-	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
-	}
+	//for (size_t i = 0; i < enemyBullets.size(); i++)
+	//{
+	//	addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
+	//	addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
+	//}
 
 	red_mode = old_red_mode;
 
 
 
-	addMouseForce(0.05, 5000);
+	addMouseForce(0.05, 5000, 0.0);
 	addMouseColor();
 
 
