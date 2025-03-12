@@ -36,13 +36,14 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float DT = 1.0f / 60.0f;
+const float FPS = 60;
+const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 10; // Every 6 frames update the collision data
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
@@ -1805,42 +1806,18 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 
 
 
-void reportStampCollisions() {
-	if (collisionPoints.empty()) {
+void generateFluidStampCollisionsDamage()
+{
+	if (collisionPoints.empty())
 		return;
-	}
 
-	//std::cout << "\n===== Stamp Collision Report =====" << std::endl;
-	//std::cout << "Total collision points detected: " << collisionPoints.size() << std::endl;
-
-	//// Print ALL collision points for debugging
-	//std::cout << "Sample collision points (normalized coordinates):" << std::endl;
-	//for (size_t i = 0; i < std::min(size_t(5), collisionPoints.size()); i++) {
-	//	const auto& point = collisionPoints[i];
-	//	float normX = point.x / float(WIDTH);
-	//	float normY = point.y / float(HEIGHT);
-	//	std::cout << "  Point #" << (i + 1) << ": (" << normX << ", " << normY
-	//		<< ") r=" << point.r << ", b=" << point.b << std::endl;
-	//}
-
-	auto reportCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
-
-		std::cout << "\nChecking " << stamps.size() << " " << type << " stamps for collisions..." << std::endl;
 
 		for (size_t i = 0; i < stamps.size(); i++) 
 		{
-			//auto& stamp = stamps[i];
-
-			// Debug output - print active stamp info with bounding box
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
-
-			//std::cout << "  " << type << " #" << (i + 1) << " at ("
-			//	<< stamp.posX << ", " << stamp.posY << ") size: "
-			//	<< stamp.width << "x" << stamp.height
-			//	<< " bounding box: (" << minX << "," << minY << ") to ("
-			//	<< maxX << "," << maxY << ")" << std::endl;
 
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
@@ -1882,49 +1859,32 @@ void reportStampCollisions() {
 			}
 
 			// Report collisions for this stamp
-			if (stampCollisions > 0) {
+			if (stampCollisions > 0)
+			{
 				stampHitCount++;
+				
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
-				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size()) {
+				
+				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size()) 
 					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
-				}
 
-				double damage = 0.0;
+				float damage = 0.0f;
 
 				if (type == "Ally Ship")
 					damage = blue_count;
 				else
 					damage = red_count;
 
-				stamps[i].health -= damage*DT;
+				const float fps_coeff = float(FLUID_STAMP_COLLISION_REPORT_INTERVAL) / FPS;
 
-				cout << damage * DT << endl;
-				
-
-				//std::cout << "  ** COLLISIONS FOUND: " << type << " #" << (i + 1) << ":" << std::endl;
-				//std::cout << "     Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-				//std::cout << "     Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-				//std::cout << "     Texture: " << textureName << " (" << variationName << ")" << std::endl;
-				//std::cout << "     Collisions: " << stampCollisions << std::endl;
-				//std::cout << "     Red: " << redStampCollisions
-				//	<< ", Blue: " << blueStampCollisions
-				//	<< ", Both: " << bothStampCollisions << std::endl;
+				stamps[i].health -= damage*DT*fps_coeff;
 			}
 		}
-
-		//std::cout << "Found collisions in " << stampHitCount << end/* " out of "
-		//	<< std::count_if(stamps.begin(), stamps.end(), [](const Stamp& s) { return s.active; })
-		//	<< " active " << type << " stamps." << std::endl;*/
 	};
 
-	// Report collisions for all stamp types
-	reportCollisionsForStamps(allyShips, "Ally Ship");
-	reportCollisionsForStamps(enemyShips, "Enemy Ship");
-	//reportCollisionsForStamps(allyBullets, "Ally Bullet");
-	//reportCollisionsForStamps(enemyBullets, "Enemy Bullet");
-
-	std::cout << "=================================" << std::endl;
+	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
+	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
 
 
@@ -2078,7 +2038,8 @@ void diffuseFriendlyColor() {
 
 
 
-void detectCollisions() {
+void detectCollisions()
+{
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
@@ -2102,41 +2063,27 @@ void detectCollisions() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// If reporting is enabled, read back collision data
-	if (reportCollisions) {
-		// Allocate buffer for collision data - RGBA
-		std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 
-		// Read back collision texture data from GPU
-		glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
 
-		// Clear previous collision locations
-		collisionPoints.clear();
+	// Clear previous collision locations
+	collisionPoints.clear();
 
-		// Find collision locations and categorize them
-		for (int y = 0; y < HEIGHT; ++y) {
-			for (int x = 0; x < WIDTH; ++x) {
-				int index = (y * WIDTH + x) * 4;
-				float r = collisionData[index];
-				float b = collisionData[index + 2];
-				float a = collisionData[index + 3];
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
 
-				if (a > 0.0) {
-					collisionPoints.push_back(CollisionPoint(x, y, r, b));
-				}
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
 			}
 		}
-
-		// Report collisions if any found
-		if (collisionPoints.size() > 0) {
-			reportStampCollisions();
-		}
-		else {
-			//std::cout << "\nNo collision points detected." << std::endl;
-		}
-
-		// Reset reporting flag
-		reportCollisions = false;
 	}
 }
 
@@ -3008,7 +2955,6 @@ void simulationStep() {
 	computeDivergence();
 	solvePressure(20);
 	subtractPressureGradient();
-	detectCollisions();
 
 	move_bullets();
 	mark_colliding_bullets();
@@ -3023,11 +2969,10 @@ void simulationStep() {
 	proceed_stamp_opacity();
 	cull_marked_ships();
 
-
-	// Check for stamp-to-stamp collisions every REPORT_INTERVAL frames
-	if (frameCount % REPORT_INTERVAL == 0) {
-		//reportStampToStampCollisions();
-		reportStampCollisions();
+	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
+	{
+		detectCollisions();
+		generateFluidStampCollisionsDamage();
 	}
 }
 
@@ -3185,7 +3130,8 @@ void display() {
 	frameCount++;
 
 	// Check if it's time to report collisions
-	if (frameCount % REPORT_INTERVAL == 0) {
+	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0) 
+	{
 		reportCollisions = true;
 	}
 
@@ -3525,7 +3471,7 @@ void printInstructions() {
 	std::cout << "T: Cycle through loaded textures (obstacles=ally ships, bullets, enemy)" << std::endl;
 	std::cout << "UP/DOWN Arrow Keys: Change ship orientation when placing" << std::endl;
 	std::cout << "Highlights show colour-obstacle collisions" << std::endl;
-	std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
+	std::cout << "Collision reports are generated every " << FLUID_STAMP_COLLISION_REPORT_INTERVAL << " frames" << std::endl;
 	std::cout << "-----------------------------------" << std::endl;
 	std::cout << "File Naming Convention:" << std::endl;
 	std::cout << "  obstacle*.png - Ally ships" << std::endl;
