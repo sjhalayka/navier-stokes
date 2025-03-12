@@ -28,7 +28,7 @@ using namespace std;
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
-
+// to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
 
 
@@ -87,6 +87,8 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
+	float force_radius = 0.1;
+	float colour_radius = 0.1;
 
 
 	// StampInfo properties
@@ -1595,7 +1597,8 @@ void generateFluidStampCollisionsDamage()
 	if (collisionPoints.empty())
 		return;
 
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) 
+	{
 		int stampHitCount = 0;
 
 		for (size_t i = 0; i < stamps.size(); i++) 
