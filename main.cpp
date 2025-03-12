@@ -1038,12 +1038,10 @@ out vec4 FragColor;
 
 in vec2 TexCoord;
 
-void main() 
-{
+void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0)
-	{
+    if (obstacle > 0.0) {
         FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
@@ -2261,7 +2259,7 @@ void subtractPressureGradient() {
 
 
 
-
+// To do: fix this so that it works like the mouse version
 // Add force to the velocity field
 void addForce(float posX, float posY, float velX, float velY, float radius) 
 {
@@ -2372,8 +2370,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	//float x_shift = 0.01 * rand() / float(RAND_MAX);
-	//float y_shift = 0.01 * rand() / float(RAND_MAX);
+	float x_shift = 0.01 * rand() / float(RAND_MAX);
+	float y_shift = 0.01 * rand() / float(RAND_MAX);
 
 	float mousePosX = posX;// +x_shift;
 	float mousePosY = posY;// +y_shift;
