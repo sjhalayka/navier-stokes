@@ -1055,11 +1055,14 @@ void main() {
     // Apply force based on radius
     if (distance < radius) {
         // Apply force with smooth falloff
-        float falloff = 1.0 - (distance / radius);
-        falloff = falloff * falloff;
+
+
+// this helps keep things looking chaotic
+//        float falloff = 1.0;//1.0 - (distance / radius);
+ //       falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength * falloff;
+        velocity += direction * strength;// * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2256,7 +2259,7 @@ void subtractPressureGradient() {
 }
 
 
-void addMouseForce(float radius) 
+void addMouseForce(float radius)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
@@ -2272,7 +2275,7 @@ void addMouseForce(float radius)
 	// Center the Y coordinate, apply aspect ratio, then un-center
 	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-	float mouseVelX = (mouseX - prevMouseX)  / (HEIGHT / (float(WIDTH)));
+	float mouseVelX = (mouseX - prevMouseX) / (HEIGHT / (float(WIDTH)));
 	float mouseVelY = -(mouseY - prevMouseY);
 
 	// Set uniforms
@@ -2281,7 +2284,7 @@ void addMouseForce(float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE/10);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 500);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
