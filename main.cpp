@@ -89,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.01;
+	float force_radius = 0.05;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -2853,17 +2853,17 @@ void simulationStep() {
 
 	red_mode = false;
 
-	//for (size_t i = 0; i < enemyBullets.size(); i++)
-	//{
-	//	addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
-	//	addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
-	//}
+	for (size_t i = 0; i < enemyBullets.size(); i++)
+	{
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, 0);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, 0.5 * enemyBullets[i].colour_radius);
+	}
 
 	red_mode = old_red_mode;
 
 
 
-	addMouseForce(0.05, 5000, 0.0);
+	addMouseForce(0.05, 50000, 0.0);
 	addMouseColor();
 
 
@@ -2875,7 +2875,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(10);
+	solvePressure(30);
 	subtractPressureGradient();
 
 	move_bullets();
