@@ -76,9 +76,9 @@ struct Stamp {
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
-	
+
 	float health = 1;
-	
+
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
 	// (it is culled only when colliding with the ally/enemy or goes off screen)
@@ -1596,11 +1596,11 @@ void generateFluidStampCollisionsDamage()
 	if (collisionPoints.empty())
 		return;
 
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) 
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
 	{
 		int stampHitCount = 0;
 
-		for (size_t i = 0; i < stamps.size(); i++) 
+		for (size_t i = 0; i < stamps.size(); i++)
 		{
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
@@ -1648,11 +1648,11 @@ void generateFluidStampCollisionsDamage()
 			if (stampCollisions > 0)
 			{
 				stampHitCount++;
-				
+
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
-				
-				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size()) 
+
+				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
 					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
 
 				float damage = 0.0f;
@@ -1664,7 +1664,7 @@ void generateFluidStampCollisionsDamage()
 
 				const float fps_coeff = float(FLUID_STAMP_COLLISION_REPORT_INTERVAL) / FPS;
 
-				stamps[i].health -= damage*DT*fps_coeff;
+				stamps[i].health -= damage * DT * fps_coeff;
 				cout << stamps[i].health << endl;
 			}
 		}
@@ -1682,7 +1682,7 @@ void generateFluidStampCollisionsDamage()
 
 
 
-void applyBitmapObstacle() 
+void applyBitmapObstacle()
 {
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
@@ -2256,26 +2256,24 @@ void subtractPressureGradient() {
 }
 
 
-
-
-
-// To do: fix this so that it works like the mouse version
-// Add force to the velocity field
-void addForce(float posX, float posY, float velX, float velY, float radius) 
+void addMouseForce(float radius) 
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
 	glUseProgram(addForceProgram);
 
-	//float x_shift = 0.01 * rand() / float(RAND_MAX);
-	//float y_shift = 0.01 * rand() / float(RAND_MAX);
+	float aspect = HEIGHT / float(WIDTH);
 
-	float mousePosX = posX;// +x_shift;
-	float mousePosY = posY;// +y_shift;
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
-	float mouseVelX = velX;
-	float mouseVelY = velY;
+	// Center the Y coordinate, apply aspect ratio, then un-center
+	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -2297,55 +2295,39 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
-}
-
-
-void addMouseForce() {
-	if (!mouseDown) return;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-
-	glUseProgram(addForceProgram);
-
-	float aspect = HEIGHT / float(WIDTH);
-
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
-
-	// Center the Y coordinate, apply aspect ratio, then un-center
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-
-	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
-
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Swap texture indices
-	velocityIndex = 1 - velocityIndex;
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
 	prevMouseY = mouseY;
 }
+
+
+void addForce(float posX, float posY, float velX, float velY, float radius) {
+	// Save original mouse state
+	int originalMouseX = mouseX;
+	int originalMouseY = mouseY;
+	int originalPrevMouseX = prevMouseX;
+	int originalPrevMouseY = prevMouseY;
+
+	// Convert normalized coordinates (0-1) to screen coordinates
+	mouseX = static_cast<int>(posX * WIDTH);
+	mouseY = static_cast<int>((1.0f - posY) * HEIGHT);  // Flip Y for screen coordinates
+
+	// Calculate previous position based on velocity
+	// Properly scale the velocity to match the screen coordinates
+	prevMouseX = mouseX - static_cast<int>(velX * WIDTH);  // Scale velocity appropriately
+	prevMouseY = mouseY + static_cast<int>(velY * HEIGHT);  // Note: Y is flipped in screen coordinates
+
+	// Call mouse force function
+	addMouseForce(radius);
+
+	// Restore original mouse state
+	mouseX = originalMouseX;
+	mouseY = originalMouseY;
+	prevMouseX = originalPrevMouseX;
+	prevMouseY = originalPrevMouseY;
+}
+
 
 
 void addColor(float posX, float posY, float velX, float velY, float radius)
@@ -2493,7 +2475,7 @@ void addMouseColor()
 
 
 
-void updateObstacle() 
+void updateObstacle()
 {
 	if (!rightMouseDown || stampTemplates.empty()) return;
 
@@ -2547,7 +2529,7 @@ void updateObstacle()
 			allyShips.push_back(newStamp);
 			std::cout << "Added new ally ship";
 		}
-		else if (prefix == "bullet") 
+		else if (prefix == "bullet")
 		{
 			newStamp.velX = rand() / float(RAND_MAX) * 0.01;
 			newStamp.velY = rand() / float(RAND_MAX) * 0.01;
@@ -2564,7 +2546,7 @@ void updateObstacle()
 			allyBullets.push_back(newStamp);
 			std::cout << "Added new ally bullet";
 		}
-		else if (prefix == "enemy") 
+		else if (prefix == "enemy")
 		{
 			//newStamp.velX = rand() / float(RAND_MAX) * 0.001;
 			//newStamp.velY = rand() / float(RAND_MAX) * 0.001;
@@ -2611,9 +2593,9 @@ void move_bullets(void)
 
 void mark_colliding_bullets(void)
 {
-	for (size_t i = 0; i < allyBullets.size(); ++i) 
-		for (size_t j = 0; j < enemyShips.size(); ++j) 
-			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j])) 
+	for (size_t i = 0; i < allyBullets.size(); ++i)
+		for (size_t j = 0; j < enemyShips.size(); ++j)
+			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
 				allyBullets[i].to_be_culled = true;
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
@@ -2672,7 +2654,7 @@ void cull_marked_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
 	{
-		for(size_t i = 0; i < stamps.size(); i++)
+		for (size_t i = 0; i < stamps.size(); i++)
 		{
 			if (stamps[i].to_be_culled)
 			{
@@ -2865,8 +2847,8 @@ void simulationStep() {
 
 
 
-	addMouseForce();
-	addMouseColor();
+	//addMouseForce();
+	//addMouseColor();
 
 
 	updateObstacle();
@@ -3054,7 +3036,7 @@ void display() {
 	frameCount++;
 
 	// Check if it's time to report collisions
-	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0) 
+	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
 	{
 		reportCollisions = true;
 	}
