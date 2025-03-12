@@ -87,8 +87,8 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
-	float colour_radius = 0.05;
+	float force_radius = 0.01;
+	float colour_radius = 0.025;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -1061,7 +1061,7 @@ void main() {
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength * falloff;
+        velocity += direction * strength;// * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2265,7 +2265,8 @@ void subtractPressureGradient() {
 
 
 
-void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) {
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) 
+{
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2280,14 +2281,6 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 	// Center the Y coordinate, apply aspect ratio, then un-center (if needed)
 	// This adjustment should match what's done in addMouseForce
 	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
-
-	float vel = sqrt(velX * velX + velY * velY);
-
-	if (vel > 0)
-	{
-		velX /= vel;
-		velY /= vel;
-	}
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -2341,8 +2334,8 @@ void addMouseForce(float radius, float strength)
 
 
 
-void addForce(float posX, float posY, float velX, float velY, float radius, float strength) {
-	// Position is already normalized (0-1)
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength) 
+{
 	applyForceCore(posX, posY, velX, velY, radius, strength);
 }
 
@@ -2849,17 +2842,17 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 2500);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 10000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
 
-	for (size_t i = 0; i < enemyBullets.size(); i++)
-	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 2500);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
-	}
+	//for (size_t i = 0; i < enemyBullets.size(); i++)
+	//{
+	//	addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
+	//	addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
+	//}
 
 	red_mode = old_red_mode;
 
@@ -2877,7 +2870,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(20);
+	solvePressure(10);
 	subtractPressureGradient();
 
 	move_bullets();
