@@ -45,7 +45,7 @@ const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 10; // Every 6 frames update the collision data
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every 10 frames update the collision data
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
@@ -731,7 +731,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.95;
+const float fake_dispersion = 0.9;
 
 void main() {
     // Check if we're in an obstacle
@@ -1055,8 +1055,6 @@ void main() {
     if (distance < radius) {
         // Apply force with smooth falloff
 
-
-// this helps keep things looking chaotic
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
@@ -2279,6 +2277,12 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 	// Apply aspect ratio adjustment to position - uncomment this for consistency
 	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
 
+	float x_shift = 0.05 * rand() / float(RAND_MAX);
+	float y_shift = 0.05 * rand() / float(RAND_MAX);
+
+	shaderPosX += x_shift;
+	shaderPosY += y_shift;
+
 	// Scale velocity to account for aspect ratio
 	float shaderVelX = velX * aspect;
 	float shaderVelY = velY;
@@ -2360,11 +2364,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0.01 * rand() / float(RAND_MAX);
-	float y_shift = 0.01 * rand() / float(RAND_MAX);
+	float x_shift = 0.025 * rand() / float(RAND_MAX);
+	float y_shift = 0.025 * rand() / float(RAND_MAX);
 
-	float mousePosX = posX;// +x_shift;
-	float mousePosY = posY;// +y_shift;
+	float mousePosX = posX +x_shift;
+	float mousePosY = posY +y_shift;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
@@ -2842,17 +2846,17 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 500);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
 
-	//for (size_t i = 0; i < enemyBullets.size(); i++)
-	//{
-	//	addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
-	//	addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
-	//}
+	for (size_t i = 0; i < enemyBullets.size(); i++)
+	{
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
+	}
 
 	red_mode = old_red_mode;
 
