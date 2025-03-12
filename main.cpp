@@ -87,7 +87,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.025;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -2264,7 +2264,7 @@ void subtractPressureGradient() {
 
 
 
-void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) 
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
@@ -2312,7 +2312,7 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 
 
 
-void addMouseForce(float radius, float strength) 
+void addMouseForce(float radius, float strength)
 {
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
@@ -2332,8 +2332,10 @@ void addMouseForce(float radius, float strength)
 
 
 
-void addForce(float posX, float posY, float velX, float velY, float radius, float strength) 
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength)
 {
+	velY *= HEIGHT / float(WIDTH);
+
 	applyForceCore(posX, posY, velX, velY, radius, strength);
 }
 
