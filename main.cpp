@@ -2274,8 +2274,11 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addForceProgram);
 
-	float mousePosX = posX;
-	float mousePosY = posY;
+	float x_shift = 0.1 * rand() / float(RAND_MAX);
+	float y_shift = 0.1 * rand() / float(RAND_MAX);
+
+	float mousePosX = posX + x_shift;
+	float mousePosY = posY + y_shift;
 
 	float mouseVelX = velX;
 	float mouseVelY = velY;
@@ -2334,8 +2337,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float mousePosX = posX;
-	float mousePosY = posY;
+	float x_shift = 0.01 * rand() / float(RAND_MAX);
+	float y_shift = 0.01 * rand() / float(RAND_MAX);
+
+	float mousePosX = posX + x_shift;
+	float mousePosY = posY + y_shift;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
@@ -2442,8 +2448,8 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet") 
 		{
-			newStamp.velX = rand() / float(RAND_MAX) * 0.01;
-			newStamp.velY = rand() / float(RAND_MAX) * 0.01;
+			newStamp.velX = rand() / float(RAND_MAX) * 0.05;
+			newStamp.velY = rand() / float(RAND_MAX) * 0.05;
 
 			if (rand() % 2)
 				newStamp.velX = -newStamp.velX;
