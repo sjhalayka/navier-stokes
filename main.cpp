@@ -2272,8 +2272,8 @@ void addMouseForce(float radius)
 	// Center the Y coordinate, apply aspect ratio, then un-center
 	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+	float mouseVelX = (mouseX - prevMouseX)  / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = -(mouseY - prevMouseY);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -2281,7 +2281,7 @@ void addMouseForce(float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE/10);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2847,8 +2847,8 @@ void simulationStep() {
 
 
 
-	//addMouseForce();
-	//addMouseColor();
+	addMouseForce(0.05);
+	addMouseColor();
 
 
 	updateObstacle();
