@@ -88,7 +88,7 @@ struct Stamp {
 	float stamp_opacity = 1;
 
 	float force_radius = 0.05;
-	float colour_radius = 0.025;
+	float colour_radius = 0.05;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -1057,7 +1057,6 @@ void main() {
         // Apply force with smooth falloff
 
 
-// commenting this helps keep things looking chaotic
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
@@ -2259,8 +2258,14 @@ void subtractPressureGradient() {
 }
 
 
-void addMouseForce(float radius)
-{
+
+
+
+
+
+
+
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2268,23 +2273,29 @@ void addMouseForce(float radius)
 
 	float aspect = HEIGHT / float(WIDTH);
 
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Convert normalized position (0-1) to the appropriate coordinates for shader
+	float shaderPosX = posX;
+	float shaderPosY = posY;
 
-	// Center the Y coordinate, apply aspect ratio, then un-center
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Center the Y coordinate, apply aspect ratio, then un-center (if needed)
+	// This adjustment should match what's done in addMouseForce
+	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
 
-	float mouseVelX = (mouseX - prevMouseX) / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY);
+	float vel = sqrt(velX * velX + velY * velY);
+
+	if (vel > 0)
+	{
+		velX /= vel;
+		velY /= vel;
+	}
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "point"), shaderPosX, shaderPosY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), velX, velY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 10);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2298,6 +2309,30 @@ void addMouseForce(float radius)
 
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
+}
+
+
+
+
+
+
+
+
+
+
+
+void addMouseForce(float radius, float strength) 
+{
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	// Calculate velocity from mouse movement
+	float mouseVelX = (mouseX - prevMouseX) / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = -(mouseY - prevMouseY);
+
+	// Apply the force using the core implementation
+	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength);
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
@@ -2305,33 +2340,10 @@ void addMouseForce(float radius)
 }
 
 
-void addForce(float posX, float posY, float velX, float velY, float radius) {
-	// Save original mouse state
-	int originalMouseX = mouseX;
-	int originalMouseY = mouseY;
-	int originalPrevMouseX = prevMouseX;
-	int originalPrevMouseY = prevMouseY;
 
-	// Convert normalized coordinates (0-1) to screen coordinates
-	mouseX = static_cast<int>(posX * WIDTH);
-	mouseY = static_cast<int>((1.0f - posY) * HEIGHT);  // Flip Y for screen coordinates
-
-	// Calculate previous position based on velocity
-	// Properly scale the velocity to match the screen coordinates
-	prevMouseX = mouseX - static_cast<int>(velX * WIDTH);  // Scale velocity appropriately
-	prevMouseY = mouseY + static_cast<int>(velY * HEIGHT);  // Note: Y is flipped in screen coordinates
-
-	// Call mouse force function
-	addMouseForce(radius);
-
-	// Restore original mouse state
-
-	prevMouseX = originalMouseX;
-	prevMouseY = originalMouseY;
-
-	//mouseX = originalMouseX;
-	//mouseY = originalMouseY;
-
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength) {
+	// Position is already normalized (0-1)
+	applyForceCore(posX, posY, velX, velY, radius, strength);
 }
 
 
@@ -2832,12 +2844,12 @@ void simulationStep() {
 
 
 	bool old_red_mode = red_mode;
-	// to do: do this for each bullet
+
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 2500);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -2845,7 +2857,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 2500);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -2853,7 +2865,7 @@ void simulationStep() {
 
 
 
-	addMouseForce(0.05);
+	addMouseForce(0.05, 500);
 	addMouseColor();
 
 
