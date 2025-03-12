@@ -87,8 +87,8 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.01;
-	float colour_radius = 0.025;
+	float force_radius = 0.05;
+	float colour_radius = force_radius;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -732,7 +732,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.95;
+const float fake_dispersion = 0.975;
 
 void main() {
     // Check if we're in an obstacle
@@ -1056,12 +1056,11 @@ void main() {
     if (distance < radius) {
         // Apply force with smooth falloff
 
-
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength;// * falloff;
+        velocity += direction * strength * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2278,9 +2277,8 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 	float shaderPosX = posX;
 	float shaderPosY = posY;
 
-	// Center the Y coordinate, apply aspect ratio, then un-center (if needed)
-	// This adjustment should match what's done in addMouseForce
-	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
+	// This following statement causes buggy force applications
+	//shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -2842,7 +2840,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 10000);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 100000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
