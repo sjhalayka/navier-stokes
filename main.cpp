@@ -89,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.01;
+	float force_radius = 0.05;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -1057,11 +1057,11 @@ void main() {
 
 
 // this helps keep things looking chaotic
-//        float falloff = 1.0;//1.0 - (distance / radius);
- //       falloff = falloff * falloff;
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength;// * falloff;
+        velocity += direction * strength * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2264,9 +2264,7 @@ void subtractPressureGradient() {
 
 
 
-
-void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength)
-{
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength) {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2278,14 +2276,18 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 	float shaderPosX = posX;
 	float shaderPosY = posY;
 
-	// This following statement causes buggy force applications
-	//shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
+	// Apply aspect ratio adjustment to position - uncomment this for consistency
+	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
+
+	// Scale velocity to account for aspect ratio
+	float shaderVelX = velX * aspect;
+	float shaderVelY = velY;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), shaderPosX, shaderPosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), velX, velY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), shaderVelX, shaderVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 
@@ -2312,16 +2314,14 @@ void applyForceCore(float posX, float posY, float velX, float velY, float radius
 
 
 
-
-void addMouseForce(float radius, float strength)
-{
+void addMouseForce(float radius, float strength) {
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
 	// Calculate velocity from mouse movement
-	float mouseVelX = (mouseX - prevMouseX) / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY);
+	float mouseVelX = (mouseX - prevMouseX) / (float)WIDTH;  // Normalize to texture space
+	float mouseVelY = -(mouseY - prevMouseY) / (float)HEIGHT; // Normalize to texture space
 
 	// Apply the force using the core implementation
 	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength);
@@ -2333,13 +2333,9 @@ void addMouseForce(float radius, float strength)
 
 
 
-void addForce(float posX, float posY, float velX, float velY, float radius, float strength)
-{
-	velY *= HEIGHT / float(WIDTH);
-
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength) {
 	applyForceCore(posX, posY, velX, velY, radius, strength);
 }
-
 
 
 void addColor(float posX, float posY, float velX, float velY, float radius)
@@ -2588,14 +2584,15 @@ void updateObstacle()
 }
 
 
-
-void move_bullets(void)
+void move_bullets(void) 
 {
-	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	auto update_bullets = [&](std::vector<Stamp>& stamps) 
 	{
-		for (auto& stamp : stamps)
+		float aspect = HEIGHT / float(WIDTH);
+		for (auto& stamp : stamps) 
 		{
-			stamp.posX += stamp.velX;
+			// Scale X velocity by aspect ratio for consistency
+			stamp.posX += stamp.velX * aspect;
 			stamp.posY += stamp.velY;
 		}
 	};
@@ -2845,7 +2842,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 500);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -2861,7 +2858,7 @@ void simulationStep() {
 
 
 
-	addMouseForce(0.05, 500);
+	addMouseForce(0.05, 5000);
 	addMouseColor();
 
 
@@ -2873,7 +2870,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(5);
+	solvePressure(10);
 	subtractPressureGradient();
 
 	move_bullets();
