@@ -87,7 +87,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.001;
 	float colour_radius = 0.05;
 
 	// StampInfo properties
@@ -1057,12 +1057,12 @@ void main() {
         // Apply force with smooth falloff
 
 
-// this helps keep things looking chaotic
-//        float falloff = 1.0;//1.0 - (distance / radius);
- //       falloff = falloff * falloff;
+// commenting this helps keep things looking chaotic
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength;// * falloff;
+        velocity += direction * strength * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2284,7 +2284,7 @@ void addMouseForce(float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 500);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 10);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2325,10 +2325,13 @@ void addForce(float posX, float posY, float velX, float velY, float radius) {
 	addMouseForce(radius);
 
 	// Restore original mouse state
-	mouseX = originalMouseX;
-	mouseY = originalMouseY;
-	prevMouseX = originalPrevMouseX;
-	prevMouseY = originalPrevMouseY;
+
+	prevMouseX = originalMouseX;
+	prevMouseY = originalMouseY;
+
+	//mouseX = originalMouseX;
+	//mouseY = originalMouseY;
+
 }
 
 
