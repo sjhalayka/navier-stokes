@@ -87,8 +87,8 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.001;
-	float colour_radius = 0.05;
+	float force_radius = 0.05;
+	float colour_radius = 0.025;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
