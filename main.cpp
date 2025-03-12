@@ -561,9 +561,6 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
-
-
-
 const char* diffuseVelocityFragmentShader = R"(
 #version 330 core
 uniform sampler2D velocityTexture;
@@ -1058,8 +1055,10 @@ void main() {
     if (distance < radius) {
         // Apply force with smooth falloff
 
-        float falloff = 1.0 - (distance / radius);
-        falloff = falloff * falloff;
+
+// this helps keep things looking chaotic
+//        float falloff = 1.0;//1.0 - (distance / radius);
+ //       falloff = falloff * falloff;
         
         // Add force to velocity
         velocity += direction * strength;// * falloff;
@@ -2846,7 +2845,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 2500);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
