@@ -2300,7 +2300,7 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 }
 
 
-void addForce() {
+void addMouseForce() {
 	if (!mouseDown) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -2413,7 +2413,7 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 }
 
 
-void addColor()
+void addMouseColor()
 {
 	if (!mouseDown) return;
 
@@ -2865,8 +2865,8 @@ void simulationStep() {
 
 
 
-	addForce();
-	addColor();
+	addMouseForce();
+	addMouseColor();
 
 
 	updateObstacle();
