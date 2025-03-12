@@ -89,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.01;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -734,7 +734,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.975;
+const float fake_dispersion = 0.95;
 
 void main() {
     // Check if we're in an obstacle
@@ -2553,6 +2553,8 @@ void updateObstacle()
 			if (rand() % 2)
 				newStamp.velY = -newStamp.velY;
 
+
+
 			newStamp.birth_time = global_time;
 			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
@@ -2844,7 +2846,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 100000);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 2500);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -2872,7 +2874,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(30);
+	solvePressure(5);
 	subtractPressureGradient();
 
 	move_bullets();
