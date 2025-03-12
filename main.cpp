@@ -24,6 +24,8 @@ using namespace std;
 
 
 
+
+// to do: test bullet force-colour functionality
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
@@ -87,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.025;
+	float force_radius = 0.05;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -1060,7 +1062,7 @@ void main() {
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength * falloff;
+        velocity += direction * strength;// * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
@@ -2870,7 +2872,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(10);
+	solvePressure(30);
 	subtractPressureGradient();
 
 	move_bullets();
