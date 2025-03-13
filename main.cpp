@@ -32,25 +32,6 @@ using namespace std;
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
-void RandomUnitVector(float &x_out, float &y_out)
-{
-	const static float pi = 4.0 * atan(1.0);
-
-	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
-	float x = cos(a);
-	float y = sin(a);
-	const float len = sqrt(x * x + y * y);
-	
-	if (len != 1.0 && len != 0.0)
-	{
-		x /= len;
-		y /= len;
-	}
-
-	x_out = x;
-	y_out = y;
-}
-
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
@@ -109,6 +90,11 @@ struct Stamp {
 	float force_radius = 0.025;
 	float colour_radius = force_radius;
 
+	float force_randomization = 0.01;
+	float colour_randomization = 0.01;
+	float path_randomization = 0.001;
+	
+	
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
 	float velX = 0, velY = 0;
@@ -131,6 +117,25 @@ int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
 
+
+void RandomUnitVector(float& x_out, float& y_out)
+{
+	const static float pi = 4.0 * atan(1.0);
+
+	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
+	float x = cos(a);
+	float y = sin(a);
+	const float len = sqrt(x * x + y * y);
+
+	if (len != 1.0 && len != 0.0)
+	{
+		x /= len;
+		y /= len;
+	}
+
+	x_out = x;
+	y_out = y;
+}
 
 
 
@@ -2616,8 +2621,8 @@ void move_bullets(void)
 			// Add in random walking
 			RandomUnitVector(rand_x, rand_y);
 
-			stamp.posX += rand_x*0.01;
-			stamp.posY += rand_y*0.01;
+			stamp.posX += rand_x * stamp.path_randomization;
+			stamp.posY += rand_y * stamp.path_randomization;
 		}
 	};
 
@@ -2877,16 +2882,16 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, 0);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, 0.0);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, allyBullets[i].force_randomization);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, allyBullets[i].colour_randomization);
 	}
 
 	red_mode = false;
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, 0);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, 0.0);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, enemyBullets[i].force_randomization);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, enemyBullets[i].colour_randomization);
 	}
 
 	red_mode = old_red_mode;
