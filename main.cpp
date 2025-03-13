@@ -92,7 +92,7 @@ struct Stamp {
 
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
-	float path_randomization = 0;// force_radius / 10.0;
+	float path_randomization = force_radius / 50.0;
 	float sinusoidal_frequency = 5;
 	float sinusoidal_amplitude = 0.002;
 	bool sinusoidal_shift = false;
