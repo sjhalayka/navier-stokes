@@ -77,23 +77,22 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 1;
+	float health = 10;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
 	// (it is culled only when colliding with the ally/enemy or goes off screen)
-	// A mortal bullet dies after a certain amount of time too
+	// A mortal bullet dies after a certain amount of time
 	float death_time = -1;
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.025;
+	float force_radius = 0.05;
 	float colour_radius = force_radius;
 
 	float force_randomization = 0.01;
 	float colour_randomization = 0.01;
 	float path_randomization = 0.001;
-	
 	
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -429,11 +428,11 @@ void reportStampToStampCollisions() {
 	//	}
 	//}
 
-	if (!collisionDetected) {
-		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
-	}
+	//if (!collisionDetected) {
+	//	std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+	//}
 
-	std::cout << "============================================" << std::endl;
+	//std::cout << "============================================" << std::endl;
 }
 
 
@@ -2759,7 +2758,7 @@ void mark_dying_ships(void)
 	{
 		if (allyShips[i].health <= 0)
 		{
-			// to do: Add random bullets, based on ally ship stamp size and location
+			// to do: Add random ally bullets, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
 		}
 	}
@@ -2768,7 +2767,7 @@ void mark_dying_ships(void)
 	{
 		if (enemyShips[i].health <= 0)
 		{
-			// to do: Add random bullets, based on enemy ship stamp size and location
+			// to do: Add random ENEMY bullets, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
 		}
 	}
@@ -2782,7 +2781,7 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				// to do: Add random bullets, based on ally ship stamp size and location
+				// to do: Add random ally bullets, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
 			}
