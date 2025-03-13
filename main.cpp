@@ -32,20 +32,37 @@ using namespace std;
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
+void RandomUnitVector(float &x_out, float &y_out)
+{
+	const static float pi = 4.0 * atan(1.0);
 
+	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
+	float x = cos(a);
+	float y = sin(a);
+	const float len = sqrt(x * x + y * y);
+	
+	if (len != 1.0 && len != 0.0)
+	{
+		x /= len;
+		y /= len;
+	}
+
+	x_out = x;
+	y_out = y;
+}
 
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every 10 frames update the collision data
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every 5 frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
@@ -2544,14 +2561,10 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet")
 		{
-			newStamp.velX = rand() / float(RAND_MAX) * 0.01;
-			newStamp.velY = rand() / float(RAND_MAX) * 0.01;
+			RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			if (rand() % 2)
-				newStamp.velX = -newStamp.velX;
-
-			if (rand() % 2)
-				newStamp.velY = -newStamp.velY;
+			newStamp.velX *= 0.01;
+			newStamp.velY *= 0.01;
 
 
 
@@ -2599,6 +2612,14 @@ void move_bullets(void)
 			// Scale X velocity by aspect ratio for consistency
 			stamp.posX += stamp.velX * aspect;
 			stamp.posY += stamp.velY;
+
+			float rand_x = 0, rand_y = 0;
+
+			// Add in random walking
+			RandomUnitVector(rand_x, rand_y);
+
+			stamp.posX += rand_x*0.01;
+			stamp.posY += rand_y*0.01;
 		}
 	};
 
@@ -2735,7 +2756,7 @@ void mark_dying_ships(void)
 	{
 		if (allyShips[i].health <= 0)
 		{
-			// to do: Add random explosions, based on ally ship stamp size and location
+			// to do: Add random bullets, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
 		}
 	}
@@ -2744,7 +2765,7 @@ void mark_dying_ships(void)
 	{
 		if (enemyShips[i].health <= 0)
 		{
-			// to do: Add random explosions, based on enemy ship stamp size and location
+			// to do: Add random bullets, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
 		}
 	}
@@ -2758,7 +2779,7 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				// to do: Add random explosions, based on ally ship stamp size and location
+				// to do: Add random bullets, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
 			}
