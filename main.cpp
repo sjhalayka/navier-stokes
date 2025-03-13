@@ -89,7 +89,7 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.025;
 	float colour_radius = force_radius;
 
 	// StampInfo properties
@@ -2699,10 +2699,10 @@ void move_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			stamp.posX += stamp.velX;
-			stamp.posY += stamp.velY;
-
 			const float aspect = WIDTH / float(HEIGHT);
+
+			stamp.posX += stamp.velX / aspect;
+			stamp.posY += stamp.velY;
 
 			if (keep_within_screen_bounds)
 			{
@@ -2732,12 +2732,22 @@ void move_ships(void)
 void mark_dying_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
 		if (allyShips[i].health <= 0)
+		{
+			// to do: Add random explosions, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
+		}
+	}
 
 	for (size_t i = 0; i < enemyShips.size(); ++i)
+	{
 		if (enemyShips[i].health <= 0)
+		{
+			// to do: Add random explosions, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
+		}
+	}
 }
 
 void mark_colliding_ships(void)
@@ -2748,6 +2758,7 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
+				// to do: Add random explosions, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
 			}
@@ -2841,14 +2852,14 @@ void simulationStep() {
 	updateDynamicTextures(enemyBullets);
 
 
-	bool old_red_mode = red_mode;
+	const bool old_red_mode = red_mode;
 
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, 0);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, 0.5* allyBullets[i].colour_radius);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
@@ -2856,14 +2867,14 @@ void simulationStep() {
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
 		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, 0);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, 0.5 * enemyBullets[i].colour_radius);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, enemyBullets[i].colour_radius);
 	}
 
 	red_mode = old_red_mode;
 
 
 
-	addMouseForce(0.05, 50000, 0.0);
+	addMouseForce(0.05, 5000, 0.0);
 	addMouseColor();
 
 
@@ -2875,7 +2886,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(30);
+	solvePressure(5);
 	subtractPressureGradient();
 
 	move_bullets();
@@ -2953,10 +2964,10 @@ void renderToScreen() {
 
 	glUseProgram(stampTextureProgram);
 
-	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
-		for (const auto& stamp : stamps) {
-			//if (!stamp.active) continue;
-
+	auto renderStamps = [&](const std::vector<Stamp>& stamps) 
+	{
+		for (const auto& stamp : stamps) 
+		{
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
@@ -2994,8 +3005,9 @@ void renderToScreen() {
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-	renderStamps(allyBullets);
-	renderStamps(enemyBullets);
+//	renderStamps(allyBullets);
+//	renderStamps(enemyBullets);
+
 
 	glDisable(GL_BLEND);
 
@@ -3012,10 +3024,9 @@ void renderToScreen() {
 	//	}
 	//}
 
-	//for (const auto& stamp : allyBullets) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
+	//for (const auto& stamp : allyBullets) 
+	//{
+	//	drawBoundingBox(stamp);
 	//}
 
 	//for (const auto& stamp : enemyBullets) {
