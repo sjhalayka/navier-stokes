@@ -90,9 +90,9 @@ struct Stamp {
 	float force_radius = 0.05;
 	float colour_radius = force_radius;
 
-	float force_randomization = 0.01;
-	float colour_randomization = 0.01;
-	float path_randomization = 0.001;
+	float force_randomization = force_radius / 100.0;
+	float colour_randomization = force_radius / 10.0;
+	float path_randomization = force_radius / 100.0;
 	
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
