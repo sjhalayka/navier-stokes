@@ -2582,8 +2582,12 @@ void updateObstacle()
 		{
 			RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			newStamp.velX = 0.01;
-			newStamp.velY = 0;// *= 0.01;
+			//newStamp.velX = 0.01;
+			//newStamp.velY = 0;// *= 0.01;
+
+			newStamp.velX *= 0.01;
+			newStamp.velY *= 0.01;
+
 			newStamp.sinusoidal_shift = false;
 
 			newStamp.birth_time = global_time;
@@ -2592,8 +2596,8 @@ void updateObstacle()
 			allyBullets.push_back(newStamp);
 
 
-			newStamp.velX = 0.01;
-			newStamp.velY = 0;// *= 0.01;
+			//newStamp.velX = 0.01;
+			//newStamp.velY = 0;// *= 0.01;
 			newStamp.sinusoidal_shift = true;
 
 			newStamp.birth_time = global_time;
