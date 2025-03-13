@@ -2566,8 +2566,6 @@ void updateObstacle()
 			newStamp.velX *= 0.01;
 			newStamp.velY *= 0.01;
 
-
-
 			newStamp.birth_time = global_time;
 			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
@@ -2880,7 +2878,7 @@ void simulationStep() {
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, 0);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, allyBullets[i].colour_radius);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, 0.0);
 	}
 
 	red_mode = false;
@@ -2888,7 +2886,7 @@ void simulationStep() {
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
 		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, 0);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, enemyBullets[i].colour_radius);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, 0.0);
 	}
 
 	red_mode = old_red_mode;
