@@ -1066,11 +1066,28 @@ uniform vec2 point;
 uniform vec2 direction;
 uniform float radius;
 uniform float strength;
+uniform float WIDTH;
+uniform float HEIGHT;
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
 
-void main() {
+void main()
+{
+	float aspect_ratio = WIDTH/HEIGHT;
+
+    vec2 adjustedCoord = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio > 1.0) {
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }
+
+
+
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
@@ -2316,6 +2333,8 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), WIDTH);
+	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), HEIGHT);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
