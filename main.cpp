@@ -24,92 +24,433 @@ using namespace std;
 
 
 
+
+// to do: test bullet force-colour functionality
+// to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
+// to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
+// to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
+// to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
+// to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
+
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float DT = 1.0f / 60.0f;
+const float FPS = 30;
+const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int REPORT_INTERVAL = 60;   // Report collision locations every N frames
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every 5 frames
 
-const float COLOR_DETECTION_THRESHOLD = 0.05f;  // How strict the color matching should be
+const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
+float global_time = 0.0f;
 
 bool red_mode = true;
 
 bool lastRightMouseDown = false;
 
 
+vector<float> global_minXs;
+vector<float> global_minYs;
+vector<float> global_maxXs;
+vector<float> global_maxYs;
+
+
+//
+//float global_minX, global_minY, global_maxX, global_maxY;
+
+
 
 struct Stamp {
 	// StampTexture properties
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
-	int width;
-	int height;
+	int width = 0; // pixels
+	int height = 0; // pixels
 	std::string baseFilename;               // Base filename without suffix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
-	int channels;                           // Store the number of channels
+	int channels = 0;                         // Store the number of channels
+
+	bool to_be_culled = false;
+
+	float health = 10;
+
+	float birth_time = 0;
+	// A negative death time means that the bullet is immortal 
+	// (it is culled only when colliding with the ally/enemy or goes off screen)
+	// A mortal bullet dies after a certain amount of time
+	float death_time = -1;
+
+	float stamp_opacity = 1;
+
+	float force_radius = 0.02;
+	float colour_radius = force_radius;
+
+	float force_randomization = force_radius / 100.0;
+	float colour_randomization = force_radius / 10.0;
+	float path_randomization = force_radius / 1000.0;
+	float sinusoidal_frequency = 2;
+	float sinusoidal_amplitude = 0.0025;
+	bool sinusoidal_shift = false;
 
 	// StampInfo properties
-	bool active;
-	float posX, posY;                       // Normalized position (0-1)
-	int currentVariationIndex;              // Which texture variation to use
+	float posX = 0, posY = 0;                       // Normalized position (0-1)
+	float velX = 0, velY = 0;
 
-	Stamp() : width(0), height(0), channels(0), active(false),
-		posX(0), posY(0), currentVariationIndex(0) {}
+	int currentVariationIndex = 0;              // Which texture variation to use
 };
 
-std::vector<Stamp> stamps;
-int currentStampIndex = 0;
+
+
+std::vector<Stamp> allyShips;
+std::vector<Stamp> enemyShips;
+std::vector<Stamp> allyBullets;
+std::vector<Stamp> enemyBullets;
+
+std::vector<Stamp> stampTemplates;  // Stores template stamps (not active)
+//std::vector<Stamp> activeStamps;    // Stores active stamp instances
+int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
 
 
-//
-//struct StampTexture {
-//	std::vector<GLuint> textureIDs;          // Multiple texture IDs
-//	int width;
-//	int height;
-//	std::string baseFilename;                // Base filename without suffix
-//	std::vector<std::string> textureNames;   // Names of the specific textures (e.g., "up", "down", "center")
-//	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
-//	int channels;  // Store the number of channels (needed for pixel access)
-//	int currentTextureIndex;                 // Currently active texture index
-//
-//	StampTexture() : width(0), height(0), channels(0), currentTextureIndex(0) {}
-//};
+
+
+void RandomUnitVector(float& x_out, float& y_out)
+{
+	const static float pi = 4.0 * atan(1.0);
+
+	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
+	float x = cos(a);
+	float y = sin(a);
+	const float len = sqrt(x * x + y * y);
+
+	if (len != 1.0 && len != 0.0)
+	{
+		x /= len;
+		y /= len;
+	}
+
+	x_out = x;
+	y_out = y;
+}
 
 
 
-//std::vector<StampTexture> stampTextures;
-//int currentStampIndex = 0;
-//
-//struct StampInfo {
-//	bool active;
-//	float posX, posY;  // Normalized position (0-1)
-//	float width, height;  // In pixels
-//	int textureIndex;     // Index of the stamp texture used
-//	int variationIndex;   // Which texture variation to use (up, down, center)
-//
-//	StampInfo() : active(false), posX(0), posY(0), width(0), height(0), textureIndex(0), variationIndex(0) {}
-//};
+void calculateBoundingBox(const Stamp& stamp, float& minX, float& minY, float& maxX, float& maxY) {
+	// Calculate aspect ratio
+	float aspect = WIDTH / static_cast<float>(HEIGHT);
+
+	// For the stamp positioning, we need to match how the stamp is rendered
+	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
+	float scale = 2.0f;
+
+	// Calculate the actual width and height in normalized coordinates
+	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+	float halfHeightNorm = (stamp.height / 2.0f) / HEIGHT;
+
+	// Apply the same aspect ratio adjustments as in the shader
+	float stampY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+	// Apply the scaling factor to match the shader
+	halfWidthNorm /= scale;
+	halfHeightNorm /= scale;
+
+	// Set the bounding box coordinates
+	minX = stamp.posX - halfWidthNorm;
+	minY = stampY - halfHeightNorm;
+	maxX = stamp.posX + halfWidthNorm * scale;
+	maxY = stampY + halfHeightNorm * scale;
+}
+
+
+
+
+
+
+void drawBoundingBox(float minX, float minY, float maxX, float maxY) {
+	// Convert normalized coordinates to NDC coordinates (-1 to 1)
+	float ndcMinX = minX * 2.0f - 1.0f;
+	float ndcMinY = minY * 2.0f - 1.0f;
+	float ndcMaxX = maxX * 2.0f - 1.0f;
+	float ndcMaxY = maxY * 2.0f - 1.0f;
+
+	glColor3f(1.0f, 0.0f, 0.0f); // Red for bounding box
+
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(ndcMinX, ndcMinY); // Bottom-left
+	glVertex2f(ndcMaxX, ndcMinY); // Bottom-right
+	glVertex2f(ndcMaxX, ndcMaxY); // Top-right
+	glVertex2f(ndcMinX, ndcMaxY); // Top-left
+	glEnd();
+}
+
+// 5. Modified drawBoundingBox for stamp to use our improved calculation
+void drawBoundingBox(const Stamp& stamp) {
+	//if (!stamp.active) return;
+
+	float minX, minY, maxX, maxY;
+	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+	// Convert normalized coordinates to NDC coordinates (-1 to 1)
+	float ndcMinX = minX * 2.0f - 1.0f;
+	float ndcMinY = minY * 2.0f - 1.0f;
+	float ndcMaxX = maxX * 2.0f - 1.0f;
+	float ndcMaxY = maxY * 2.0f - 1.0f;
+
+	glColor3f(1.0f, 0.0f, 0.0f); // Red for bounding box
+
+	glBegin(GL_LINE_LOOP);
+	glVertex2f(ndcMinX, ndcMinY); // Bottom-left
+	glVertex2f(ndcMaxX, ndcMinY); // Bottom-right
+	glVertex2f(ndcMaxX, ndcMaxY); // Top-right
+	glVertex2f(ndcMinX, ndcMaxY); // Top-left
+	glEnd();
+}
+
+
+
+
+
+bool isBoundingBoxOverlap(const Stamp& a, const Stamp& b) {
+	float aMinX, aMinY, aMaxX, aMaxY;
+	float bMinX, bMinY, bMaxX, bMaxY;
+
+	calculateBoundingBox(a, aMinX, aMinY, aMaxX, aMaxY);
+	calculateBoundingBox(b, bMinX, bMinY, bMaxX, bMaxY);
+
+	return !(aMaxX < bMinX || aMinX > bMaxX ||
+		aMaxY < bMinY || aMinY > bMaxY);
+}
+
+
+
+
+
+
+
+unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
+	// Make sure coordinates and indices are within bounds
+	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
+		channel < 0 || channel >= stamp.channels ||
+		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+		stamp.pixelData[variationIndex].empty()) {
+		return 0;
+	}
+
+	// Calculate the index in the pixel data array
+	int index = (y * stamp.width + x) * stamp.channels + channel;
+
+	// Make sure the index is within bounds
+	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
+		return 0;
+	}
+
+	return stamp.pixelData[variationIndex][index];
+}
+
+
+bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
+	float aMinX, aMinY, aMaxX, aMaxY;
+	float bMinX, bMinY, bMaxX, bMaxY;
+
+	calculateBoundingBox(a, aMinX, aMinY, aMaxX, aMaxY);
+	calculateBoundingBox(b, bMinX, bMinY, bMaxX, bMaxY);
+
+	// Quick check if bounding boxes overlap
+	if (!(aMaxX >= bMinX && aMinX <= bMaxX && aMaxY >= bMinY && aMinY <= bMaxY)) {
+		return false;
+	}
+
+	// Calculate overlapping region in normalized coordinates
+	float overlapMinX = std::max(aMinX, bMinX);
+	float overlapMaxX = std::min(aMaxX, bMaxX);
+	float overlapMinY = std::max(aMinY, bMinY);
+	float overlapMaxY = std::min(aMaxY, bMaxY);
+
+	// Convert to pixel coordinates for both stamps
+	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
+		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
+			// Map to texture space for both stamps
+			int texAx = (x - aMinX) / (aMaxX - aMinX) * a.width;
+			int texAy = (y - aMinY) / (aMaxY - aMinY) * a.height;
+			int texBx = (x - bMinX) / (bMaxX - bMinX) * b.width;
+			int texBy = (y - bMinY) / (bMaxY - bMinY) * b.height;
+
+			// Get alpha values
+			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
+			float alphaB = getPixelValueFromStamp(b, b.currentVariationIndex, texBx, texBy, 3) / 255.0f;
+
+			if (alphaA > 0.0f && alphaB > 0.0f) {
+				return true; // Pixels overlap with sufficient alpha
+			}
+		}
+	}
+
+	return false;
+}
+
+
+
+
+
+
+void reportStampToStampCollisions() {
+	std::cout << "\n===== Stamp-to-Stamp Collision Report =====" << std::endl;
+	bool collisionDetected = false;
+
+	// Check ally bullets with enemy ships (attack collision)
+	std::cout << "** Ally Bullets vs Enemy Ships **" << std::endl;
+	for (size_t i = 0; i < allyBullets.size(); ++i) {
+		//if (!allyBullets[i].active) continue;
+
+		for (size_t j = 0; j < enemyShips.size(); ++j) {
+			//if (!enemyShips[j].active) continue;
+
+			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j])) {
+				collisionDetected = true;
+				std::cout << "Attack collision: Ally Bullet #" << i + 1
+					<< " hit Enemy Ship #" << j + 1 << std::endl;
+			}
+		}
+	}
+
+	// Check enemy bullets with ally ships (attack collision)
+	std::cout << "\n** Enemy Bullets vs Ally Ships **" << std::endl;
+	for (size_t i = 0; i < enemyBullets.size(); ++i) {
+		//if (!enemyBullets[i].active) continue;
+
+		for (size_t j = 0; j < allyShips.size(); ++j) {
+			//if (!allyShips[j].active) continue;
+
+			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j])) {
+				collisionDetected = true;
+				std::cout << "Attack collision: Enemy Bullet #" << i + 1
+					<< " hit Ally Ship #" << j + 1 << std::endl;
+			}
+		}
+	}
+
+	// Check ally ships with enemy ships (ship-to-ship collision)
+	//std::cout << "\n** Ally Ships vs Enemy Ships **" << std::endl;
+	//for (size_t i = 0; i < allyShips.size(); ++i) {
+	//	//if (!allyShips[i].active) continue;
+
+	//	for (size_t j = 0; j < enemyShips.size(); ++j) {
+	//		//if (!enemyShips[j].active) continue;
+
+	//		if (isPixelPerfectCollision(allyShips[i], enemyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Ship collision: Ally Ship #" << i + 1
+	//				<< " collided with Enemy Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//// Check ally ships with ally ships (friendly collision)
+	//std::cout << "\n** Ally Ships vs Ally Ships **" << std::endl;
+	//for (size_t i = 0; i < allyShips.size(); ++i) {
+	//	//if (!allyShips[i].active) continue;
+
+	//	for (size_t j = i + 1; j < allyShips.size(); ++j) {
+	//		//if (!allyShips[j].active) continue;
+
+	//		if (isPixelPerfectCollision(allyShips[i], allyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Friendly collision: Ally Ship #" << i + 1
+	//				<< " collided with Ally Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//// Check enemy ships with enemy ships (enemy friendly collision)
+	//std::cout << "\n** Enemy Ships vs Enemy Ships **" << std::endl;
+	//for (size_t i = 0; i < enemyShips.size(); ++i) {
+	//	//if (!enemyShips[i].active) continue;
+
+	//	for (size_t j = i + 1; j < enemyShips.size(); ++j) {
+	//		//if (!enemyShips[j].active) continue;
+
+	//		if (isPixelPerfectCollision(enemyShips[i], enemyShips[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Enemy collision: Enemy Ship #" << i + 1
+	//				<< " collided with Enemy Ship #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//// Check ally bullets with ally bullets (friendly fire crossover)
+	//std::cout << "\n** Ally Bullets vs Ally Bullets **" << std::endl;
+	//for (size_t i = 0; i < allyBullets.size(); ++i) {
+	//	//if (!allyBullets[i].active) continue;
+
+	//	for (size_t j = i + 1; j < allyBullets.size(); ++j) {
+	//		//if (!allyBullets[j].active) continue;
+
+	//		if (isPixelPerfectCollision(allyBullets[i], allyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Friendly fire crossover: Ally Bullet #" << i + 1
+	//				<< " crossed with Ally Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//// Check enemy bullets with enemy bullets (enemy fire crossover)
+	//std::cout << "\n** Enemy Bullets vs Enemy Bullets **" << std::endl;
+	//for (size_t i = 0; i < enemyBullets.size(); ++i) {
+	//	//if (!enemyBullets[i].active) continue;
+
+	//	for (size_t j = i + 1; j < enemyBullets.size(); ++j) {
+	//		//if (!enemyBullets[j].active) continue;
+
+	//		if (isPixelPerfectCollision(enemyBullets[i], enemyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Enemy fire crossover: Enemy Bullet #" << i + 1
+	//				<< " crossed with Enemy Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//// Check ally bullets with enemy bullets (opposing fire collision)
+	//std::cout << "\n** Ally Bullets vs Enemy Bullets **" << std::endl;
+	//for (size_t i = 0; i < allyBullets.size(); ++i) {
+	//	//if (!allyBullets[i].active) continue;
+
+	//	for (size_t j = 0; j < enemyBullets.size(); ++j) {
+	//		//if (!enemyBullets[j].active) continue;
+
+	//		if (isPixelPerfectCollision(allyBullets[i], enemyBullets[j])) {
+	//			collisionDetected = true;
+	//			std::cout << "Opposing fire collision: Ally Bullet #" << i + 1
+	//				<< " collided with Enemy Bullet #" << j + 1 << std::endl;
+	//		}
+	//	}
+	//}
+
+	//if (!collisionDetected) {
+	//	std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+	//}
+
+	//std::cout << "============================================" << std::endl;
+}
+
+
 
 
 
 bool upKeyPressed = false;
 bool downKeyPressed = false;
+bool rightKeyPressed = false;
+bool leftKeyPressed = false;
+
+
 int lastVariationIndex = 0; // Track last variation to detect changes
 
 
-
-// Add this to the other global variables
-//std::vector<StampInfo> stamps;
-//StampInfo currentStamp;
 
 
 
@@ -138,7 +479,7 @@ GLuint diffuseColorProgram;
 GLuint diffuseVelocityProgram;
 GLuint stampObstacleProgram;
 GLuint stampTextureProgram;
-
+GLuint renderProgram;
 
 
 
@@ -244,9 +585,6 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
-
-
-
 const char* diffuseVelocityFragmentShader = R"(
 #version 330 core
 uniform sampler2D velocityTexture;
@@ -304,7 +642,7 @@ uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize;
-
+uniform float stamp_opacity;
 in vec2 TexCoord;
 out vec4 FragColor;
 
@@ -326,21 +664,21 @@ void main()
     //    stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
     //}
     
+	// why is this necessary?
+	stampCoord /= 1.5;//sqrt(2.0);
+
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
-        stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
-        
+        stampCoord.y >= 0.0 && stampCoord.y <= 1.0) 
+	{
         // Sample stamp texture (use all channels for RGBA output)
         vec4 stampColor = texture(stampTexture, stampCoord);
-        
-        // Only show pixels that are above the threshold (use alpha for transparency)
-        if (stampColor.a > threshold) {
-            FragColor = stampColor;
-        } else {
-            // Transparent for pixels below threshold
-            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-        }
-    } else {
+
+		stampColor.a *= stamp_opacity;      
+        FragColor = stampColor;
+    } 
+	else
+	{
         // Outside stamp bounds - transparent
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     }
@@ -378,7 +716,11 @@ void main()
     
 	if(windowAspect > 1.0)
 	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
-    
+
+	// why is this necessary?
+	stampCoord /= 1.5;//sqrt(2.0);
+
+
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
@@ -413,7 +755,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.99;
+const float fake_dispersion = 0.9;
 
 void main() {
     // Check if we're in an obstacle
@@ -736,6 +1078,7 @@ void main() {
     // Apply force based on radius
     if (distance < radius) {
         // Apply force with smooth falloff
+
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
@@ -910,6 +1253,9 @@ void main() {
 
     if (obstacle > 0.0) 
 	{
+		//FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+		//return;
+
         // Render obstacles as background coloured
 		FragColor = texture(backgroundTexture, scrolledCoord);
 		return;
@@ -964,9 +1310,43 @@ void clearObstacleTexture() {
 }
 
 
-
 void reapplyAllStamps() {
-	if (stamps.empty()) return;
+	auto processStamps = [&](const std::vector<Stamp>& stamps) {
+		for (const auto& stamp : stamps) {
+
+			// If the stamp is dead then don't use it for an obstacle
+			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
+			if (stamp.to_be_culled) continue;
+
+			int variationIndex = stamp.currentVariationIndex;
+			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+				stamp.textureIDs[variationIndex] == 0) {
+				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+					if (stamp.textureIDs[i] != 0) {
+						variationIndex = i;
+						break;
+					}
+				}
+				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+					stamp.textureIDs[variationIndex] == 0) {
+					continue;
+				}
+			}
+
+			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
+			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		}
+	};
+
+	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -978,42 +1358,13 @@ void reapplyAllStamps() {
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
 
-	for (const auto& stamp : stamps) {
-		if (!stamp.active) continue;
+	processStamps(allyShips);
+	processStamps(enemyShips);
 
-		// Determine which texture variation to use
-		int variationIndex = stamp.currentVariationIndex;
-
-		// Make sure the variation index is valid
-		if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-			stamp.textureIDs[variationIndex] == 0) {
-			// Fall back to the first available texture
-			for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-				if (stamp.textureIDs[i] != 0) {
-					variationIndex = i;
-					break;
-				}
-			}
-			// If still no valid texture, skip this stamp
-			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-				stamp.textureIDs[variationIndex] == 0) {
-				continue;
-			}
-		}
-
-		glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
-		glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
-
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	}
+	// Don't treat bullets as obstacles
+	//processStamps(allyBullets);
+	//processStamps(enemyBullets);
 }
-
 
 
 
@@ -1085,146 +1436,76 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
-unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
-	// Make sure coordinates and indices are within bounds
-	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
-		channel < 0 || channel >= stamp.channels ||
-		variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		return 0;
-	}
-
-	// Calculate the index in the pixel data array
-	int index = (y * stamp.width + x) * stamp.channels + channel;
-
-	// Make sure the index is within bounds
-	if (index < 0 || index >= stamp.pixelData[variationIndex].size()) {
-		return 0;
-	}
-
-	return stamp.pixelData[variationIndex][index];
-}
-
-
-
-
-
 
 
 
 
 bool loadStampTextures() {
-	// Clear previous textures if they exist
-	for (auto& stamp : stamps) {
+	// Clear previous template textures
+	for (auto& stamp : stampTemplates) {
 		for (auto& texID : stamp.textureIDs) {
 			if (texID != 0) {
 				glDeleteTextures(1, &texID);
 			}
 		}
 	}
-	stamps.clear();
+	stampTemplates.clear();
 
-	int index = 0;
-	bool loadedAny = false;
-
-	// List of variations to try loading
+	// Define the file prefixes for each type of game object
+	const std::vector<std::string> prefixes = { "obstacle", "bullet", "enemy" };
 	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
 
-	// Try loading textures with increasing index
-	while (true) {
-		std::string baseFilename = "obstacle" + std::to_string(index);
-		Stamp newStamp;
-		newStamp.baseFilename = baseFilename;
-		newStamp.textureNames = { "centre", "up", "down" };
-		newStamp.currentVariationIndex = 0; // Default to center
+	bool loadedAny = false;
 
-		bool loadedAtLeastOne = false;
+	// For each prefix, attempt to load all indexed textures
+	for (const auto& prefix : prefixes) {
+		int index = 0;
 
-		// Try to load each variation
-		for (size_t i = 0; i < variations.size(); i++) {
-			std::string filename = baseFilename + variations[i] + ".png";
-			GLuint textureID = 0;
-			int width = 0, height = 0, channels = 0;
-			std::vector<unsigned char> pixelData;
+		while (true) {
+			std::string baseFilename = prefix + std::to_string(index);
+			Stamp newStamp;
+			newStamp.baseFilename = baseFilename;
+			newStamp.textureNames = { "centre", "up", "down" };
+			newStamp.currentVariationIndex = 0; // Default to center
 
-			if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
-				// First successful load sets dimensions and channels
-				if (newStamp.pixelData.empty()) {
-					newStamp.width = width;
-					newStamp.height = height;
-					newStamp.channels = channels;
+			bool loadedAtLeastOne = false;
+
+			for (size_t i = 0; i < variations.size(); i++) {
+				std::string filename = baseFilename + variations[i] + ".png";
+				GLuint textureID = 0;
+				int width = 0, height = 0, channels = 0;
+				std::vector<unsigned char> pixelData;
+
+				if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
+					if (newStamp.pixelData.empty()) {
+						newStamp.width = width;
+						newStamp.height = height;
+						newStamp.channels = channels;
+					}
+					newStamp.textureIDs.push_back(textureID);
+					newStamp.pixelData.push_back(std::move(pixelData));
+					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
+					loadedAtLeastOne = true;
 				}
+				else {
+					newStamp.textureIDs.push_back(0);
+					newStamp.pixelData.push_back(std::vector<unsigned char>());
+				}
+			}
 
-				// Add to our collections
-				newStamp.textureIDs.push_back(textureID);
-				newStamp.pixelData.push_back(std::move(pixelData));
-
-				std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
-				loadedAtLeastOne = true;
+			if (loadedAtLeastOne) {
+				stampTemplates.push_back(std::move(newStamp));
+				loadedAny = true;
+				index++;
 			}
 			else {
-				// If a variation is missing, create a placeholder
-				newStamp.textureIDs.push_back(0);
-				newStamp.pixelData.push_back(std::vector<unsigned char>());
+				break; // No more textures with this prefix
 			}
-		}
-
-		// If we loaded at least one variation, add this stamp
-		if (loadedAtLeastOne) {
-			// Special case: if we're missing the center texture but have others,
-			// copy the first available texture to the center position
-			if (newStamp.textureIDs[0] == 0) {
-				for (size_t i = 1; i < newStamp.textureIDs.size(); i++) {
-					if (newStamp.textureIDs[i] != 0) {
-						// Copy the texture ID and pixel data to position 0
-						GLuint newTexID;
-						glGenTextures(1, &newTexID);
-						glBindTexture(GL_TEXTURE_2D, newTexID);
-
-						// Copy texture parameters and data from the other texture
-						GLint width, height, format;
-						glBindTexture(GL_TEXTURE_2D, newStamp.textureIDs[i]);
-						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-						glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &format);
-
-						// Create and setup the new texture
-						glBindTexture(GL_TEXTURE_2D, newTexID);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-						glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-						// Copy pixel data
-						std::vector<unsigned char> pixelData = newStamp.pixelData[i];
-						newStamp.pixelData[0] = pixelData;
-						newStamp.textureIDs[0] = newTexID;
-
-						// Copy texture data
-						GLenum pixFormat = (newStamp.channels == 1) ? GL_RED :
-							(newStamp.channels == 3) ? GL_RGB : GL_RGBA;
-						glTexImage2D(GL_TEXTURE_2D, 0, format, newStamp.width, newStamp.height,
-							0, pixFormat, GL_UNSIGNED_BYTE, pixelData.data());
-						break;
-					}
-				}
-			}
-
-			// Initialize the stamp as a template (not active/positioned yet)
-			newStamp.active = false;
-			stamps.push_back(std::move(newStamp));
-			loadedAny = true;
-			index++;
-		}
-		else {
-			// If we can't load any variations of this index, we're done
-			break;
 		}
 	}
 
-	// Set current stamp to the first one if we loaded any
 	if (loadedAny) {
-		currentStampIndex = 0;
+		currentTemplateIndex = 0;
 	}
 
 	return loadedAny;
@@ -1232,105 +1513,45 @@ bool loadStampTextures() {
 
 
 
-
-//
-//bool loadStampTexture(const char* filename) {
-//	// Clear previous texture if it exists
-//	if (stampTexture != 0) {
-//		glDeleteTextures(1, &stampTexture);
-//	}
-//
-//	// Load image using stb_image
-//	int channels;
-//
-//	stbi_set_flip_vertically_on_load(true);
-//	unsigned char* data = stbi_load(filename, &stampWidth, &stampHeight, &channels, 0);
-//
-//	if (!data) {
-//		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
-//		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-//		return false;
-//	}
-//
-//	// Create texture
-//	glGenTextures(1, &stampTexture);
-//	glBindTexture(GL_TEXTURE_2D, stampTexture);
-//
-//	// Set texture parameters
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//
-//	// Determine format based on channels
-//	GLenum format;
-//	switch (channels) {
-//	case 1: format = GL_RED; break;
-//	case 3: format = GL_RGB; break;
-//	case 4: format = GL_RGBA; break;
-//	default:
-//		format = GL_RGB;
-//		std::cerr << "Unsupported number of channels: " << channels << std::endl;
-//	}
-//
-//	// Load texture data to GPU
-//	glTexImage2D(GL_TEXTURE_2D, 0, format, stampWidth, stampHeight, 0, format, GL_UNSIGNED_BYTE, data);
-//
-//	// Free image data
-//	stbi_image_free(data);
-//
-//	stampTextureLoaded = true;
-//	return true;
-//}
-
-
-
-
 bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
-	if (!stamp.active) return false;
+	//if (!stamp.active) return false;
 
-	// Validate variation index
+	//// Validate variation index
 	int variationIndex = stamp.currentVariationIndex;
-	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-		stamp.pixelData[variationIndex].empty()) {
-		// Fall back to first available texture
-		for (size_t i = 0; i < stamp.pixelData.size(); i++) {
-			if (!stamp.pixelData[i].empty()) {
-				variationIndex = i;
-				break;
-			}
-		}
-		// If still no valid texture, return false
-		if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-			stamp.pixelData[variationIndex].empty()) {
-			return false;
-		}
-	}
+	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//	stamp.pixelData[variationIndex].empty()) {
+	//	// Fall back to first available texture
+	//	for (size_t i = 0; i < stamp.pixelData.size(); i++) {
+	//		if (!stamp.pixelData[i].empty()) {
+	//			variationIndex = i;
+	//			break;
+	//		}
+	//	}
+	//	// If still no valid texture, return false
+	//	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//		stamp.pixelData[variationIndex].empty()) {
+	//		return false;
+	//	}
+	//}
 
-	if (stamp.pixelData[variationIndex].empty()) {
-		// No pixel data available, fall back to the original bounding box check
-		float aspect = HEIGHT / float(WIDTH);
+	//if (stamp.pixelData[variationIndex].empty()) {
+	//	// No pixel data available, fall back to the bounding box check
+	//	float minX, minY, maxX, maxY;
+	//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
 
-		// Convert pixel coordinates to normalized coordinates (0-1)
-		float pointX = point.x / (float)WIDTH;
-		float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
+	//	float aspect = HEIGHT / float(WIDTH);
 
-		// Apply aspect ratio correction to y-coordinate
-		pointY = (pointY - 0.5f) * aspect + 0.5f;
+	//	// Convert pixel coordinates to normalized coordinates (0-1)
+	//	float pointX = point.x / (float)WIDTH;
+	//	float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
 
-		// Calculate stamp bounds in normalized coordinates
-		float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
-		float halfHeightNorm = ((stamp.height / 2.0f) / HEIGHT) * aspect;
+	//	// Apply aspect ratio correction to y-coordinate
+	//	pointY = (pointY - 0.5f) * aspect + 0.5f;
 
-		float stampMinX = stamp.posX - halfWidthNorm;
-		float stampMaxX = stamp.posX + halfWidthNorm;
-		float stampMinY = stamp.posY - halfHeightNorm;
-		float stampMaxY = stamp.posY + halfHeightNorm;
-
-		// Simple bounding box check
-		return (pointX >= stampMinX && pointX <= stampMaxX &&
-			pointY >= stampMinY && pointY <= stampMaxY);
-	}
+	//	// Simple bounding box check
+	//	return (pointX >= minX && pointX <= maxX &&
+	//		pointY >= minY && pointY <= maxY);
+	//}
 
 	// Get the normalized stamp position (0-1 in screen space)
 	float stampX = stamp.posX;  // Normalized X position
@@ -1345,15 +1566,25 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	float pointX = point.x / float(WIDTH);  // 0-1 range
 	float pointY = point.y / float(HEIGHT);  // 0-1 range
 
+	// SUPER IMPORTANT
+	pointY = (pointY - 0.5f) / aspect + 0.5f;
+
+	// Calculate bounding box
+	float minX, minY, maxX, maxY;
+	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+	//global_minXs.push_back(minX);
+	//global_minYs.push_back(minY);
+	//global_maxXs.push_back(maxX);
+	//global_maxYs.push_back(maxY);
+
 	// Check if the collision point is within the stamp's bounding box
-	if (pointX < stampX - stampWidth / 2 || pointX > stampX + stampWidth / 2 ||
-		pointY < stampY - stampHeight / 2 || pointY > stampY + stampHeight / 2) {
-		return false;  // Outside the stamp's bounding box
-	}
+	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
+		return false;
 
 	// Map the collision point to texture coordinates
-	float texCoordX = (pointX - (stampX - stampWidth / 2)) / stampWidth;
-	float texCoordY = (pointY - (stampY - stampHeight / 2)) / stampHeight;
+	float texCoordX = (pointX - minX) / (maxX - minX);
+	float texCoordY = (pointY - minY) / (maxY - minY);
 
 	// Convert to pixel coordinates in the texture
 	int pixelX = int(texCoordX * stamp.width);
@@ -1384,108 +1615,87 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 }
 
 
-
-
-
-
-
-
-void reportStampCollisions() {
-	if (collisionPoints.empty()) {
-		std::cout << "\n===== Stamp Collision Report =====" << std::endl;
-		std::cout << "No collisions detected." << std::endl;
-		std::cout << "=================================" << std::endl;
+void generateFluidStampCollisionsDamage()
+{
+	if (collisionPoints.empty())
 		return;
-	}
 
-	std::cout << "\n===== Stamp Collision Report =====" << std::endl;
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
+	{
+		int stampHitCount = 0;
 
-	if (stamps.empty()) {
-		std::cout << "No active stamps found. Use right mouse button to place stamps." << std::endl;
-		std::cout << "=================================" << std::endl;
-		return;
-	}
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			float minX, minY, maxX, maxY;
+			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
-	std::cout << "Number of active stamps: " << std::count_if(stamps.begin(), stamps.end(),
-		[](const Stamp& s) { return s.active; }) << std::endl;
-	std::cout << "Number of collision points: " << collisionPoints.size() << std::endl;
+			int stampCollisions = 0;
+			int redStampCollisions = 0;
+			int blueStampCollisions = 0;
+			int bothStampCollisions = 0;
 
-	// Track overall collision statistics across all stamps
-	int totalStampCollisions = 0;
-	int totalRedStampCollisions = 0;
-	int totalBlueStampCollisions = 0;
-	int totalBothStampCollisions = 0;
+			float red_count = 0;
+			float blue_count = 0;
 
-	// Process each stamp
-	for (size_t i = 0; i < stamps.size(); i++) {
-		const auto& stamp = stamps[i];
-		if (!stamp.active) continue;
+			// Test each collision point against this stamp
+			for (const auto& point : collisionPoints)
+			{
+				float normX = point.x / float(WIDTH);
+				float normY = point.y / float(HEIGHT);
 
-		// Per-stamp collision counters
-		int stampCollisions = 0;
-		int redStampCollisions = 0;
-		int blueStampCollisions = 0;
-		int bothStampCollisions = 0;
+				// Perform the actual collision check
+				bool collides = isCollisionInStamp(point, stamps[i]);
 
-		// Debug a sample collision point for this stamp (if any)
-		CollisionPoint* samplePoint = nullptr;
+				if (collides) {
+					stampCollisions++;
 
-		// Check all collision points against this stamp
-		for (const auto& point : collisionPoints) {
-			if (isCollisionInStamp(point, stamp)) {
-				stampCollisions++;
-				if (!samplePoint) samplePoint = const_cast<CollisionPoint*>(&point);
+					if (point.r > 0) {
+						red_count += point.r;
+						redStampCollisions++;
+					}
 
-				// keep track of fire-smoke alpha. less alpha, less damage per second
-				cout << "RED: " << point.r << endl;
-				cout << "BLUE: " << point.b << endl;
+					if (point.b > 0) {
+						blue_count += point.b;
+						blueStampCollisions++;
+					}
 
-				if (point.r > 0) {
-					redStampCollisions++;
-					totalRedStampCollisions++;
+					if (point.r > 0 && point.b > 0) {
+						red_count += point.r;
+						blue_count += point.b;
+
+						bothStampCollisions++;
+					}
 				}
+			}
 
-				if (point.b > 0) {
-					blueStampCollisions++;
-					totalBlueStampCollisions++;
-				}
+			// Report collisions for this stamp
+			if (stampCollisions > 0)
+			{
+				stampHitCount++;
 
-				if (point.r > 0 && point.b > 0) {
-					bothStampCollisions++;
-					totalBothStampCollisions++;
-				}
+				std::string textureName = stamps[i].baseFilename;
+				std::string variationName = "unknown";
 
-				totalStampCollisions++;
+				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
+					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
+
+				float damage = 0.0f;
+
+				if (type == "Ally Ship")
+					damage = blue_count;
+				else
+					damage = red_count;
+
+				const float fps_coeff = float(FLUID_STAMP_COLLISION_REPORT_INTERVAL) / FPS;
+
+				stamps[i].health -= damage * DT * fps_coeff;
+				cout << stamps[i].health << endl;
 			}
 		}
+	};
 
-		// Output the results for this stamp
-		std::string textureName = stamp.baseFilename;
-		std::string variationName = "unknown";
-
-		if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
-			variationName = stamp.textureNames[stamp.currentVariationIndex];
-		}
-
-		if (stampCollisions > 0) {
-			std::cout << "\nStamp #" << (i + 1) << ":" << std::endl;
-			std::cout << "  Position: (" << stamp.posX << ", " << stamp.posY << ")" << std::endl;
-			std::cout << "  Size: " << stamp.width << "x" << stamp.height << " pixels" << std::endl;
-			std::cout << "  Texture: " << textureName << " (" << variationName << ")" << std::endl;
-			std::cout << "  Collisions: " << stampCollisions << std::endl;
-			std::cout << "  Red: " << redStampCollisions
-				<< ", Blue: " << blueStampCollisions
-				<< ", Both: " << bothStampCollisions << std::endl;
-		}
-	}
-
-	// Output overall summary
-	std::cout << "\nOverall Statistics:" << std::endl;
-	std::cout << "  Total stamp collisions: " << totalStampCollisions << std::endl;
-	std::cout << "  Red collisions: " << totalRedStampCollisions << std::endl;
-	std::cout << "  Blue collisions: " << totalBlueStampCollisions << std::endl;
-	std::cout << "  Both colors collisions: " << totalBothStampCollisions << std::endl;
-	std::cout << "=================================" << std::endl;
+	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
+	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
 
 
@@ -1496,13 +1706,9 @@ void reportStampCollisions() {
 
 
 
-
-
-
-
-
-void applyBitmapObstacle() {
-	if (!rightMouseDown || stamps.empty()) return;
+void applyBitmapObstacle()
+{
+	if (!rightMouseDown || stampTemplates.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -1512,76 +1718,19 @@ void applyBitmapObstacle() {
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 
-	if (rightMouseDown && !lastRightMouseDown) {
-		// Create a new instance of the template stamp at current position
-		Stamp newStamp = stamps[currentStampIndex]; // Copy the template
-		newStamp.active = true;
-		newStamp.posX = mousePosX;
-		newStamp.posY = mousePosY;
-
-		// Set variation based on arrow key state
-		if (upKeyPressed) {
-			// Try to use "up" variation (index 1)
-			if (newStamp.textureIDs.size() > 1 && newStamp.textureIDs[1] != 0) {
-				newStamp.currentVariationIndex = 1;
-			}
-		}
-		else if (downKeyPressed) {
-			// Try to use "down" variation (index 2)
-			if (newStamp.textureIDs.size() > 2 && newStamp.textureIDs[2] != 0) {
-				newStamp.currentVariationIndex = 2;
-			}
-		}
-		else {
-			// Default to center (index 0)
-			newStamp.currentVariationIndex = 0;
-		}
-
-		// Ensure the variation is valid
-		if (newStamp.currentVariationIndex >= newStamp.textureIDs.size() ||
-			newStamp.textureIDs[newStamp.currentVariationIndex] == 0) {
-			// Find first available texture
-			for (size_t i = 0; i < newStamp.textureIDs.size(); i++) {
-				if (newStamp.textureIDs[i] != 0) {
-					newStamp.currentVariationIndex = i;
-					break;
-				}
-			}
-		}
-
-		// Add to our active stamps
-		stamps.push_back(newStamp);
-
-		// Log information about the newly added stamp
-		std::string variationName = "unknown";
-		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
-			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
-		}
-
-		std::cout << "Added new stamp #" << stamps.size() << " at position (" << mousePosX << ", " << mousePosY << ")"
-			<< " with texture: " << newStamp.baseFilename
-			<< " (variation: " << variationName << ")" << std::endl;
-	}
-
 	lastRightMouseDown = rightMouseDown;
 
-	// For rendering the current stamp at mouse position (preview)
-	const Stamp& currentStamp = stamps[currentStampIndex];
-
-	// Determine which variation to render based on key state
-	int currentVariation = 0; // Default to center
-
+	// Preview the current template stamp at mouse position
+	const Stamp& currentStamp = stampTemplates[currentTemplateIndex];
+	int currentVariation = 0;
 	if (upKeyPressed) {
-		currentVariation = 1; // up
+		currentVariation = 1;
 	}
 	else if (downKeyPressed) {
-		currentVariation = 2; // down
+		currentVariation = 2;
 	}
-
-	// Make sure we have a valid texture for the selected variation
 	if (currentVariation >= currentStamp.textureIDs.size() ||
 		currentStamp.textureIDs[currentVariation] == 0) {
-		// Find first available texture
 		for (size_t i = 0; i < currentStamp.textureIDs.size(); i++) {
 			if (currentStamp.textureIDs[i] != 0) {
 				currentVariation = i;
@@ -1698,7 +1847,10 @@ void diffuseFriendlyColor() {
 
 
 
-void detectCollisions() {
+
+
+void detectCollisions()
+{
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
@@ -1722,43 +1874,31 @@ void detectCollisions() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// If reporting is enabled, read back collision data
-	if (reportCollisions) {
-		// Allocate buffer for collision data - RGBA
-		std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 
-		// Read back collision texture data from GPU
-		glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
 
-		// Clear previous collision locations
-		collisionPoints.clear();
+	// Clear previous collision locations
+	collisionPoints.clear();
 
-		// Find collision locations and categorize them
-		for (int y = 0; y < HEIGHT; ++y) {
-			for (int x = 0; x < WIDTH; ++x) {
-				int index = (y * WIDTH + x) * 4;
-				float r = collisionData[index];
-				float b = collisionData[index + 2];
-				float a = collisionData[index + 3];
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
 
-				if (a > 0.0) {
-					collisionPoints.push_back(CollisionPoint(x, y, r, b));
-				}
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
 			}
 		}
-
-
-
-
-		if (collisionPoints.size() > 0)
-		{
-			reportStampCollisions();
-		}
-
-		// Reset reporting flag
-		reportCollisions = false;
 	}
 }
+
+
 
 
 
@@ -1859,7 +1999,7 @@ void initGL() {
 	stampObstacleProgram = createShaderProgram(vertexShaderSource, stampObstacleFragmentShader);
 	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
 	stampTextureProgram = createShaderProgram(vertexShaderSource, stampTextureFragmentShader);
-
+	renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
 
 
 
@@ -2139,10 +2279,14 @@ void subtractPressureGradient() {
 	velocityIndex = 1 - velocityIndex;
 }
 
-// Add force to the velocity field
-void addForce() {
-	if (!mouseDown) return;
 
+
+
+
+
+
+
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2150,24 +2294,30 @@ void addForce() {
 
 	float aspect = HEIGHT / float(WIDTH);
 
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Convert normalized position (0-1) to the appropriate coordinates for shader
+	float shaderPosX = posX;
+	float shaderPosY = posY;
 
-	// Center the Y coordinate, apply aspect ratio, then un-center
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Apply aspect ratio adjustment to position - uncomment this for consistency
+	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
 
-	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+	float x_shift = 0.05 * rand() / float(RAND_MAX);
+	float y_shift = 0.05 * rand() / float(RAND_MAX);
 
+	shaderPosX += x_shift;
+	shaderPosY += y_shift;
+
+	// Scale velocity to account for aspect ratio
+	float shaderVelX = velX * aspect;
+	float shaderVelY = velY;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform2f(glGetUniformLocation(addForceProgram, "point"), shaderPosX, shaderPosY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), shaderVelX, shaderVelY);
+	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2181,6 +2331,29 @@ void addForce() {
 
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
+}
+
+
+
+
+
+
+
+
+
+
+void addMouseForce(float radius, float strength, float shift_scale)
+{
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	// Calculate velocity from mouse movement
+	float mouseVelX = (mouseX - prevMouseX) / (float)WIDTH;  // Normalize to texture space
+	float mouseVelY = -(mouseY - prevMouseY) / (float)HEIGHT; // Normalize to texture space
+
+	// Apply the force using the core implementation
+	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength, shift_scale);
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
@@ -2188,87 +2361,78 @@ void addForce() {
 }
 
 
-void updateObstacle() {
-	if (!rightMouseDown) return;
 
-	// Only handle the creation of new stamps, not the rendering
-	if (rightMouseDown && !lastRightMouseDown && !stamps.empty()) {
-		float aspect = HEIGHT / float(WIDTH);
-
-		// Get normalized mouse position (0 to 1 range)
-		float mousePosX = mouseX / (float)WIDTH;
-		float mousePosY = 1.0f - (mouseY / (float)HEIGHT); // Invert Y for OpenGL
-
-		// Apply aspect ratio correction
-		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-
-		// Create new stamp from the template
-		Stamp newStamp = stamps[currentStampIndex]; // Copy the template
-		newStamp.active = true;
-		newStamp.posX = mousePosX;
-		newStamp.posY = mousePosY;
-
-		// Set variation based on arrow key state
-		if (upKeyPressed) {
-			// Use "up" variation (index 1) if available
-			if (newStamp.textureIDs.size() > 1 && newStamp.textureIDs[1] != 0) {
-				newStamp.currentVariationIndex = 1;
-			}
-			else {
-				newStamp.currentVariationIndex = 0; // Fall back to center
-			}
-		}
-		else if (downKeyPressed) {
-			// Use "down" variation (index 2) if available
-			if (newStamp.textureIDs.size() > 2 && newStamp.textureIDs[2] != 0) {
-				newStamp.currentVariationIndex = 2;
-			}
-			else {
-				newStamp.currentVariationIndex = 0; // Fall back to center
-			}
-		}
-		else {
-			// Default to center (index 0)
-			newStamp.currentVariationIndex = 0;
-		}
-
-		// Fall back if the chosen variation isn't available
-		if (newStamp.currentVariationIndex >= newStamp.textureIDs.size() ||
-			newStamp.textureIDs[newStamp.currentVariationIndex] == 0) {
-			// Find first available texture
-			for (size_t i = 0; i < newStamp.textureIDs.size(); i++) {
-				if (newStamp.textureIDs[i] != 0) {
-					newStamp.currentVariationIndex = i;
-					break;
-				}
-			}
-		}
-
-		stamps.push_back(newStamp);
-
-		// Get variation name for logging
-		std::string variationName = "unknown";
-		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
-			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
-		}
-
-		std::cout << "Added new stamp #" << stamps.size() << " at position ("
-			<< mousePosX << ", " << mousePosY << ") with texture: "
-			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
-	}
-
-	lastRightMouseDown = rightMouseDown;
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
+	applyForceCore(posX, posY, velX, velY, radius, strength, shift_scale);
 }
 
 
+void addColor(float posX, float posY, float velX, float velY, float radius, float shift_scale)
+{
+	// Determine which color texture to modify based on the active mode
+	GLuint targetTexture;
+	int* targetIndex;
+
+	if (red_mode)
+	{
+		targetTexture = colorTexture[1 - colorIndex];
+		targetIndex = &colorIndex;
+	}
+	else
+	{
+		targetTexture = friendlyColorTexture[1 - friendlyColorIndex];
+		targetIndex = &friendlyColorIndex;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
+
+	glUseProgram(addColorProgram);
+
+	float x_shift = shift_scale * rand() / float(RAND_MAX);
+	float y_shift = shift_scale * rand() / float(RAND_MAX);
+
+	float mousePosX = posX + x_shift;
+	float mousePosY = posY + y_shift;
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
+	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), radius);
+
+	// Bind the appropriate texture based on mode
+	glActiveTexture(GL_TEXTURE0);
+
+	if (red_mode)
+	{
+		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	}
+	else
+	{
+		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	}
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Swap the appropriate texture index
+	if (red_mode)
+	{
+		colorIndex = 1 - colorIndex;
+	}
+	else
+	{
+		friendlyColorIndex = 1 - friendlyColorIndex;
+	}
+}
 
 
-
-
-
-
-
-void addColor()
+void addMouseColor()
 {
 	if (!mouseDown) return;
 
@@ -2341,50 +2505,521 @@ void addColor()
 
 
 
-void simulationStep() {
-	// First clear obstacle texture and reapply all stamps
-	clearObstacleTexture();
-	reapplyAllStamps();
 
-	// Update all dynamic textures
-	for (auto& stamp : stamps) {
-		if (stamp.active) {
-			updateDynamicTexture(stamp);
+
+
+
+
+
+
+void updateObstacle()
+{
+	if (!rightMouseDown || stampTemplates.empty()) return;
+
+	if (rightMouseDown && !lastRightMouseDown) {
+		float aspect = HEIGHT / float(WIDTH);
+		float mousePosX = mouseX / (float)WIDTH;
+		float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
+		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+
+		// Create new stamp from the current template
+		Stamp newStamp = stampTemplates[currentTemplateIndex];
+		newStamp.posX = mousePosX;
+		newStamp.posY = mousePosY;
+
+		// Set variation based on arrow key state
+		if (upKeyPressed) {
+			if (newStamp.textureIDs.size() > 1 && newStamp.textureIDs[1] != 0) {
+				newStamp.currentVariationIndex = 1;
+			}
+			else {
+				newStamp.currentVariationIndex = 0;
+			}
+		}
+		else if (downKeyPressed) {
+			if (newStamp.textureIDs.size() > 2 && newStamp.textureIDs[2] != 0) {
+				newStamp.currentVariationIndex = 2;
+			}
+			else {
+				newStamp.currentVariationIndex = 0;
+			}
+		}
+		else {
+			newStamp.currentVariationIndex = 0;
+		}
+
+		// Fall back to first available texture if necessary
+		if (newStamp.currentVariationIndex >= newStamp.textureIDs.size() ||
+			newStamp.textureIDs[newStamp.currentVariationIndex] == 0) {
+			for (size_t i = 0; i < newStamp.textureIDs.size(); i++) {
+				if (newStamp.textureIDs[i] != 0) {
+					newStamp.currentVariationIndex = i;
+					break;
+				}
+			}
+		}
+
+		// Add the stamp to the appropriate vector based on the file prefix in baseFilename
+		std::string prefix = newStamp.baseFilename.substr(0, newStamp.baseFilename.find_first_of("0123456789"));
+
+		if (prefix == "obstacle") {
+			allyShips.push_back(newStamp);
+			std::cout << "Added new ally ship";
+		}
+		else if (prefix == "bullet")
+		{
+			RandomUnitVector(newStamp.velX, newStamp.velY);
+
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = false;
+
+			newStamp.birth_time = global_time;
+			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+			allyBullets.push_back(newStamp);
+
+
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = true;
+
+			newStamp.birth_time = global_time;
+			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+			allyBullets.push_back(newStamp);
+
+
+
+			std::cout << "Added new ally bullet";
+		}
+		else if (prefix == "enemy")
+		{
+			//newStamp.velX = rand() / float(RAND_MAX) * 0.001;
+			//newStamp.velY = rand() / float(RAND_MAX) * 0.001;
+
+			//if (rand() % 2)
+			//	newStamp.velX = -newStamp.velX;
+
+			//if (rand() % 2)
+			//	newStamp.velY = -newStamp.velY;
+
+			enemyShips.push_back(newStamp);
+			std::cout << "Added new enemy ship";
+		}
+
+		std::string variationName = "unknown";
+		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
+			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
+		}
+
+		std::cout << " at position (" << mousePosX << ", " << mousePosY << ") with texture: "
+			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
+	}
+
+	lastRightMouseDown = rightMouseDown;
+}
+
+
+
+
+//
+//void move_bullets(void) 
+//{
+//	auto update_bullets = [&](std::vector<Stamp>& stamps) 
+//	{
+//		float aspect = HEIGHT / float(WIDTH);
+//
+//		for (auto& stamp : stamps) 
+//		{
+//			// Scale X velocity by aspect ratio for consistency
+//			stamp.posX += stamp.velX * aspect;
+//			stamp.posY += stamp.velY;
+//
+//
+//
+//			float rand_x = 0, rand_y = 0;
+//
+//			// Add in random walking, like lightning
+//			RandomUnitVector(rand_x, rand_y);
+//
+//			stamp.posX += rand_x * stamp.path_randomization;
+//			stamp.posY += rand_y * stamp.path_randomization;
+//		}
+//	};
+//
+//	update_bullets(allyBullets);
+//	update_bullets(enemyBullets);
+//}
+
+
+
+
+
+void move_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	{
+		float aspect = HEIGHT / float(WIDTH);
+
+		for (auto& stamp : stamps)
+		{
+			// Store the original direction vector
+			float dirX = stamp.velX * aspect;
+			float dirY = stamp.velY;
+
+			// Normalize the direction vector
+			float dirLength = sqrt(dirX * dirX + dirY * dirY);
+			if (dirLength > 0) {
+				dirX /= dirLength;
+				dirY /= dirLength;
+			}
+
+			// Calculate the perpendicular direction vector (rotate 90 degrees)
+			float perpX = -dirY;
+			float perpY = dirX;
+
+			// Calculate time-based sinusoidal amplitude
+			// Use the birth_time to ensure continuous motion
+			float timeSinceCreation = global_time - stamp.birth_time;
+			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+
+
+			float sinValue = 0;
+
+			if (stamp.sinusoidal_shift)
+				sinValue = -sin(timeSinceCreation * frequency);
+			else
+				sinValue = sin(timeSinceCreation * frequency);
+
+			// Move forward along original path
+			float forwardSpeed = dirLength; // Original velocity magnitude
+			stamp.posX += dirX * forwardSpeed;
+			stamp.posY += dirY * forwardSpeed;
+
+			// Add sinusoidal motion perpendicular to the path
+			stamp.posX += perpX * sinValue * amplitude;
+			stamp.posY += perpY * sinValue * amplitude;
+
+			// Add in random walking, like lightning (from original code)
+			float rand_x = 0, rand_y = 0;
+			RandomUnitVector(rand_x, rand_y);
+			stamp.posX += rand_x * stamp.path_randomization;
+			stamp.posY += rand_y * stamp.path_randomization;
+		}
+	};
+
+	update_bullets(allyBullets);
+	update_bullets(enemyBullets);
+}
+
+
+
+
+
+void mark_colliding_bullets(void)
+{
+	for (size_t i = 0; i < allyBullets.size(); ++i)
+		for (size_t j = 0; j < enemyShips.size(); ++j)
+			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
+				allyBullets[i].to_be_culled = true;
+
+	for (size_t i = 0; i < enemyBullets.size(); ++i)
+		for (size_t j = 0; j < allyShips.size(); ++j)
+			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
+				enemyBullets[i].to_be_culled = true;
+}
+
+void mark_old_bullets(void)
+{
+	for (size_t i = 0; i < allyBullets.size(); ++i)
+	{
+		if (allyBullets[i].death_time < 0.0)
+			continue;
+
+		if (allyBullets[i].death_time <= global_time)
+			allyBullets[i].to_be_culled = true;
+	}
+
+	//for (size_t i = 0; i < allyBullets.size(); ++i)
+	//{
+	//	if (allyBullets[i].death_time < 0.0)
+	//		continue;
+
+	//	if (allyBullets[i].death_time <= global_time)
+	//		allyBullets[i].to_be_culled = true;
+	//}
+}
+
+void mark_offscreen_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			// Check if the stamp is outside the visible area
+			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
+				adjustedPosY < -0.1 || adjustedPosY > 1.1)
+			{
+				stamp.to_be_culled = true;
+			}
+		}
+	};
+
+	update_bullets(allyBullets);
+	update_bullets(enemyBullets);
+}
+
+
+void cull_marked_bullets(void)
+{
+	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				cout << "culling " << type << " bullet" << endl;
+				stamps.erase(stamps.begin() + i);
+				i = 0;
+			}
+		}
+	};
+
+	update_bullets(allyBullets, "Ally");
+	update_bullets(enemyBullets, "Enemy");
+}
+
+
+
+
+
+
+
+
+
+void move_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps, bool keep_within_screen_bounds)
+	{
+		for (auto& stamp : stamps)
+		{
+			const float aspect = WIDTH / float(HEIGHT);
+
+			stamp.posX += stamp.velX / aspect;
+			stamp.posY += stamp.velY;
+
+			if (keep_within_screen_bounds)
+			{
+				// Calculate adjusted Y coordinate that accounts for aspect ratio
+				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+				// Constrain X position
+				if (stamp.posX < 0)
+					stamp.posX = 0;
+				if (stamp.posX > 1)
+					stamp.posX = 1;
+
+				// Constrain Y position, accounting for aspect ratio
+				if (adjustedPosY < 0)
+					stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+				if (adjustedPosY > 1)
+					stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+			}
+		}
+	};
+
+	update_ships(allyShips, true);
+	update_ships(enemyShips, false);
+}
+
+
+void mark_dying_ships(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
+		if (allyShips[i].health <= 0)
+		{
+			// to do: Add random ally bullets, based on ally ship stamp size and location
+			allyShips[i].to_be_culled = true;
 		}
 	}
 
-	// Continue with existing code...
-	// Add force from mouse interaction
-	addForce();
+	for (size_t i = 0; i < enemyShips.size(); ++i)
+	{
+		if (enemyShips[i].health <= 0)
+		{
+			// to do: Add random ENEMY bullets, based on enemy ship stamp size and location
+			enemyShips[i].to_be_culled = true;
+		}
+	}
+}
 
-	// Add color from mouse interaction
-	addColor();
+void mark_colliding_ships(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
+		for (size_t j = 0; j < enemyShips.size(); ++j)
+		{
+			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
+			{
+				// to do: Add random ally bullets, based on ally ship stamp size and location
+				allyShips[i].health = 0;
+				allyShips[i].to_be_culled = true;
+			}
+		}
+	}
+}
 
-	// Update obstacles from mouse interaction
+void mark_offscreen_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			// Check if the stamp is outside the visible area
+			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
+				adjustedPosY < -0.1 || adjustedPosY > 1.1)
+			{
+				stamp.to_be_culled = true;
+			}
+		}
+	};
+
+	//update_ships(allyShips);
+	update_ships(enemyShips);
+}
+
+
+
+void proceed_stamp_opacity(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				stamps[i].stamp_opacity -= DT;
+			}
+		}
+	};
+
+	update_ships(allyShips, "Ally");
+	update_ships(enemyShips, "Enemy");
+}
+
+
+void cull_marked_ships(void)
+{
+	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
+			{
+				cout << "culling " << type << " ship" << endl;
+				stamps.erase(stamps.begin() + i);
+				i = 0;
+			}
+		}
+	};
+
+	update_ships(allyShips, "Ally");
+	update_ships(enemyShips, "Enemy");
+}
+
+
+
+
+
+
+
+
+void simulationStep() {
+	clearObstacleTexture();
+	reapplyAllStamps();
+
+	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+			updateDynamicTexture(stamp);
+	};
+
+	updateDynamicTextures(allyShips);
+	updateDynamicTextures(enemyShips);
+	updateDynamicTextures(allyBullets);
+	updateDynamicTextures(enemyBullets);
+
+
+	const bool old_red_mode = red_mode;
+
+	red_mode = true;
+
+	for (size_t i = 0; i < allyBullets.size(); i++)
+	{
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, allyBullets[i].force_randomization);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, allyBullets[i].colour_randomization);
+	}
+
+	red_mode = false;
+
+	for (size_t i = 0; i < enemyBullets.size(); i++)
+	{
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, enemyBullets[i].force_randomization);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, enemyBullets[i].colour_randomization);
+	}
+
+	red_mode = old_red_mode;
+
+
+
+	addMouseForce(0.05, 5000, 0.0);
+	addMouseColor();
+
+
 	updateObstacle();
-
-	// Advect velocity
 	advectVelocity();
-
-	// Diffuse velocity - add this line
 	diffuseVelocity();
-
-	// Advect both color sets
 	advectColor();
 	advectFriendlyColor();
-
-	// Diffuse both color sets
 	diffuseColor();
 	diffuseFriendlyColor();
-
-	// Project velocity to be divergence-free
 	computeDivergence();
-	solvePressure(20);  // 20 iterations of Jacobi method
+	solvePressure(5);
 	subtractPressureGradient();
 
-	// Detect collisions between density and obstacles
-	detectCollisions();
+	move_bullets();
+	mark_colliding_bullets();
+	mark_old_bullets();
+	mark_offscreen_bullets();
+	cull_marked_bullets();
+
+	move_ships();
+	mark_colliding_ships();
+	mark_offscreen_ships();
+	mark_dying_ships();
+	proceed_stamp_opacity();
+	cull_marked_ships();
+
+	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
+	{
+		detectCollisions();
+		generateFluidStampCollisionsDamage();
+	}
 }
+
 
 
 
@@ -2401,11 +3036,11 @@ void renderToScreen() {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Use a render shader program
-	GLuint renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
+
 	glUseProgram(renderProgram);
 
-	static float time = 0.0f;
-	time += 0.016f; // Approximate time for 60fps, adjust as needed
+
+	global_time += DT; // Approximate time for 60fps, adjust as needed
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
@@ -2414,7 +3049,7 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
 	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-	glUniform1f(glGetUniformLocation(renderProgram, "time"), time);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), global_time);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
@@ -2432,8 +3067,6 @@ void renderToScreen() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Cleanup the first render program
-	glDeleteProgram(renderProgram);
 
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
@@ -2442,53 +3075,91 @@ void renderToScreen() {
 
 	glUseProgram(stampTextureProgram);
 
-	// Process each active stamp
-	for (const auto& stamp : stamps) {
-		if (!stamp.active) continue;
-
-		// Determine which texture variation to use
-		int variationIndex = stamp.currentVariationIndex;
-
-		// Make sure the variation index is valid
-		if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-			stamp.textureIDs[variationIndex] == 0) {
-			// Fall back to the first available texture
-			for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-				if (stamp.textureIDs[i] != 0) {
-					variationIndex = i;
-					break;
-				}
-			}
-			// If still no valid texture, skip this stamp
+	auto renderStamps = [&](const std::vector<Stamp>& stamps)
+	{
+		for (const auto& stamp : stamps)
+		{
+			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
-				continue;
+				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+					if (stamp.textureIDs[i] != 0) {
+						variationIndex = i;
+						break;
+					}
+				}
+				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+					stamp.textureIDs[variationIndex] == 0) {
+					continue;
+				}
 			}
+
+			float aspect = WIDTH / float(HEIGHT);
+			float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
+			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
+
+			// added in opacity as a uniform, so that the stamp can fade away over time upon death
+			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 		}
+	};
 
-		float aspect = WIDTH / float(HEIGHT);
-		float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+	renderStamps(allyShips);
+	renderStamps(enemyShips);
+	//	renderStamps(allyBullets);
+	//	renderStamps(enemyBullets);
 
-		// Set stamp-specific uniforms
-		glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
-		glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f); // Lower threshold for visual display
-		glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
 
-		// Bind the appropriate texture variation
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+	glDisable(GL_BLEND);
 
-		// Render full-screen quad for this stamp
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Draw bounding boxes for all stamps to debug
+	//for (const auto& stamp : allyShips) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
+
+	//for (const auto& stamp : enemyShips) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
+
+	//for (const auto& stamp : allyBullets) 
+	//{
+	//	drawBoundingBox(stamp);
+	//}
+
+	//for (const auto& stamp : enemyBullets) {
+	//	if (stamp.active) {
+	//		drawBoundingBox(stamp);
+	//	}
+	//}
+
+	// Debug visualization of global bounding box
+	for (size_t i = 0; i < global_minXs.size(); i++)
+	{
+		drawBoundingBox(global_minXs[i], global_minYs[i], global_maxXs[i], global_maxYs[i]);
 	}
 
-	// Disable blending when done
-	glDisable(GL_BLEND);
-}
 
+	global_minXs.clear();
+	global_minYs.clear();
+	global_maxXs.clear();
+	global_maxYs.clear();
+
+
+}
 
 
 
@@ -2503,7 +3174,8 @@ void display() {
 	frameCount++;
 
 	// Check if it's time to report collisions
-	if (frameCount % REPORT_INTERVAL == 0) {
+	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
+	{
 		reportCollisions = true;
 	}
 
@@ -2551,7 +3223,6 @@ void mouseMotion(int x, int y) {
 
 
 // GLUT keyboard callback
-
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case 'r':
@@ -2569,13 +3240,13 @@ void keyboard(unsigned char key, int x, int y) {
 	case 'l':  // Load all stamp textures
 	case 'L':
 		if (loadStampTextures()) {
-			std::cout << "Loaded " << stamps.size() << " stamp templates" << std::endl;
-			if (!stamps.empty()) {
-				std::cout << "Currently using: " << stamps[currentStampIndex].baseFilename << std::endl;
+			std::cout << "Loaded " << stampTemplates.size() << " stamp templates" << std::endl;
+			if (!stampTemplates.empty()) {
+				std::cout << "Currently using: " << stampTemplates[currentTemplateIndex].baseFilename << std::endl;
 				std::cout << "Available variations:";
-				for (size_t i = 0; i < stamps[currentStampIndex].textureNames.size(); i++) {
-					if (stamps[currentStampIndex].textureIDs[i] != 0) {
-						std::cout << " " << stamps[currentStampIndex].textureNames[i];
+				for (size_t i = 0; i < stampTemplates[currentTemplateIndex].textureNames.size(); i++) {
+					if (stampTemplates[currentTemplateIndex].textureIDs[i] != 0) {
+						std::cout << " " << stampTemplates[currentTemplateIndex].textureNames[i];
 					}
 				}
 				std::cout << std::endl;
@@ -2588,134 +3259,163 @@ void keyboard(unsigned char key, int x, int y) {
 
 	case 't':  // Cycle to the next stamp texture
 	case 'T':
-		if (!stamps.empty()) {
-			currentStampIndex = (currentStampIndex + 1) % stamps.size();
+		if (!stampTemplates.empty()) {
+			currentTemplateIndex = (currentTemplateIndex + 1) % stampTemplates.size();
 			std::cout << "Switched to stamp texture: "
-				<< stamps[currentStampIndex].baseFilename
-				<< " (" << (currentStampIndex + 1) << " of "
-				<< stamps.size() << ")" << std::endl;
+				<< stampTemplates[currentTemplateIndex].baseFilename
+				<< " (" << (currentTemplateIndex + 1) << " of "
+				<< stampTemplates.size() << ")" << std::endl;
+
+			// Identify the stamp type based on the prefix
+			std::string prefix = stampTemplates[currentTemplateIndex].baseFilename.substr(
+				0, stampTemplates[currentTemplateIndex].baseFilename.find_first_of("0123456789"));
+
+			if (prefix == "obstacle") {
+				std::cout << "Type: Ally Ship" << std::endl;
+			}
+			else if (prefix == "bullet") {
+				std::cout << "Type: Bullet" << std::endl;
+			}
+			else if (prefix == "enemy") {
+				std::cout << "Type: Enemy Ship" << std::endl;
+			}
 		}
 		else {
 			std::cout << "No stamp textures loaded. Press 'L' to load textures." << std::endl;
 		}
 		break;
-
-	case 's':  // Clear all stamps
-	case 'S':
-	{
-		// Keep the template stamps but remove all active ones
-		std::vector<Stamp> templates;
-		for (size_t i = 0; i < stamps.size(); i++) {
-			if (!stamps[i].active) {
-				templates.push_back(stamps[i]);
-			}
-		}
-		if (templates.size() < stamps.size()) {
-			stamps = templates;
-			std::cout << "Cleared all active stamps" << std::endl;
-		}
-		else {
-			std::cout << "No active stamps to clear" << std::endl;
-		}
-	}
-	break;
-
-	case 'x':  // Clear only the most recently added stamp
-	case 'X':
-	{
-		// Find the last active stamp and remove it
-		for (int i = stamps.size() - 1; i >= 0; i--) {
-			if (stamps[i].active) {
-				stamps.erase(stamps.begin() + i);
-				std::cout << "Removed the most recent stamp. "
-					<< std::count_if(stamps.begin(), stamps.end(),
-						[](const Stamp& s) { return s.active; })
-					<< " active stamps remaining." << std::endl;
-				break;
-			}
-		}
-	}
-	break;
-
-	case 'p':  // Print debug info about stamps
-	case 'P':
-	{
-		int activeCount = std::count_if(stamps.begin(), stamps.end(),
-			[](const Stamp& s) { return s.active; });
-		std::cout << "Debug: Current stamps (" << stamps.size() << " total, "
-			<< activeCount << " active):" << std::endl;
-
-		for (size_t i = 0; i < stamps.size(); i++) {
-			const auto& stamp = stamps[i];
-			std::string variationName = "unknown";
-
-			if (stamp.currentVariationIndex >= 0 && stamp.currentVariationIndex < stamp.textureNames.size()) {
-				variationName = stamp.textureNames[stamp.currentVariationIndex];
-			}
-
-			if (stamp.active) {
-				std::cout << "  Stamp #" << (i + 1) << ": active=" << (stamp.active ? "yes" : "no")
-					<< ", pos=(" << stamp.posX << "," << stamp.posY << ")"
-					<< ", size=" << stamp.width << "x" << stamp.height
-					<< ", texture=" << stamp.baseFilename
-					<< ", variation=" << variationName << std::endl;
-			}
-		}
-	}
-	break;
 	}
 }
 
+
+
+
+
+// Modified specialKeyboard function to handle diagonal movement
 void specialKeyboard(int key, int x, int y) {
 	switch (key) {
 	case GLUT_KEY_UP:
 		upKeyPressed = true;
-		downKeyPressed = false;
 
-		// Adjust the texture for all active stamps
-		for (auto& stamp : stamps) {
-			if (stamp.active && stamp.textureIDs.size() > 1 && stamp.textureIDs[1] != 0) {
+		for (auto& stamp : allyShips) {
+			if (stamp.textureIDs[0] != 0) {
 				stamp.currentVariationIndex = 1; // up variation
 			}
 		}
-		break;
 
+		break;
 	case GLUT_KEY_DOWN:
-		upKeyPressed = false;
 		downKeyPressed = true;
 
-		// Adjust the texture for all active stamps
-		for (auto& stamp : stamps) {
-			if (stamp.active && stamp.textureIDs.size() > 2 && stamp.textureIDs[2] != 0) {
+		for (auto& stamp : allyShips) {
+			if (stamp.textureIDs[0] != 0) {
 				stamp.currentVariationIndex = 2; // down variation
 			}
 		}
+
 		break;
+	case GLUT_KEY_LEFT:
+		leftKeyPressed = true;
+		break;
+	case GLUT_KEY_RIGHT:
+		rightKeyPressed = true;
+		break;
+	}
+
+	if (allyShips.size() > 0) {
+		// Reset velocity
+		allyShips[0].velX = 0.0;
+		allyShips[0].velY = 0.0;
+
+		// Combine key states to allow diagonal movement
+		if (upKeyPressed) {
+			allyShips[0].velY = 1;
+		}
+		if (downKeyPressed) {
+			allyShips[0].velY = -1;
+		}
+		if (leftKeyPressed) {
+			allyShips[0].velX = -1;
+		}
+		if (rightKeyPressed) {
+			allyShips[0].velX = 1;
+		}
+
+		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+
+		if (vel_length > 0)
+		{
+			allyShips[0].velX /= vel_length;
+			allyShips[0].velY /= vel_length;
+
+			allyShips[0].velX *= 0.0025;
+			allyShips[0].velY *= 0.0025;
+		}
 	}
 }
 
+// Modified specialKeyboardUp function to reset key states
 void specialKeyboardUp(int key, int x, int y) {
 	switch (key) {
 	case GLUT_KEY_UP:
-	case GLUT_KEY_DOWN:
 		upKeyPressed = false;
-		downKeyPressed = false;
-
-		// Revert to center texture for all active stamps
-		for (auto& stamp : stamps) {
-			if (stamp.active && stamp.textureIDs[0] != 0) {
-				stamp.currentVariationIndex = 0; // center variation
-			}
-		}
 		break;
+	case GLUT_KEY_DOWN:
+		downKeyPressed = false;
+		break;
+	case GLUT_KEY_LEFT:
+		leftKeyPressed = false;
+		break;
+	case GLUT_KEY_RIGHT:
+		rightKeyPressed = false;
+		break;
+	}
+
+
+	for (auto& stamp : allyShips) {
+		if (stamp.textureIDs[0] != 0) {
+			stamp.currentVariationIndex = 0; // center variation
+		}
+	}
+
+	if (allyShips.size() > 0) {
+		// Reset velocity if no keys are pressed
+		allyShips[0].velX = 0.0;
+		allyShips[0].velY = 0.0;
+
+		if (upKeyPressed) {
+			allyShips[0].velY = 1;
+		}
+		if (downKeyPressed) {
+			allyShips[0].velY = -1;
+		}
+		if (leftKeyPressed) {
+			allyShips[0].velX = -1;
+		}
+		if (rightKeyPressed) {
+			allyShips[0].velX = 1;
+		}
+
+		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+
+		if (vel_length > 0)
+		{
+			allyShips[0].velX /= vel_length;
+			allyShips[0].velY /= vel_length;
+
+			allyShips[0].velX *= 0.0025;
+			allyShips[0].velY *= 0.0025;
+		}
 	}
 }
 
 
+
+
 // GLUT reshape callback// GLUT reshape callback
+
 void reshape(int w, int h) {
 	glViewport(0, 0, w, h);
-
 	WIDTH = w;
 	HEIGHT = h;
 
@@ -2731,6 +3431,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(stampObstacleProgram);
 	glDeleteProgram(diffuseVelocityProgram);
 	glDeleteProgram(stampTextureProgram);
+	glDeleteProgram(renderProgram);
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
@@ -2747,8 +3448,8 @@ void reshape(int w, int h) {
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
 
-	// Delete stamp textures
-	for (auto& stamp : stamps) {
+	// Delete stamp textures from templates
+	for (auto& stamp : stampTemplates) {
 		for (auto& textureID : stamp.textureIDs) {
 			if (textureID != 0) {
 				glDeleteTextures(1, &textureID);
@@ -2756,8 +3457,41 @@ void reshape(int w, int h) {
 		}
 	}
 
-	// Clear textures
-	stamps.clear();
+	stampTemplates.clear();
+
+	// Delete stamp textures from active stamps
+	for (auto& stamp : allyShips) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
+	// Delete stamp textures from active stamps
+	for (auto& stamp : enemyShips) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
+	for (auto& stamp : allyBullets) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
+	for (auto& stamp : enemyBullets) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
 
 	// Reinitialize OpenGL
 	initGL();
@@ -2770,23 +3504,28 @@ void reshape(int w, int h) {
 
 
 
-
-
 void printInstructions() {
 	std::cout << "GPU-Accelerated Navier-Stokes Solver" << std::endl;
 	std::cout << "-----------------------------------" << std::endl;
 	std::cout << "Left Mouse Button: Add velocity and density" << std::endl;
-	std::cout << "Right Mouse Button: Add obstacles/stamps" << std::endl;
-	std::cout << "F1: Reset simulation" << std::endl;
+	std::cout << "Right Mouse Button: Add game objects using current template" << std::endl;
 	std::cout << "R: Toggle between red and blue color modes" << std::endl;
 	std::cout << "C: Generate collision report immediately" << std::endl;
-	std::cout << "L: Load bitmap as obstacle stamp" << std::endl;
-	std::cout << "S: Clear all stamps" << std::endl;
-	std::cout << "X: Remove the most recent stamp" << std::endl;
-	std::cout << "ESC: Exit" << std::endl;
+	std::cout << "L: Load all available game object textures" << std::endl;
+	std::cout << "T: Cycle through loaded textures (obstacles=ally ships, bullets, enemy)" << std::endl;
+	std::cout << "UP/DOWN Arrow Keys: Change ship orientation when placing" << std::endl;
 	std::cout << "Highlights show colour-obstacle collisions" << std::endl;
-	std::cout << "Collision reports are generated every " << REPORT_INTERVAL << " frames" << std::endl;
+	std::cout << "Collision reports are generated every " << FLUID_STAMP_COLLISION_REPORT_INTERVAL << " frames" << std::endl;
+	std::cout << "-----------------------------------" << std::endl;
+	std::cout << "File Naming Convention:" << std::endl;
+	std::cout << "  obstacle*.png - Ally ships" << std::endl;
+	std::cout << "  bullet*.png - Bullets" << std::endl;
+	std::cout << "  enemy*.png - Enemy ships" << std::endl;
+	std::cout << "Each can have _centre, _up, and _down variations" << std::endl;
 }
+
+
+
 
 // Then update the main function to call this instead of printing directly
 int main(int argc, char** argv) {
@@ -2822,3 +3561,4 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
