@@ -24,26 +24,26 @@ using namespace std;
 
 
 
+
+// to do: test bullet force-colour functionality
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
-
-
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float FORCE = 5000.0f;         // Force applied by mouse
 const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 10; // Every 6 frames update the collision data
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every 5 frames
 
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
@@ -106,10 +106,6 @@ struct Stamp {
 
 
 
-
-
-
-
 std::vector<Stamp> allyShips;
 std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
@@ -123,6 +119,25 @@ int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
 
+
+void RandomUnitVector(float& x_out, float& y_out)
+{
+	const static float pi = 4.0 * atan(1.0);
+
+	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
+	float x = cos(a);
+	float y = sin(a);
+	const float len = sqrt(x * x + y * y);
+
+	if (len != 1.0 && len != 0.0)
+	{
+		x /= len;
+		y /= len;
+	}
+
+	x_out = x;
+	y_out = y;
+}
 
 
 
@@ -416,11 +431,11 @@ void reportStampToStampCollisions() {
 	//	}
 	//}
 
-	if (!collisionDetected) {
-		std::cout << "No stamp-to-stamp collisions detected." << std::endl;
-	}
+	//if (!collisionDetected) {
+	//	std::cout << "No stamp-to-stamp collisions detected." << std::endl;
+	//}
 
-	std::cout << "============================================" << std::endl;
+	//std::cout << "============================================" << std::endl;
 }
 
 
@@ -565,9 +580,6 @@ GLuint loadTexture(const char* filename) {
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
 //std::vector<std::pair<int, int>> collisionLocations;
-
-
-
 
 
 
@@ -743,7 +755,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.95;
+const float fake_dispersion = 0.9;
 
 void main() {
     // Check if we're in an obstacle
@@ -1066,6 +1078,7 @@ void main() {
     // Apply force based on radius
     if (distance < radius) {
         // Apply force with smooth falloff
+
         float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
@@ -2270,50 +2283,10 @@ void subtractPressureGradient() {
 
 
 
-// To do: fix this so that it works like the mouse version
-// Add force to the velocity field
-void addForce(float posX, float posY, float velX, float velY, float radius)
-{
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-
-	glUseProgram(addForceProgram);
-
-	//float x_shift = 0.01 * rand() / float(RAND_MAX);
-	//float y_shift = 0.01 * rand() / float(RAND_MAX);
-
-	float mousePosX = posX;// +x_shift;
-	float mousePosY = posY;// +y_shift;
-
-	float mouseVelX = velX;
-	float mouseVelY = velY;
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Swap texture indices
-	velocityIndex = 1 - velocityIndex;
-}
 
 
-void addMouseForce() {
-	if (!mouseDown) return;
 
+void applyForceCore(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
@@ -2321,24 +2294,30 @@ void addMouseForce() {
 
 	float aspect = HEIGHT / float(WIDTH);
 
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	// Convert normalized position (0-1) to the appropriate coordinates for shader
+	float shaderPosX = posX;
+	float shaderPosY = posY;
 
-	// Center the Y coordinate, apply aspect ratio, then un-center
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	// Apply aspect ratio adjustment to position - uncomment this for consistency
+	shaderPosY = (shaderPosY - 0.5f) * aspect + 0.5f;
 
-	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
+	float x_shift = 0.05 * rand() / float(RAND_MAX);
+	float y_shift = 0.05 * rand() / float(RAND_MAX);
 
+	shaderPosX += x_shift;
+	shaderPosY += y_shift;
+
+	// Scale velocity to account for aspect ratio
+	float shaderVelX = velX * aspect;
+	float shaderVelY = velY;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform2f(glGetUniformLocation(addForceProgram, "point"), shaderPosX, shaderPosY);
+	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), shaderVelX, shaderVelY);
+	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2352,6 +2331,29 @@ void addMouseForce() {
 
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
+}
+
+
+
+
+
+
+
+
+
+
+void addMouseForce(float radius, float strength, float shift_scale)
+{
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = mouseX / (float)WIDTH;
+	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	// Calculate velocity from mouse movement
+	float mouseVelX = (mouseX - prevMouseX) / (float)WIDTH;  // Normalize to texture space
+	float mouseVelY = -(mouseY - prevMouseY) / (float)HEIGHT; // Normalize to texture space
+
+	// Apply the force using the core implementation
+	applyForceCore(mousePosX, mousePosY, mouseVelX, mouseVelY, radius, strength, shift_scale);
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
@@ -2359,7 +2361,13 @@ void addMouseForce() {
 }
 
 
-void addColor(float posX, float posY, float velX, float velY, float radius)
+
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength, float shift_scale) {
+	applyForceCore(posX, posY, velX, velY, radius, strength, shift_scale);
+}
+
+
+void addColor(float posX, float posY, float velX, float velY, float radius, float shift_scale)
 {
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
@@ -2381,11 +2389,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0.01 * rand() / float(RAND_MAX);
-	float y_shift = 0.01 * rand() / float(RAND_MAX);
+	float x_shift = shift_scale * rand() / float(RAND_MAX);
+	float y_shift = shift_scale * rand() / float(RAND_MAX);
 
-	float mousePosX = posX;// +x_shift;
-	float mousePosY = posY;// +y_shift;
+	float mousePosX = posX + x_shift;
+	float mousePosY = posY + y_shift;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
@@ -2560,19 +2568,29 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet")
 		{
-			newStamp.velX = rand() / float(RAND_MAX) * 0.01;
-			newStamp.velY = rand() / float(RAND_MAX) * 0.01;
+			RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			if (rand() % 2)
-				newStamp.velX = -newStamp.velX;
-
-			if (rand() % 2)
-				newStamp.velY = -newStamp.velY;
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = false;
 
 			newStamp.birth_time = global_time;
 			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 			allyBullets.push_back(newStamp);
+
+
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = true;
+
+			newStamp.birth_time = global_time;
+			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+			allyBullets.push_back(newStamp);
+
+
+
 			std::cout << "Added new ally bullet";
 		}
 		else if (prefix == "enemy")
@@ -2604,20 +2622,100 @@ void updateObstacle()
 
 
 
+
+//
+//void move_bullets(void) 
+//{
+//	auto update_bullets = [&](std::vector<Stamp>& stamps) 
+//	{
+//		float aspect = HEIGHT / float(WIDTH);
+//
+//		for (auto& stamp : stamps) 
+//		{
+//			// Scale X velocity by aspect ratio for consistency
+//			stamp.posX += stamp.velX * aspect;
+//			stamp.posY += stamp.velY;
+//
+//
+//
+//			float rand_x = 0, rand_y = 0;
+//
+//			// Add in random walking, like lightning
+//			RandomUnitVector(rand_x, rand_y);
+//
+//			stamp.posX += rand_x * stamp.path_randomization;
+//			stamp.posY += rand_y * stamp.path_randomization;
+//		}
+//	};
+//
+//	update_bullets(allyBullets);
+//	update_bullets(enemyBullets);
+//}
+
+
+
+
+
 void move_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps)
 	{
+		float aspect = HEIGHT / float(WIDTH);
+
 		for (auto& stamp : stamps)
 		{
-			stamp.posX += stamp.velX;
-			stamp.posY += stamp.velY;
+			// Store the original direction vector
+			float dirX = stamp.velX * aspect;
+			float dirY = stamp.velY;
+
+			// Normalize the direction vector
+			float dirLength = sqrt(dirX * dirX + dirY * dirY);
+			if (dirLength > 0) {
+				dirX /= dirLength;
+				dirY /= dirLength;
+			}
+
+			// Calculate the perpendicular direction vector (rotate 90 degrees)
+			float perpX = -dirY;
+			float perpY = dirX;
+
+			// Calculate time-based sinusoidal amplitude
+			// Use the birth_time to ensure continuous motion
+			float timeSinceCreation = global_time - stamp.birth_time;
+			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+
+
+			float sinValue = 0;
+
+			if (stamp.sinusoidal_shift)
+				sinValue = -sin(timeSinceCreation * frequency);
+			else
+				sinValue = sin(timeSinceCreation * frequency);
+
+			// Move forward along original path
+			float forwardSpeed = dirLength; // Original velocity magnitude
+			stamp.posX += dirX * forwardSpeed;
+			stamp.posY += dirY * forwardSpeed;
+
+			// Add sinusoidal motion perpendicular to the path
+			stamp.posX += perpX * sinValue * amplitude;
+			stamp.posY += perpY * sinValue * amplitude;
+
+			// Add in random walking, like lightning (from original code)
+			float rand_x = 0, rand_y = 0;
+			RandomUnitVector(rand_x, rand_y);
+			stamp.posX += rand_x * stamp.path_randomization;
+			stamp.posY += rand_y * stamp.path_randomization;
 		}
 	};
 
 	update_bullets(allyBullets);
 	update_bullets(enemyBullets);
 }
+
+
+
 
 
 void mark_colliding_bullets(void)
@@ -2712,10 +2810,10 @@ void move_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			stamp.posX += stamp.velX;
-			stamp.posY += stamp.velY;
-
 			const float aspect = WIDTH / float(HEIGHT);
+
+			stamp.posX += stamp.velX / aspect;
+			stamp.posY += stamp.velY;
 
 			if (keep_within_screen_bounds)
 			{
@@ -2745,12 +2843,22 @@ void move_ships(void)
 void mark_dying_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
 		if (allyShips[i].health <= 0)
+		{
+			// to do: Add random ally bullets, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
+		}
+	}
 
 	for (size_t i = 0; i < enemyShips.size(); ++i)
+	{
 		if (enemyShips[i].health <= 0)
+		{
+			// to do: Add random ENEMY bullets, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
+		}
+	}
 }
 
 void mark_colliding_ships(void)
@@ -2761,6 +2869,7 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
+				// to do: Add random ally bullets, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
 			}
@@ -2854,29 +2963,29 @@ void simulationStep() {
 	updateDynamicTextures(enemyBullets);
 
 
-	bool old_red_mode = red_mode;
-	// to do: do this for each bullet
+	const bool old_red_mode = red_mode;
+
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000, allyBullets[i].force_randomization);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius, allyBullets[i].colour_randomization);
 	}
 
 	red_mode = false;
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000, enemyBullets[i].force_randomization);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius, enemyBullets[i].colour_randomization);
 	}
 
 	red_mode = old_red_mode;
 
 
 
-	addMouseForce();
+	addMouseForce(0.05, 5000, 0.0);
 	addMouseColor();
 
 
@@ -2888,7 +2997,7 @@ void simulationStep() {
 	diffuseColor();
 	diffuseFriendlyColor();
 	computeDivergence();
-	solvePressure(20);
+	solvePressure(5);
 	subtractPressureGradient();
 
 	move_bullets();
@@ -2966,10 +3075,10 @@ void renderToScreen() {
 
 	glUseProgram(stampTextureProgram);
 
-	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
-		for (const auto& stamp : stamps) {
-			//if (!stamp.active) continue;
-
+	auto renderStamps = [&](const std::vector<Stamp>& stamps)
+	{
+		for (const auto& stamp : stamps)
+		{
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
@@ -3007,8 +3116,9 @@ void renderToScreen() {
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-	renderStamps(allyBullets);
-	renderStamps(enemyBullets);
+	//	renderStamps(allyBullets);
+	//	renderStamps(enemyBullets);
+
 
 	glDisable(GL_BLEND);
 
@@ -3025,10 +3135,9 @@ void renderToScreen() {
 	//	}
 	//}
 
-	//for (const auto& stamp : allyBullets) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
+	//for (const auto& stamp : allyBullets) 
+	//{
+	//	drawBoundingBox(stamp);
 	//}
 
 	//for (const auto& stamp : enemyBullets) {
