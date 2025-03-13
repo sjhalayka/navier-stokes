@@ -90,11 +90,11 @@ struct Stamp {
 	float force_radius = 0.02;
 	float colour_radius = force_radius;
 
-	float force_randomization = force_radius / 100.0;
-	float colour_randomization = force_radius / 10.0;
-	float path_randomization = force_radius / 1000.0;
-	float sinusoidal_frequency = 2;
-	float sinusoidal_amplitude = 0.0025;
+	float force_randomization = 0;// force_radius / 100.0;
+	float colour_randomization = 0;// force_radius / 10.0;
+	float path_randomization = 0;// force_radius / 10.0;
+	float sinusoidal_frequency = 5;
+	float sinusoidal_amplitude = 0.002;
 	bool sinusoidal_shift = false;
 
 	// StampInfo properties
