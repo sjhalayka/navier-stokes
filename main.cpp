@@ -92,8 +92,10 @@ struct Stamp {
 
 	float force_randomization = force_radius / 100.0;
 	float colour_randomization = force_radius / 10.0;
-	float path_randomization = force_radius / 100.0;
-	
+	float path_randomization = force_radius / 1000.0;
+	float sinusoidal_frequency = 0.1;
+	float sinusoidal_amplitude = 0.01;
+
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
 	float velX = 0, velY = 0;
@@ -2604,22 +2606,83 @@ void updateObstacle()
 }
 
 
-void move_bullets(void) 
+
+
+//
+//void move_bullets(void) 
+//{
+//	auto update_bullets = [&](std::vector<Stamp>& stamps) 
+//	{
+//		float aspect = HEIGHT / float(WIDTH);
+//
+//		for (auto& stamp : stamps) 
+//		{
+//			// Scale X velocity by aspect ratio for consistency
+//			stamp.posX += stamp.velX * aspect;
+//			stamp.posY += stamp.velY;
+//
+//
+//
+//			float rand_x = 0, rand_y = 0;
+//
+//			// Add in random walking, like lightning
+//			RandomUnitVector(rand_x, rand_y);
+//
+//			stamp.posX += rand_x * stamp.path_randomization;
+//			stamp.posY += rand_y * stamp.path_randomization;
+//		}
+//	};
+//
+//	update_bullets(allyBullets);
+//	update_bullets(enemyBullets);
+//}
+
+
+
+
+
+void move_bullets(void)
 {
-	auto update_bullets = [&](std::vector<Stamp>& stamps) 
+	auto update_bullets = [&](std::vector<Stamp>& stamps)
 	{
 		float aspect = HEIGHT / float(WIDTH);
-		for (auto& stamp : stamps) 
+
+		for (auto& stamp : stamps)
 		{
-			// Scale X velocity by aspect ratio for consistency
-			stamp.posX += stamp.velX * aspect;
-			stamp.posY += stamp.velY;
+			// Store the original direction vector
+			float dirX = stamp.velX * aspect;
+			float dirY = stamp.velY;
 
+			// Normalize the direction vector
+			float dirLength = sqrt(dirX * dirX + dirY * dirY);
+			if (dirLength > 0) {
+				dirX /= dirLength;
+				dirY /= dirLength;
+			}
+
+			// Calculate the perpendicular direction vector (rotate 90 degrees)
+			float perpX = -dirY;
+			float perpY = dirX;
+
+			// Calculate time-based sinusoidal amplitude
+			// Use the birth_time to ensure continuous motion
+			float timeSinceCreation = global_time - stamp.birth_time;
+			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+			float sinValue = sin(timeSinceCreation * frequency);
+
+			// Move forward along original path
+			float forwardSpeed = dirLength; // Original velocity magnitude
+			stamp.posX += dirX * forwardSpeed;
+			stamp.posY += dirY * forwardSpeed;
+
+			// Add sinusoidal motion perpendicular to the path
+			stamp.posX += perpX * sinValue * amplitude;
+			stamp.posY += perpY * sinValue * amplitude;
+
+			// Add in random walking, like lightning (from original code)
 			float rand_x = 0, rand_y = 0;
-
-			// Add in random walking
 			RandomUnitVector(rand_x, rand_y);
-
 			stamp.posX += rand_x * stamp.path_randomization;
 			stamp.posY += rand_y * stamp.path_randomization;
 		}
@@ -2628,6 +2691,9 @@ void move_bullets(void)
 	update_bullets(allyBullets);
 	update_bullets(enemyBullets);
 }
+
+
+
 
 
 void mark_colliding_bullets(void)
