@@ -592,6 +592,8 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
+
+
 const char* diffuseVelocityFragmentShader = R"(
 #version 330 core
 uniform sampler2D velocityTexture;
@@ -605,9 +607,6 @@ const float fake_dispersion = 0.99;
 in vec2 TexCoord;
 
 void main() {
-    // Aspect ratio correction
-    float aspect_ratio = texelSize.y / texelSize.x; // Height/Width
-    
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
@@ -633,28 +632,15 @@ void main() {
     if (oBottom > 0.0) bottom = center;
     if (oTop > 0.0) top = center;
     
-    // Apply aspect ratio correction to the Laplacian computation
-    // We use different weights for horizontal vs vertical components
-    float horizontalWeight = 1.0;
-    float verticalWeight = aspect_ratio * aspect_ratio; // Square of aspect ratio
-    
-    // Compute Laplacian with adjusted weights
-    vec2 laplacian = vec2(
-        (left.x + right.x - 2.0 * center.x) * horizontalWeight +
-        (bottom.x + top.x - 2.0 * center.x) * verticalWeight,
-        
-        (left.y + right.y - 2.0 * center.y) * horizontalWeight +
-        (bottom.y + top.y - 2.0 * center.y) * verticalWeight
-    ) / (2.0 * (horizontalWeight + verticalWeight));
+    // Compute Laplacian
+    vec2 laplacian = (left + right + bottom + top - 4.0 * center);
     
     // Apply diffusion
     vec2 result = center + viscosity * dt * laplacian;
     
-    FragColor = fake_dispersion * vec4(result, 0.0, 1.0);
+    FragColor = fake_dispersion*vec4(result, 0.0, 1.0);
 }
 )";
-
-
 
 
 
@@ -767,6 +753,7 @@ void main()
 
 
 
+
 const char* diffuseColorFragmentShader = R"(
 #version 330 core
 uniform sampler2D colorTexture;
@@ -780,15 +767,14 @@ in vec2 TexCoord;
 const float fake_dispersion = 0.99;
 
 void main() {
-    // Aspect ratio correction
-    float aspect_ratio = texelSize.y / texelSize.x; // Height/Width
-    
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
         FragColor = 0.0;
         return;
     }
+
+
 
     // Simple diffusion using 5-point stencil
     float center = texture(colorTexture, TexCoord).r;
@@ -808,26 +794,16 @@ void main() {
     if (oBottom > 0.0) bottom = center;
     if (oTop > 0.0) top = center;
     
-    // Apply aspect ratio correction to the Laplacian computation
-    // We use different weights for horizontal vs vertical components
-    float horizontalWeight = 1.0;
-    float verticalWeight = aspect_ratio * aspect_ratio; // Square of aspect ratio
-    
-    // Compute Laplacian with adjusted weights
-    float laplacian = (
-        (left + right - 2.0 * center) * horizontalWeight +
-        (bottom + top - 2.0 * center) * verticalWeight
-    ) / (2.0 * (horizontalWeight + verticalWeight));
+    // Compute Laplacian
+    float laplacian = (left + right + bottom + top - 4.0 * center);
     
     // Apply diffusion
     float result = center + diffusionRate * dt * laplacian;
     
     // Clamp result to [0, 1]
-    FragColor = fake_dispersion * clamp(result, 0.0, 1.0);
+    FragColor = fake_dispersion*clamp(result, 0.0, 1.0);
 }
 )";
-
-
 
 
 
@@ -902,6 +878,10 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 
+float WIDTH = texelSize.x;
+float HEIGHT = texelSize.y;
+float aspect_ratio = WIDTH/HEIGHT;
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -914,37 +894,32 @@ void main() {
         return;
     }
 
-    // Calculate aspect ratio
-    float aspect_ratio = texelSize.y / texelSize.x; // Height/Width for normalized coordinates
-    
-    // Advection with aspect ratio correction
+    // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-    
-    // Apply aspect ratio correction to velocity vector
-    vec2 correctedVel = vec2(vel.x, vel.y * aspect_ratio);
-    
-    // Use corrected velocity for advection
-    vec2 pos = TexCoord - dt * correctedVel * texelSize;
-    
+    //vec2 pos = TexCoord - dt * vel * texelSize;
+    vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
+
     // Sample the source texture at the back-traced position
     vec4 result = texture(sourceTexture, pos);
     
     // Boundary handling - don't advect from obstacles
-    float obstacleSample = texture(obstacleTexture, pos).r;
+    vec2 samplePos = pos;
+    float obstacleSample = texture(obstacleTexture, samplePos).r;
     
     if (obstacleSample > 0.0) {
+        // If we sampled from an obstacle, reflect the velocity
+//        result = vec4(-vel, 0.0, 1.0);
+
+
         // If we sampled from an obstacle, kill the velocity
-        result = vec4(0.0, 0.0, 0.0, 1.0);
+		// We do this to avoid generating the opposite colour as a bug
+		result = vec4(0.0, 0.0, 0.0, 1.0);
+
     }
     
     FragColor = result;
 }
 )";
-
-
-
-
-
 
 const char* divergenceFragmentShader = R"(
 #version 330 core
@@ -956,9 +931,6 @@ out float FragColor;
 in vec2 TexCoord;
 
 void main() {
-    // Aspect ratio correction
-    float aspect_ratio = texelSize.y / texelSize.x; // Height/Width
-    
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
@@ -984,14 +956,10 @@ void main() {
     if (oTop > 0.0) top = vec2(0.0, 0.0);
     if (oBottom > 0.0) bottom = vec2(0.0, 0.0);
     
-    // Apply aspect ratio correction to divergence calculation
-    float div = 0.5 * ((right.x - left.x) + (top.y - bottom.y) * aspect_ratio);
+    float div = 0.5 * ((right.x - left.x) + (top.y - bottom.y));
     FragColor = div;
 }
 )";
-
-
-
 
 const char* pressureFragmentShader = R"(
 #version 330 core
@@ -1039,6 +1007,7 @@ void main() {
     FragColor = pressure;
 }
 )";
+
 const char* gradientSubtractFragmentShader = R"(
 #version 330 core
 uniform sampler2D pressureTexture;
@@ -1051,9 +1020,6 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 void main() {
-    // Aspect ratio correction
-    float aspect_ratio = texelSize.y / texelSize.x; // Height/Width
-    
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
@@ -1079,8 +1045,8 @@ void main() {
     if (oTop > 0.0) pTop = texture(pressureTexture, TexCoord).r;
     if (oBottom > 0.0) pBottom = texture(pressureTexture, TexCoord).r;
     
-    // Calculate gradient with aspect ratio correction
-    vec2 gradient = vec2(pRight - pLeft, (pTop - pBottom) * aspect_ratio) * 0.5;
+    // Calculate gradient
+    vec2 gradient = vec2(pRight - pLeft, pTop - pBottom) * 0.5;
     
     // Get current velocity
     vec2 velocity = texture(velocityTexture, TexCoord).xy;
@@ -1091,9 +1057,6 @@ void main() {
     FragColor = vec4(result, 0.0, 1.0);
 }
 )";
-
-
-
 
 const char* addForceFragmentShader = R"(
 #version 330 core
@@ -1126,23 +1089,18 @@ void main()
 
 
     // Check if we're in an obstacle
-    float obstacle = texture(obstacleTexture, adjustedCoord).r;
+    float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
         FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
-
-
-
-
     // Get current velocity
-    vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
+    vec2 velocity = texture(velocityTexture, TexCoord).xy;
     
     // Calculate distance to force application point
-    float distance = length(adjustedCoord - point);
+    float distance = length(TexCoord - point);
     
-
     // Apply force based on radius
     if (distance < radius) {
         // Apply force with smooth falloff
@@ -1150,7 +1108,7 @@ void main()
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength;// * falloff;
+        velocity += direction * strength * falloff;
     }
     
     FragColor = vec4(velocity, 0.0, 1.0);
