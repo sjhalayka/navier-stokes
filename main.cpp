@@ -87,14 +87,15 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
+	float force_radius = 0.02;
 	float colour_radius = force_radius;
 
 	float force_randomization = force_radius / 100.0;
 	float colour_randomization = force_radius / 10.0;
 	float path_randomization = force_radius / 1000.0;
-	float sinusoidal_frequency = 0.1;
-	float sinusoidal_amplitude = 0.01;
+	float sinusoidal_frequency = 2;
+	float sinusoidal_amplitude = 0.0025;
+	bool sinusoidal_shift = false;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -2391,8 +2392,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius, floa
 	float x_shift = shift_scale * rand() / float(RAND_MAX);
 	float y_shift = shift_scale * rand() / float(RAND_MAX);
 
-	float mousePosX = posX +x_shift;
-	float mousePosY = posY +y_shift;
+	float mousePosX = posX + x_shift;
+	float mousePosY = posY + y_shift;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
@@ -2569,13 +2570,27 @@ void updateObstacle()
 		{
 			RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			newStamp.velX *= 0.01;
-			newStamp.velY *= 0.01;
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = false;
 
 			newStamp.birth_time = global_time;
 			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 			allyBullets.push_back(newStamp);
+
+
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
+			newStamp.sinusoidal_shift = true;
+
+			newStamp.birth_time = global_time;
+			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+			allyBullets.push_back(newStamp);
+
+
+
 			std::cout << "Added new ally bullet";
 		}
 		else if (prefix == "enemy")
@@ -2669,7 +2684,14 @@ void move_bullets(void)
 			float timeSinceCreation = global_time - stamp.birth_time;
 			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
 			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
-			float sinValue = sin(timeSinceCreation * frequency);
+
+
+			float sinValue = 0;
+
+			if(stamp.sinusoidal_shift)
+				sinValue = -sin(timeSinceCreation * frequency);
+			else
+				sinValue = sin(timeSinceCreation * frequency);
 
 			// Move forward along original path
 			float forwardSpeed = dirLength; // Original velocity magnitude
@@ -3053,9 +3075,9 @@ void renderToScreen() {
 
 	glUseProgram(stampTextureProgram);
 
-	auto renderStamps = [&](const std::vector<Stamp>& stamps) 
+	auto renderStamps = [&](const std::vector<Stamp>& stamps)
 	{
-		for (const auto& stamp : stamps) 
+		for (const auto& stamp : stamps)
 		{
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
@@ -3094,8 +3116,8 @@ void renderToScreen() {
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-//	renderStamps(allyBullets);
-//	renderStamps(enemyBullets);
+	//	renderStamps(allyBullets);
+	//	renderStamps(enemyBullets);
 
 
 	glDisable(GL_BLEND);
