@@ -77,18 +77,25 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 1;
+	float health = 10;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
 	// (it is culled only when colliding with the ally/enemy or goes off screen)
-	// A mortal bullet dies after a certain amount of time too
+	// A mortal bullet dies after a certain amount of time
 	float death_time = -1;
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.05;
-	float colour_radius = 0.05;
+	float force_radius = 0.02;
+	float colour_radius = force_radius;
+
+	float force_randomization = force_radius / 100.0;
+	float colour_randomization = force_radius / 10.0;
+	float path_randomization = force_radius / 1000.0;
+	float sinusoidal_frequency = 2;
+	float sinusoidal_amplitude = 0.0025;
+	bool sinusoidal_shift = false;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -96,6 +103,10 @@ struct Stamp {
 
 	int currentVariationIndex = 0;              // Which texture variation to use
 };
+
+
+
+
 
 
 
