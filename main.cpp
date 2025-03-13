@@ -70,14 +70,14 @@ struct Stamp {
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
 	int width = 0; // pixels
 	int height = 0; // pixels
-	std::string baseFilename;               // Base filename without suffix
+	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
 
-	float health = 10;
+	float health = 0.1;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
