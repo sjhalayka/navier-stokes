@@ -1,6 +1,4 @@
-﻿// https://claude.ai/chat/150e7512-37b3-4a6d-aa2a-05072caface4
-
-#include <GL/glew.h>
+﻿#include <GL/glew.h>
 #include <GL/glut.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -580,6 +578,8 @@ GLuint loadTexture(const char* filename) {
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
 //std::vector<std::pair<int, int>> collisionLocations;
+
+
 
 
 
@@ -1286,6 +1286,7 @@ void main() {
     }
 }
 )";
+
 
 void updateDynamicTexture(Stamp& stamp) {
 	// For each valid texture in the stamp
@@ -3561,5 +3562,3 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
-
-
