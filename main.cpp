@@ -2865,11 +2865,11 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
-		newStamp.velX /= 250.0;
-		newStamp.velY /= 250.0;
+		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
+		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
 
 		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+		newStamp.death_time = global_time + 1.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -2877,7 +2877,7 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 			allyBullets.push_back(newStamp);
 	}
 
-	for (size_t j = 0; j < 5; j++)
+	for (size_t j = 0; j < 15; j++)
 	{
 		Stamp newStamp = newCentralStamp;
 		
@@ -2889,11 +2889,14 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
-		newStamp.velX /= 100.0;
-		newStamp.velY /= 100.0;
+
+
+		newStamp.velX /= 100.0 / (rand()/float(RAND_MAX));
+		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
+		newStamp.path_randomization = 0.005;
 
 		newStamp.birth_time = global_time;
-		newStamp.death_time = -1;// global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+		newStamp.death_time = global_time + 3.0;// -1;// global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
