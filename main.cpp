@@ -93,7 +93,7 @@ struct Stamp {
 
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
-	float path_randomization = force_radius / 50.0;
+	float path_randomization = 0;// force_radius / 50.0;
 	float sinusoidal_frequency = 5;
 	float sinusoidal_amplitude = 0.002;
 	bool sinusoidal_shift = false;
@@ -132,18 +132,9 @@ void RandomUnitVector(float& x_out, float& y_out)
 	const static float pi = 4.0 * atan(1.0);
 
 	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
-	float x = cos(a);
-	float y = sin(a);
-	const float len = sqrt(x * x + y * y);
 
-	if (len != 1.0 && len != 0.0)
-	{
-		x /= len;
-		y /= len;
-	}
-
-	x_out = x;
-	y_out = y;
+	x_out = cos(a);
+	y_out = sin(a);
 }
 
 
