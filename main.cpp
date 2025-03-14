@@ -91,8 +91,8 @@ struct Stamp {
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
 	float path_randomization = 0;// force_radius / 50.0;
-	float sinusoidal_frequency = 2.5;
-	float sinusoidal_amplitude = 0.005;
+	float sinusoidal_frequency = 0;// 2.5;
+	float sinusoidal_amplitude = 0;// 0.005;
 	bool sinusoidal_shift = false;
 
 	// StampInfo properties
@@ -2832,42 +2832,41 @@ void move_ships(void)
 
 void make_dying_bullets(const Stamp &stamp, const bool enemy)
 {
-	Stamp newStamp;
+	Stamp newCentralStamp;
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0;
 
 	float avg_rad = 0.5 * (x_rad + y_rad);
 
-	newStamp.colour_radius = avg_rad / 2.0;
-	newStamp.force_radius = avg_rad / 2.0;
+	newCentralStamp.colour_radius = avg_rad / 2.0;
+	newCentralStamp.force_radius = avg_rad / 2.0;
 
-	newStamp.posX = stamp.posX;
-	newStamp.posY = stamp.posY;
+	newCentralStamp.posX = stamp.posX;
+	newCentralStamp.posY = stamp.posY;
 
-	newStamp.birth_time = global_time;
-	newStamp.death_time = global_time + 0.001;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+	newCentralStamp.birth_time = global_time;
+	newCentralStamp.death_time = global_time + 0.1;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 	if(enemy)
-		enemyBullets.push_back(newStamp);
+		enemyBullets.push_back(newCentralStamp);
 	else
-		allyBullets.push_back(newStamp);
+		allyBullets.push_back(newCentralStamp);
 
 	for (size_t j = 0; j < 5; j++)
 	{
-		Stamp newStamp;
+		Stamp newStamp = newCentralStamp;
 
-		newStamp.colour_radius = avg_rad / 100.0;
-		newStamp.force_radius = avg_rad / 100.0;
+		newStamp.colour_radius = avg_rad / 4;
+		newStamp.force_radius = avg_rad / 4;
 
-		newStamp.posX = stamp.posX;
-		newStamp.posY = stamp.posY;
+		//newStamp.posX = stamp.posX;
+		//newStamp.posY = stamp.posY;
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
-		newStamp.velX *= 50.0;
-		newStamp.velY *= 50.0;
-
+		newStamp.velX /= 250.0;
+		newStamp.velY /= 250.0;
 
 		newStamp.birth_time = global_time;
 		newStamp.death_time = global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
@@ -2878,7 +2877,29 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 			allyBullets.push_back(newStamp);
 	}
 
+	for (size_t j = 0; j < 5; j++)
+	{
+		Stamp newStamp = newCentralStamp;
+		
+		newStamp.colour_radius = avg_rad / 8;
+		newStamp.force_radius = avg_rad / 8;
 
+		//newStamp.posX = stamp.posX;
+		//newStamp.posY = stamp.posY;
+
+		RandomUnitVector(newStamp.velX, newStamp.velY);
+
+		newStamp.velX /= 100.0;
+		newStamp.velY /= 100.0;
+
+		newStamp.birth_time = global_time;
+		newStamp.death_time = -1;// global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+		if (enemy)
+			enemyBullets.push_back(newStamp);
+		else
+			allyBullets.push_back(newStamp);
+	}
 
 }
 
@@ -2891,7 +2912,9 @@ void mark_dying_ships(void)
 	{
 		if (allyShips[i].health <= 0)
 		{
-			// to do: Add random ally bullets, based on ally ship stamp size and location
+			if (allyShips[i].to_be_culled)
+				continue;
+
 			allyShips[i].to_be_culled = true;
 
 			make_dying_bullets(allyShips[i], false);
@@ -2902,6 +2925,9 @@ void mark_dying_ships(void)
 	{
 		if (enemyShips[i].health <= 0)
 		{
+			if (enemyShips[i].to_be_culled)
+				continue;
+
 			enemyShips[i].to_be_culled = true;
 
 			make_dying_bullets(enemyShips[i], true);
