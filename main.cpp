@@ -749,7 +749,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.99;
+const float fake_dispersion = 0.95;
 
 void main() {
     // Check if we're in an obstacle
@@ -2833,7 +2833,7 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0;
 
-	float avg_rad = 0.5 * (x_rad + y_rad);
+	float avg_rad = max(x_rad, y_rad);// 0.5 * (x_rad + y_rad);
 
 	newCentralStamp.colour_radius = avg_rad / 2.0;
 	newCentralStamp.force_radius = avg_rad / 2.0;
@@ -2856,14 +2856,11 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 		newStamp.colour_radius = avg_rad / 4;
 		newStamp.force_radius = avg_rad / 4;
 
-		//newStamp.posX = stamp.posX;
-		//newStamp.posY = stamp.posY;
-
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
 		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.001;
+		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
 
 		newStamp.birth_time = global_time;
 		newStamp.death_time = global_time + 1*rand() / float(RAND_MAX);
@@ -2890,7 +2887,7 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 
 		newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = (rand() / float(RAND_MAX))*0.001;
+		newStamp.path_randomization = (rand() / float(RAND_MAX))*0.01;
 
 		newStamp.birth_time = global_time;
 		newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
