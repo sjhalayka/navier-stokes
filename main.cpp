@@ -2729,14 +2729,16 @@ void mark_old_bullets(void)
 			allyBullets[i].to_be_culled = true;
 	}
 
-	//for (size_t i = 0; i < allyBullets.size(); ++i)
-	//{
-	//	if (allyBullets[i].death_time < 0.0)
-	//		continue;
+	for (size_t i = 0; i < enemyBullets.size(); ++i)
+	{
+		if (enemyBullets[i].death_time < 0.0)
+			continue;
 
-	//	if (allyBullets[i].death_time <= global_time)
-	//		allyBullets[i].to_be_culled = true;
-	//}
+		if (enemyBullets[i].death_time <= global_time)
+			enemyBullets[i].to_be_culled = true;
+	}
+
+
 }
 
 void mark_offscreen_bullets(void)
@@ -2827,6 +2829,58 @@ void move_ships(void)
 }
 
 
+
+void make_dying_bullets(Stamp &stamp, bool enemy)
+{
+	Stamp newStamp;
+
+	float x_rad = stamp.width / float(WIDTH) / 2.0;
+	float y_rad = stamp.height / float(HEIGHT) / 2.0;
+
+	float avg_rad = 0.5 * (x_rad + y_rad);
+
+	newStamp.colour_radius = avg_rad / 2.0;
+	newStamp.force_radius = avg_rad / 2.0;
+
+	newStamp.posX = stamp.posX;
+	newStamp.posY = stamp.posY;
+
+	newStamp.birth_time = global_time;
+	newStamp.death_time = global_time + 0.001;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+	if(enemy)
+		enemyBullets.push_back(newStamp);
+	else
+		allyBullets.push_back(newStamp);
+
+	for (size_t j = 0; j < 5; j++)
+	{
+		Stamp newStamp;
+
+		newStamp.colour_radius = avg_rad / 50.0;
+		newStamp.force_radius = avg_rad / 50.0;
+
+		newStamp.posX = stamp.posX;
+		newStamp.posY = stamp.posY;
+
+		RandomUnitVector(newStamp.velX, newStamp.velY);
+
+		newStamp.birth_time = global_time;
+		newStamp.death_time = global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+
+		if (enemy)
+			enemyBullets.push_back(newStamp);
+		else
+			allyBullets.push_back(newStamp);
+	}
+
+
+
+}
+
+
+
+
 void mark_dying_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
@@ -2835,6 +2889,8 @@ void mark_dying_ships(void)
 		{
 			// to do: Add random ally bullets, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
+
+			make_dying_bullets(allyShips[i], false);
 		}
 	}
 
@@ -2842,8 +2898,9 @@ void mark_dying_ships(void)
 	{
 		if (enemyShips[i].health <= 0)
 		{
-			// to do: Add random ENEMY bullets, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
+
+			make_dying_bullets(enemyShips[i], true);
 		}
 	}
 }
@@ -2856,9 +2913,10 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				// to do: Add random ally bullets, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
+
+				make_dying_bullets(allyShips[i], false);
 			}
 		}
 	}
