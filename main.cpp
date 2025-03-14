@@ -37,15 +37,12 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
-const float FORCE = 5000.0f;         // Force applied by mouse
-const float OBSTACLE_RADIUS = 0.1f; // Radius of obstacle
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 10; // Every 6 frames update the collision data
-
+const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
 float global_time = 0.0f;
@@ -94,8 +91,8 @@ struct Stamp {
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
 	float path_randomization = 0;// force_radius / 50.0;
-	float sinusoidal_frequency = 5;
-	float sinusoidal_amplitude = 0.002;
+	float sinusoidal_frequency = 2.5;
+	float sinusoidal_amplitude = 0.005;
 	bool sinusoidal_shift = false;
 
 	// StampInfo properties
@@ -2299,7 +2296,7 @@ void subtractPressureGradient() {
 
 
 // Add force to the velocity field
-void addForce(float posX, float posY, float velX, float velY, float radius)
+void addForce(float posX, float posY, float velX, float velY, float radius, float strength)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
@@ -2321,7 +2318,7 @@ void addForce(float posX, float posY, float velX, float velY, float radius)
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), WIDTH);
 	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), HEIGHT);
 
@@ -2367,7 +2364,7 @@ void addMouseForce() {
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), FORCE);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 5000);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2590,11 +2587,11 @@ void updateObstacle()
 		{
 			RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			//newStamp.velX = 0.01;
-			//newStamp.velY = 0;// *= 0.01;
+			newStamp.velX = 0.01;
+			newStamp.velY = 0;// *= 0.01;
 
-			newStamp.velX *= 0.01;
-			newStamp.velY *= 0.01;
+			//newStamp.velX *= 0.01;
+			//newStamp.velY *= 0.01;
 
 			newStamp.sinusoidal_shift = false;
 
@@ -2961,7 +2958,7 @@ void simulationStep() {
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -2969,17 +2966,15 @@ void simulationStep() {
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
 	red_mode = old_red_mode;
 
 
-
 	addMouseForce();
 	addMouseColor();
-
 
 	updateObstacle();
 	advectVelocity();
