@@ -1074,14 +1074,14 @@ void main()
 
 
     // Check if we're in an obstacle
-    float obstacle = texture(obstacleTexture, TexCoord).r;
+    float obstacle = texture(obstacleTexture, adjustedCoord).r;
     if (obstacle > 0.0) {
         FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
     // Get current velocity
-    vec2 velocity = texture(velocityTexture, TexCoord).xy;
+    vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
     
     // Calculate distance to force application point
     float distance = length(TexCoord - point);
