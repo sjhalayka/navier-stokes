@@ -24,10 +24,6 @@ using namespace std;
 
 
 
-// to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
-// to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
-// to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
-
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
@@ -2867,9 +2863,10 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 
 		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
+		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.001;
 
 		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 1.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+		newStamp.death_time = global_time + 1*rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -2891,12 +2888,12 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 
 
 
-		newStamp.velX /= 100.0 / (rand()/float(RAND_MAX));
+		newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = 0.005;
+		newStamp.path_randomization = (rand() / float(RAND_MAX))*0.001;
 
 		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 3.0;// -1;// global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+		newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
