@@ -2830,7 +2830,7 @@ void move_ships(void)
 
 
 
-void make_dying_bullets(Stamp &stamp, bool enemy)
+void make_dying_bullets(const Stamp &stamp, const bool enemy)
 {
 	Stamp newStamp;
 
@@ -2857,13 +2857,17 @@ void make_dying_bullets(Stamp &stamp, bool enemy)
 	{
 		Stamp newStamp;
 
-		newStamp.colour_radius = avg_rad / 50.0;
-		newStamp.force_radius = avg_rad / 50.0;
+		newStamp.colour_radius = avg_rad / 100.0;
+		newStamp.force_radius = avg_rad / 100.0;
 
 		newStamp.posX = stamp.posX;
 		newStamp.posY = stamp.posY;
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
+
+		newStamp.velX *= 50.0;
+		newStamp.velY *= 50.0;
+
 
 		newStamp.birth_time = global_time;
 		newStamp.death_time = global_time + 2.0;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
