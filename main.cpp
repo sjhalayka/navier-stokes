@@ -27,6 +27,7 @@ using namespace std;
 // to do: All kinds of stamps have age and lifespan and force/colour radius. cull after a certain lifespan length
 // to do: Bullets and explosions use multiple sized force and velocity radii, detail on multiple scales
 // to do: for example, a dead enemy disappears / fades, and is replaced by an explosion that consists of force and colour on multiple scales
+
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
@@ -36,7 +37,7 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -2306,9 +2307,6 @@ void subtractPressureGradient() {
 
 
 
-
-
-// To do: fix this so that it works like the mouse version
 // Add force to the velocity field
 void addForce(float posX, float posY, float velX, float velY, float radius)
 {
@@ -2719,7 +2717,6 @@ void move_bullets(void)
 }
 
 
-
 void mark_colliding_bullets(void)
 {
 	for (size_t i = 0; i < allyBullets.size(); ++i)
@@ -2744,14 +2741,14 @@ void mark_old_bullets(void)
 			allyBullets[i].to_be_culled = true;
 	}
 
-	for (size_t i = 0; i < enemyBullets.size(); ++i)
-	{
-		if (enemyBullets[i].death_time < 0.0)
-			continue;
+	//for (size_t i = 0; i < allyBullets.size(); ++i)
+	//{
+	//	if (allyBullets[i].death_time < 0.0)
+	//		continue;
 
-		if (enemyBullets[i].death_time <= global_time)
-			enemyBullets[i].to_be_culled = true;
-	}
+	//	if (allyBullets[i].death_time <= global_time)
+	//		allyBullets[i].to_be_culled = true;
+	//}
 }
 
 void mark_offscreen_bullets(void)
@@ -2812,10 +2809,10 @@ void move_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			stamp.posX += stamp.velX;
-			stamp.posY += stamp.velY;
-
 			const float aspect = WIDTH / float(HEIGHT);
+
+			stamp.posX += stamp.velX / aspect;
+			stamp.posY += stamp.velY;
 
 			if (keep_within_screen_bounds)
 			{
@@ -2845,12 +2842,22 @@ void move_ships(void)
 void mark_dying_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
 		if (allyShips[i].health <= 0)
+		{
+			// to do: Add random ally bullets, based on ally ship stamp size and location
 			allyShips[i].to_be_culled = true;
+		}
+	}
 
 	for (size_t i = 0; i < enemyShips.size(); ++i)
+	{
 		if (enemyShips[i].health <= 0)
+		{
+			// to do: Add random ENEMY bullets, based on enemy ship stamp size and location
 			enemyShips[i].to_be_culled = true;
+		}
+	}
 }
 
 void mark_colliding_ships(void)
@@ -2861,6 +2868,7 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
+				// to do: Add random ally bullets, based on ally ship stamp size and location
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
 			}
@@ -2938,6 +2946,8 @@ void cull_marked_ships(void)
 
 
 
+
+
 void simulationStep() {
 	clearObstacleTexture();
 	reapplyAllStamps();
@@ -2955,7 +2965,7 @@ void simulationStep() {
 
 
 	bool old_red_mode = red_mode;
-	// to do: do this for each bullet
+
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
