@@ -2826,8 +2826,11 @@ void move_ships(void)
 
 
 
-void make_dying_bullets(const Stamp &stamp, const bool enemy)
+void make_dying_bullets(const Stamp& stamp, const bool enemy)
 {
+	if (stamp.to_be_culled)
+		return;
+
 	Stamp newCentralStamp;
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
@@ -2842,14 +2845,14 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 	newCentralStamp.posY = stamp.posY;
 
 	newCentralStamp.birth_time = global_time;
-	newCentralStamp.death_time = global_time + 0.1;// -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+	newCentralStamp.death_time = global_time + 0.1;
 
-	if(enemy)
+	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
 	else
 		allyBullets.push_back(newCentralStamp);
 
-	for (size_t j = 0; j < 5; j++)
+	for (size_t j = 0; j < 3; j++)
 	{
 		Stamp newStamp = newCentralStamp;
 
@@ -2861,9 +2864,8 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-
 		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 1*rand() / float(RAND_MAX);
+		newStamp.death_time = global_time + 1 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -2871,24 +2873,18 @@ void make_dying_bullets(const Stamp &stamp, const bool enemy)
 			allyBullets.push_back(newStamp);
 	}
 
-	for (size_t j = 0; j < 15; j++)
+	for (size_t j = 0; j < 5; j++)
 	{
 		Stamp newStamp = newCentralStamp;
-		
+
 		newStamp.colour_radius = avg_rad / 8;
 		newStamp.force_radius = avg_rad / 8;
 
-		//newStamp.posX = stamp.posX;
-		//newStamp.posY = stamp.posY;
-
 		RandomUnitVector(newStamp.velX, newStamp.velY);
-
-
 
 		newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = (rand() / float(RAND_MAX))*0.01;
-
+		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
 		newStamp.birth_time = global_time;
 		newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
 
@@ -2909,12 +2905,8 @@ void mark_dying_ships(void)
 	{
 		if (allyShips[i].health <= 0)
 		{
-			if (allyShips[i].to_be_culled)
-				continue;
-
-			allyShips[i].to_be_culled = true;
-
 			make_dying_bullets(allyShips[i], false);
+			allyShips[i].to_be_culled = true;
 		}
 	}
 
@@ -2922,12 +2914,8 @@ void mark_dying_ships(void)
 	{
 		if (enemyShips[i].health <= 0)
 		{
-			if (enemyShips[i].to_be_culled)
-				continue;
-
-			enemyShips[i].to_be_culled = true;
-
 			make_dying_bullets(enemyShips[i], true);
+			enemyShips[i].to_be_culled = true;
 		}
 	}
 }
@@ -2940,10 +2928,9 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
+				make_dying_bullets(allyShips[i], false);
 				allyShips[i].health = 0;
 				allyShips[i].to_be_culled = true;
-
-				make_dying_bullets(allyShips[i], false);
 			}
 		}
 	}
