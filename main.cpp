@@ -388,8 +388,17 @@ void fireBullet() {
 	float aspect = WIDTH / float(HEIGHT);
 
 	// Get the ally ship position to fire from
-	bulletTemplate.posX = allyShips[0].posX + allyShips[0].width/float(WIDTH)/2.0;
-	bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT)*aspect)/8.0;
+
+	if (ally_fire == RANDOM)
+	{
+		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
+		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
+	}
+	else
+	{
+		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / float(WIDTH) / 2.0;
+		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
+	}
 
 	static const float pi = 4.0f * atanf(1.0f);
 
@@ -966,10 +975,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     // Simple diffusion using 5-point stencil
     vec2 center = texture(velocityTexture, TexCoord).xy;
@@ -1126,10 +1135,10 @@ const float fake_dispersion = 0.95;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = 0.0;
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
 
 
 
@@ -1180,10 +1189,10 @@ void main()
 {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = 0.0;
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
 
     // Get current color intensity
     float currentValue = texture(colorTexture, TexCoord).r;
@@ -1247,10 +1256,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
@@ -1291,10 +1300,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = 0.0;
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
 
     // Calculate divergence using central differences
     vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
@@ -1334,10 +1343,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = 0.0;
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
 
     // Get pressure at neighboring cells
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -1380,10 +1389,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     // Compute pressure gradient
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -1448,10 +1457,10 @@ void main()
 
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    //    return;
-    //}
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
@@ -3473,7 +3482,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, allyBullets[i].force_radius);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -3481,7 +3490,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, enemyBullets[i].force_radius);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -3698,22 +3707,6 @@ void idle()
 
 	if(spacePressed)
 	fireBullet();
-
-
-	//static std::chrono::high_resolution_clock::time_point last_tick_at = std::chrono::high_resolution_clock::now();
-
-	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-	//std::chrono::duration<float, std::milli> elapsed = global_time_end - last_tick_at;
-
-	//float e = elapsed.count() / 1000.0;
-
-	//while (e >= DT)
-	//{
-	//	e -= DT;
-	//	simulationStep();
-	//}
-
-	//last_tick_at = global_time_end;
 
 	glutPostRedisplay();
 }
