@@ -27,6 +27,10 @@ using namespace std;
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
+// to do: Have various power ups that appear randomly.Move them in straight line and mark them and cull them and do collision with them too.
+// to do: Have multiple types of fire, as well as power ups(larger force) of each fire type.So far I have straight fire, sine fire, and soon to have omnidirecfional electric - like fire.
+// to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
+
 
 
 // Simulation parameters
@@ -87,9 +91,10 @@ struct Stamp {
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
 	float path_randomization = 0;// force_radius / 50.0;
-	float sinusoidal_frequency = 0;// 2.5;
-	float sinusoidal_amplitude = 0;// 0.005;
+	float sinusoidal_frequency =  5.0;
+	float sinusoidal_amplitude =  0.001;
 	bool sinusoidal_shift = false;
+	bool straight_shooting = false;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -1166,7 +1171,7 @@ void main() {
             FragColor = vec4(0.0, 0.0, maxBlue, 1.0); // Blue
         } else {
             // No collision
-            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            FragColor = vec4(1.0, 0.5, 0.0, 1.0);
         }
     } else {
         // Not in an obstacle - no collision
@@ -1214,19 +1219,21 @@ void main() {
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
     if (collision.a > 0.0) {
-        if (collision.r > 0.5 && collision.b > 0.5) {
-            // Both red and blue collided - display as magenta
-            FragColor = vec4(1.0, 0.0, 1.0, 1.0);
-        } else if (collision.r > 0.5) {
-            // Only red collided - display as orange (original color)
-            FragColor = vec4(1.0, 0.6, 0.0, 1.0);
-        } else if (collision.b > 0.5) {
-            // Only blue collided - display as cyan
-            FragColor = vec4(0.0, 0.8, 1.0, 1.0);
-        } else {
-            // Generic collision (shouldn't happen with your logic)
-            FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
-        }
+        //if (collision.r > 0.5 && collision.b > 0.5) {
+        //    // Both red and blue collided - display as magenta
+        //    FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+        //} else if (collision.r > 0.5) {
+        //    // Only red collided - display as orange (original color)
+        //    FragColor = vec4(1.0, 0.6, 0.0, 1.0);
+        //} else if (collision.b > 0.5) {
+        //    // Only blue collided - display as cyan
+        //    FragColor = vec4(0.0, 0.8, 1.0, 1.0);
+        //} else {
+        //    // Generic collision (shouldn't happen with your logic)
+        //    FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
+        //}
+
+		FragColor =  texture(backgroundTexture, TexCoord);
         return;
     }
     
@@ -2582,30 +2589,84 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet")
 		{
-			RandomUnitVector(newStamp.velX, newStamp.velY);
+			if (allyShips.size() > 0 && allyShips[0].straight_shooting)
+			{
+				RandomUnitVector(newStamp.velX, newStamp.velY);
 
-			newStamp.velX = 0.01;
-			newStamp.velY = 0;// *= 0.01;
+				newStamp.velX = 0.01;
+				newStamp.velY = 0;// *= 0.01;
 
-			//newStamp.velX *= 0.01;
-			//newStamp.velY *= 0.01;
+				//newStamp.velX *= 0.01;
+				//newStamp.velY *= 0.01;
 
-			newStamp.sinusoidal_shift = false;
+				newStamp.sinusoidal_shift = false;
 
-			newStamp.birth_time = global_time;
-			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+				newStamp.birth_time = global_time;
+				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
-			allyBullets.push_back(newStamp);
+				allyBullets.push_back(newStamp);
 
 
-			//newStamp.velX = 0.01;
-			//newStamp.velY = 0;// *= 0.01;
-			newStamp.sinusoidal_shift = true;
+				//newStamp.velX = 0.01;
+				//newStamp.velY = 0;// *= 0.01;
+				newStamp.sinusoidal_shift = true;
 
-			newStamp.birth_time = global_time;
-			newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+				newStamp.birth_time = global_time;
+				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
-			allyBullets.push_back(newStamp);
+				allyBullets.push_back(newStamp);
+			}
+			else if (allyShips.size() > 0 && false == allyShips[0].straight_shooting)
+			{
+				Stamp newCentralStamp;
+
+				float x_rad = allyShips[0].width / float(WIDTH) / 2.0;
+				float y_rad = allyShips[0].height / float(HEIGHT) / 2.0;
+
+				float avg_rad = max(x_rad, y_rad);// 0.5 * (x_rad + y_rad);
+
+				newCentralStamp.colour_radius = avg_rad / 2.0;
+				newCentralStamp.force_radius = avg_rad / 2.0;
+
+				newCentralStamp.posX = allyShips[0].posX;
+				newCentralStamp.posY = allyShips[0].posY;
+
+				for (size_t j = 0; j < 3; j++)
+				{
+					Stamp newStamp = newCentralStamp;
+
+					newStamp.colour_radius = avg_rad / 4;
+					newStamp.force_radius = avg_rad / 4;
+
+					RandomUnitVector(newStamp.velX, newStamp.velY);
+
+					newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
+					newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
+					newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
+					newStamp.birth_time = global_time;
+					newStamp.death_time = global_time + 1 * rand() / float(RAND_MAX);
+
+					allyBullets.push_back(newStamp);
+				}
+
+				for (size_t j = 0; j < 5; j++)
+				{
+					Stamp newStamp = newCentralStamp;
+
+					newStamp.colour_radius = avg_rad / 8;
+					newStamp.force_radius = avg_rad / 8;
+
+					RandomUnitVector(newStamp.velX, newStamp.velY);
+
+					newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
+					newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
+					newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
+					newStamp.birth_time = global_time;
+					newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
+
+					allyBullets.push_back(newStamp);
+				}
+			}
 
 
 
@@ -3012,9 +3073,9 @@ void cull_marked_ships(void)
 
 
 
-void simulationStep() {
-	clearObstacleTexture();
-	reapplyAllStamps();
+void simulationStep() 
+{
+
 
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
 	{
@@ -3052,7 +3113,15 @@ void simulationStep() {
 	addMouseForce();
 	addMouseColor();
 
+
+
+
 	updateObstacle();
+
+
+	clearObstacleTexture();
+	reapplyAllStamps();
+
 	advectVelocity();
 	diffuseVelocity();
 	advectColor();
@@ -3140,7 +3209,7 @@ void renderToScreen() {
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-			//if (!stamp.active) continue;
+
 
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
