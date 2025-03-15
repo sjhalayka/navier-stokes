@@ -129,10 +129,14 @@ std::vector<Stamp> allyShips;
 std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
 std::vector<Stamp> enemyBullets;
+std::vector<Stamp> allyPowerUps;
+
 
 std::vector<Stamp> allyTemplates;    // Stores template stamps for ally ships
 std::vector<Stamp> enemyTemplates;   // Stores template stamps for enemy ships
 std::vector<Stamp> bulletTemplates;  // This already exists in your code
+std::vector<Stamp> powerUpTemplates;
+
 
 int currentAllyTemplateIndex = 0;    // Index for selecting ally template stamps
 int currentEnemyTemplateIndex = 0;   // Index for selecting enemy template stamps
