@@ -111,11 +111,7 @@ struct Stamp {
 	float sinusoidal_frequency = 5.0;
 	float sinusoidal_amplitude = 0.001;
 	bool sinusoidal_shift = false;
-	//bool straight_shooting = true;
-	//bool x3_shooting = false;
-	//bool x5_shooting = false;
-
-
+	float random_forking = 0.0;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -2689,6 +2685,8 @@ void updateObstacle()
 					newStamp.birth_time = elapsed.count() / 1000.0;
 					newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
 
+					newStamp.random_forking = 0.001;
+
 					allyBullets.push_back(newStamp);
 				}
 
@@ -2706,6 +2704,8 @@ void updateObstacle()
 					newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
 					newStamp.birth_time = elapsed.count() / 1000.0;
 					newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
+
+					newStamp.random_forking = 0.01;
 
 					allyBullets.push_back(newStamp);
 				}
@@ -2747,9 +2747,9 @@ void updateObstacle()
 
 
 
-void move_bullets(void)
+void move_and_fork_bullets(void)
 {
-	auto update_bullets = [&](std::vector<Stamp>& stamps)
+	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
 	{
 		float aspect = HEIGHT / float(WIDTH);
 
@@ -2802,11 +2802,31 @@ void move_bullets(void)
 			RandomUnitVector(rand_x, rand_y);
 			stamp.posX += rand_x * stamp.path_randomization;
 			stamp.posY += rand_y * stamp.path_randomization;
+
+
+			float r = rand() / float(RAND_MAX);
+
+			if (r < stamp.random_forking)
+			{
+				Stamp newBullet = stamp;
+
+				float rand_x = 0, rand_y = 0;
+				RandomUnitVector(rand_x, rand_y);
+				newBullet.velX += rand_x * r;
+				newBullet.velY += rand_y * r;
+
+				if (type == "ally")
+					allyBullets.push_back(newBullet);
+
+				if (type == "enemy")
+					enemyBullets.push_back(newBullet);
+
+			}
 		}
 	};
 
-	update_bullets(allyBullets);
-	update_bullets(enemyBullets);
+	update_bullets(allyBullets, "ally");
+	update_bullets(enemyBullets, "enemy");
 }
 
 
@@ -3147,6 +3167,21 @@ void simulationStep()
 	updateDynamicTextures(enemyBullets);
 
 
+	move_and_fork_bullets();
+	mark_colliding_bullets();
+	mark_old_bullets();
+	mark_offscreen_bullets();
+	cull_marked_bullets();
+
+	move_ships();
+	mark_colliding_ships();
+	mark_offscreen_ships();
+	mark_dying_ships();
+	proceed_stamp_opacity();
+	cull_marked_ships();
+
+
+
 	bool old_red_mode = red_mode;
 
 	red_mode = true;
@@ -3190,18 +3225,7 @@ void simulationStep()
 	solvePressure(20);
 	subtractPressureGradient();
 
-	move_bullets();
-	mark_colliding_bullets();
-	mark_old_bullets();
-	mark_offscreen_bullets();
-	cull_marked_bullets();
 
-	move_ships();
-	mark_colliding_ships();
-	mark_offscreen_ships();
-	mark_dying_ships();
-	proceed_stamp_opacity();
-	cull_marked_ships();
 
 	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
 	{
