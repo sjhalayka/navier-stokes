@@ -73,8 +73,8 @@ enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM };
 
 enum fire_type ally_fire = STRAIGHT;
 
-bool x3_fire = false;
-bool x5_fire = false;
+bool x3_fire = true;
+bool x5_fire = true;
 
 
 
@@ -2623,40 +2623,115 @@ void updateObstacle()
 		{
 			if (allyShips.size() > 0 && ally_fire == STRAIGHT)
 			{
-				RandomUnitVector(newStamp.velX, newStamp.velY);
+				static const float pi = 4.0f * atanf(1.0f);
 
-				newStamp.velX = 0.01;
-				newStamp.velY = 0;// *= 0.01;
+				float angle_start = 0;
+				float angle_end = 0;
 
-				newStamp.sinusoidal_amplitude = 0;
+				size_t num_streams = 1;
 
-				newStamp.birth_time = elapsed.count() / 1000.0;
-				newStamp.death_time = -1;
+				if (x3_fire)
+				{
+					angle_start = 0.1;// pi / 2;// -0.1;// +0.1;
+					angle_end = -0.1;// pi / 2;// pi / 2;// +0.1;// -0.1;
 
-				allyBullets.push_back(newStamp);
+					num_streams = 3;
+				}
+				
+				if (x5_fire)
+				{
+					angle_start = 0.2;
+					angle_end = -0.2;
+
+					num_streams = 5;
+				}
+
+
+				float angle_step = 0;
+				
+				if(num_streams > 1)
+					angle_step = (angle_end - angle_start) / (num_streams - 1);
+
+				float angle = angle_start;
+
+				for (size_t i = 0; i < num_streams; i++, angle += angle_step)
+				{
+					newStamp.velX = 0.01*cos(angle);
+					newStamp.velY = 0.01*sin(angle);
+
+					newStamp.sinusoidal_amplitude = 0;
+
+					newStamp.birth_time = elapsed.count() / 1000.0;
+					newStamp.death_time = -1;
+
+					allyBullets.push_back(newStamp);
+				}
 			}
 			else if (allyShips.size() > 0 && ally_fire == SINUSOIDAL)
 			{
-				RandomUnitVector(newStamp.velX, newStamp.velY);
+				static const float pi = 4.0f * atanf(1.0f);
 
-				newStamp.velX = 0.01;
-				newStamp.velY = 0;
+				float angle_start = 0;
+				float angle_end = 0;
 
-				newStamp.sinusoidal_shift = false;
-				newStamp.sinusoidal_amplitude = 0.001;
+				size_t num_streams = 1;
 
-				newStamp.birth_time = elapsed.count() / 1000.0;
-				newStamp.death_time = -1;
+				if (x3_fire)
+				{
+					angle_start = 0.1;// pi / 2;// -0.1;// +0.1;
+					angle_end = -0.1;// pi / 2;// pi / 2;// +0.1;// -0.1;
 
-				allyBullets.push_back(newStamp);
+					num_streams = 3;
+				}
 
-				newStamp.sinusoidal_amplitude = 0.001;
-				newStamp.sinusoidal_shift = true;
+				if (x5_fire)
+				{
+					angle_start = 0.2;
+					angle_end = -0.2;
 
-				allyBullets.push_back(newStamp);
+					num_streams = 5;
+				}
+
+
+				float angle_step = 0;
+
+				if (num_streams > 1)
+					angle_step = (angle_end - angle_start) / (num_streams - 1);
+
+				float angle = angle_start;
+
+				for (size_t i = 0; i < num_streams; i++, angle += angle_step)
+				{
+					newStamp.velX = 0.01 * cos(angle);
+					newStamp.velY = 0.01 * sin(angle);
+
+					newStamp.sinusoidal_shift = false;
+					newStamp.sinusoidal_amplitude = 0.001;
+
+					newStamp.birth_time = elapsed.count() / 1000.0;
+					newStamp.death_time = -1;
+
+					allyBullets.push_back(newStamp);
+
+					newStamp.sinusoidal_amplitude = 0.001;
+					newStamp.sinusoidal_shift = true;
+
+					allyBullets.push_back(newStamp);
+				}
+
+
+
 			}
 			else if (allyShips.size() > 0 && ally_fire == RANDOM)
 			{
+				size_t num_streams = 1;
+
+				if (x3_fire)
+					num_streams = 3;
+
+				if (x5_fire)
+					num_streams = 5;
+
 				Stamp newCentralStamp;
 
 				float x_rad = allyShips[0].width / float(WIDTH) / 2.0;
@@ -2670,7 +2745,7 @@ void updateObstacle()
 				newCentralStamp.posX = allyShips[0].posX;
 				newCentralStamp.posY = allyShips[0].posY;
 
-				for (size_t j = 0; j < 1; j++)
+				for (size_t j = 0; j < num_streams; j++)
 				{
 					Stamp newStamp = newCentralStamp;
 
@@ -2690,7 +2765,7 @@ void updateObstacle()
 					allyBullets.push_back(newStamp);
 				}
 
-				for (size_t j = 0; j < 1; j++)
+				for (size_t j = 0; j < num_streams * 2; j++)
 				{
 					Stamp newStamp = newCentralStamp;
 
@@ -2710,8 +2785,6 @@ void updateObstacle()
 					allyBullets.push_back(newStamp);
 				}
 			}
-
-
 
 			std::cout << "Added new ally bullet";
 		}
@@ -2971,12 +3044,11 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	if (stamp.to_be_culled)
 		return;
 
-
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - global_time;
 
-	Stamp newCentralStamp;
+	Stamp newCentralStamp = stampTemplates[2];
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0;
