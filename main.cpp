@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <chrono>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -45,7 +46,11 @@ const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collisio
 const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
-float global_time = 0.0f;
+std::chrono::high_resolution_clock::time_point global_time = std::chrono::high_resolution_clock::now();
+
+
+
+
 
 bool red_mode = true;
 
@@ -2587,6 +2592,13 @@ void updateObstacle()
 			}
 		}
 
+
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed;
+		elapsed = global_time_end - global_time;
+
+
+
 		// Add the stamp to the appropriate vector based on the file prefix in baseFilename
 		std::string prefix = newStamp.baseFilename.substr(0, newStamp.baseFilename.find_first_of("0123456789"));
 
@@ -2608,7 +2620,7 @@ void updateObstacle()
 
 				newStamp.sinusoidal_shift = false;
 
-				newStamp.birth_time = global_time;
+				newStamp.birth_time = elapsed.count()/1000.0;
 				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 				allyBullets.push_back(newStamp);
@@ -2618,7 +2630,7 @@ void updateObstacle()
 				//newStamp.velY = 0;// *= 0.01;
 				newStamp.sinusoidal_shift = true;
 
-				newStamp.birth_time = global_time;
+				newStamp.birth_time = elapsed.count() / 1000.0;
 				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 				allyBullets.push_back(newStamp);
@@ -2650,8 +2662,8 @@ void updateObstacle()
 					newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 					newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
 					newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-					newStamp.birth_time = global_time;
-					newStamp.death_time = global_time + 1 * rand() / float(RAND_MAX);
+					newStamp.birth_time = elapsed.count() / 1000.0;
+					newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
 
 					allyBullets.push_back(newStamp);
 				}
@@ -2668,8 +2680,8 @@ void updateObstacle()
 					newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 					newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
 					newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-					newStamp.birth_time = global_time;
-					newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
+					newStamp.birth_time = elapsed.count() / 1000.0;
+					newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
 
 					allyBullets.push_back(newStamp);
 				}
@@ -2719,6 +2731,10 @@ void move_bullets(void)
 
 		for (auto& stamp : stamps)
 		{
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed;
+			elapsed = global_time_end - global_time;
+
 			// Store the original direction vector
 			float dirX = stamp.velX * aspect;
 			float dirY = stamp.velY;
@@ -2736,7 +2752,7 @@ void move_bullets(void)
 
 			// Calculate time-based sinusoidal amplitude
 			// Use the birth_time to ensure continuous motion
-			float timeSinceCreation = global_time - stamp.birth_time;
+			float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
 			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
 			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
 
@@ -2772,28 +2788,36 @@ void move_bullets(void)
 
 void mark_colliding_bullets(void)
 {
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - global_time;
+
 	// If collided, then make bullet mortal for long enough to penetrate the enemy
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-				allyBullets[i].death_time = global_time + 0.000001;
+				allyBullets[i].death_time = elapsed.count() / 1000.0 + 0.000001;
 
 
 	// If collided, ...
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = global_time + 0.000001;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0 + 0.000001;
 }
 
 void mark_old_bullets(void)
 {
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - global_time;
+
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 	{
 		if (allyBullets[i].death_time < 0.0)
 			continue;
 
-		if (allyBullets[i].death_time <= global_time)
+		if (allyBullets[i].death_time <= elapsed.count() / 1000.0)
 			allyBullets[i].to_be_culled = true;
 	}
 
@@ -2802,7 +2826,7 @@ void mark_old_bullets(void)
 		if (enemyBullets[i].death_time < 0.0)
 			continue;
 
-		if (enemyBullets[i].death_time <= global_time)
+		if (enemyBullets[i].death_time <= elapsed.count() / 1000.0)
 			enemyBullets[i].to_be_culled = true;
 	}
 
@@ -2903,6 +2927,11 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	if (stamp.to_be_culled)
 		return;
 
+
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - global_time;
+
 	Stamp newCentralStamp;
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
@@ -2916,8 +2945,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	newCentralStamp.posX = stamp.posX;
 	newCentralStamp.posY = stamp.posY;
 
-	newCentralStamp.birth_time = global_time;
-	newCentralStamp.death_time = global_time + 0.1;
+	newCentralStamp.birth_time = elapsed.count() / 1000.0;
+	newCentralStamp.death_time = elapsed.count() / 1000.0 + 0.1;
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -2936,8 +2965,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 1 * rand() / float(RAND_MAX);
+		newStamp.birth_time = elapsed.count() / 1000.0;
+		newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -2957,8 +2986,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-		newStamp.birth_time = global_time;
-		newStamp.death_time = global_time + 3.0 * rand() / float(RAND_MAX);
+		newStamp.birth_time = elapsed.count() / 1000.0;
+		newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -3177,7 +3206,9 @@ void renderToScreen() {
 	glUseProgram(renderProgram);
 
 
-	global_time += DT; // Approximate time for 60fps, adjust as needed
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - global_time;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
@@ -3186,7 +3217,7 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
 	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-	glUniform1f(glGetUniformLocation(renderProgram, "time"), global_time);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
@@ -3324,18 +3355,24 @@ void display() {
 // GLUT idle callback
 void idle()
 {
-	//static double last_step_time = global_time;
-	//double curr_step_time = global_time;
-
-	//double elapsed = curr_step_time - last_step_time;
-
-	//while (elapsed > DT)
-	//{
-	//	elapsed -= DT;
+	//global_time += DT;
 	simulationStep();
+
+
+	//static std::chrono::high_resolution_clock::time_point last_tick_at = std::chrono::high_resolution_clock::now();
+
+	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	//std::chrono::duration<float, std::milli> elapsed = global_time_end - last_tick_at;
+
+	//float e = elapsed.count() / 1000.0;
+
+	//while (e >= DT)
+	//{
+	//	e -= DT;
+	//	simulationStep();
 	//}
 
-	//last_step_time = global_time;// curr_step_time;
+	//last_tick_at = global_time_end;
 
 	glutPostRedisplay();
 }
