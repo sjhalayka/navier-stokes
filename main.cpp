@@ -37,7 +37,7 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -3082,8 +3082,6 @@ void cull_marked_ships(void)
 
 void simulationStep()
 {
-
-
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
 	{
 		for (auto& stamp : stamps)
@@ -3094,23 +3092,6 @@ void simulationStep()
 	updateDynamicTextures(enemyShips);
 	updateDynamicTextures(allyBullets);
 	updateDynamicTextures(enemyBullets);
-
-
-	clearObstacleTexture();
-	reapplyAllStamps();
-
-	move_bullets();
-	mark_colliding_bullets();
-	mark_old_bullets();
-	mark_offscreen_bullets();
-	cull_marked_bullets();
-
-	move_ships();
-	mark_colliding_ships();
-	mark_offscreen_ships();
-	mark_dying_ships();
-	proceed_stamp_opacity();
-	cull_marked_ships();
 
 
 	bool old_red_mode = red_mode;
@@ -3139,6 +3120,8 @@ void simulationStep()
 
 
 
+	clearObstacleTexture();
+	reapplyAllStamps();
 
 	updateObstacle();
 
@@ -3154,7 +3137,18 @@ void simulationStep()
 	solvePressure(20);
 	subtractPressureGradient();
 
+	move_bullets();
+	mark_colliding_bullets();
+	mark_old_bullets();
+	mark_offscreen_bullets();
+	cull_marked_bullets();
 
+	move_ships();
+	mark_colliding_ships();
+	mark_offscreen_ships();
+	mark_dying_ships();
+	proceed_stamp_opacity();
+	cull_marked_ships();
 
 	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
 	{
@@ -3318,12 +3312,7 @@ void display() {
 
 	// Check if it's time to report collisions
 	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
-	{
 		reportCollisions = true;
-	}
-
-	// Perform simulation step
-	simulationStep();
 
 	// Render to screen
 	renderToScreen();
@@ -3333,7 +3322,21 @@ void display() {
 }
 
 // GLUT idle callback
-void idle() {
+void idle() 
+{
+	//static double last_step_time = global_time;
+	//double curr_step_time = global_time;
+
+	//double elapsed = curr_step_time - last_step_time;
+
+	//while (elapsed > DT)
+	//{
+	//	elapsed -= DT;
+		simulationStep();
+	//}
+
+	//last_step_time = global_time;// curr_step_time;
+
 	glutPostRedisplay();
 }
 
