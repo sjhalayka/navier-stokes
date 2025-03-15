@@ -3960,8 +3960,6 @@ void specialKeyboardUp(int key, int x, int y) {
 
 
 
-// GLUT reshape callback// GLUT reshape callback
-
 void reshape(int w, int h) {
 	glViewport(0, 0, w, h);
 	WIDTH = w;
