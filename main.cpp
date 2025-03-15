@@ -38,7 +38,7 @@ using namespace std;
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -604,10 +604,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Simple diffusion using 5-point stencil
     vec2 center = texture(velocityTexture, TexCoord).xy;
@@ -764,10 +764,10 @@ const float fake_dispersion = 0.95;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
 
 
@@ -818,10 +818,10 @@ void main()
 {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Get current color intensity
     float currentValue = texture(colorTexture, TexCoord).r;
@@ -885,10 +885,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
@@ -929,10 +929,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Calculate divergence using central differences
     vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
@@ -972,10 +972,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Get pressure at neighboring cells
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -1018,10 +1018,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Compute pressure gradient
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -1086,10 +1086,10 @@ void main()
 
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
@@ -1254,8 +1254,8 @@ void main() {
         //    FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
         //}
 
-		FragColor =  texture(backgroundTexture, scrolledCoord);
-        return;
+		//FragColor =  texture(backgroundTexture, scrolledCoord);
+       // return;
     }
     
 
@@ -3533,7 +3533,7 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velY /= vel_length;
 
 			allyShips[0].velX *= 0.005;
-			allyShips[0].velY *= 0.005;
+			allyShips[0].velY *= 0.005 * (WIDTH/HEIGHT);
 		}
 	}
 }
@@ -3588,7 +3588,7 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].velY /= vel_length;
 
 			allyShips[0].velX *= 0.005;
-			allyShips[0].velY *= 0.005;
+			allyShips[0].velY *= 0.005 * (WIDTH / HEIGHT);
 		}
 	}
 }
