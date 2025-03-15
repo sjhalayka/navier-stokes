@@ -91,7 +91,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 0.001;
+	float health = 1.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -1994,9 +1994,7 @@ void generateFluidStampCollisionsDamage()
 				else
 					damage = red_count;
 
-				const float fps_coeff = float(FLUID_STAMP_COLLISION_REPORT_INTERVAL) / FPS;
-
-				stamps[i].health -= damage * DT * fps_coeff;
+				stamps[i].health -= damage * DT;
 				cout << stamps[i].health << endl;
 			}
 		}
