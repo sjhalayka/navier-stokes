@@ -91,8 +91,8 @@ struct Stamp {
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
 	float path_randomization = 0;// force_radius / 50.0;
-	float sinusoidal_frequency =  5.0;
-	float sinusoidal_amplitude =  0.001;
+	float sinusoidal_frequency = 5.0;
+	float sinusoidal_amplitude = 0.001;
 	bool sinusoidal_shift = false;
 	bool straight_shooting = false;
 
@@ -1216,6 +1216,21 @@ void main() {
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }
     
+
+    vec2 adjustedCoord2 = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    if (1.0/aspect_ratio > 1.0) {
+        adjustedCoord2.x = (adjustedCoord2.x - 0.5) * aspect_ratio + 0.5;
+    } else if (1.0/aspect_ratio < 1.0) {
+        adjustedCoord2.y = (adjustedCoord2.y - 0.5) / aspect_ratio + 0.5;
+    }
+
+
+	vec2 scrolledCoord = adjustedCoord2;
+	scrolledCoord.x += time * 0.01;
+
+
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
     if (collision.a > 0.0) {
@@ -1233,10 +1248,13 @@ void main() {
         //    FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
         //}
 
-		FragColor =  texture(backgroundTexture, TexCoord);
+		FragColor =  texture(backgroundTexture, scrolledCoord);
         return;
     }
     
+
+
+
 
     
     // Get density and colors at adjusted position
@@ -1253,18 +1271,7 @@ void main() {
 	vec4 combinedColor = redFluidColor + blueFluidColor;
     
 
-    vec2 adjustedCoord2 = TexCoord;
-    
-    // For non-square textures, adjust sampling to prevent stretching
-    if (1.0/aspect_ratio > 1.0) {
-        adjustedCoord2.x = (adjustedCoord2.x - 0.5) * aspect_ratio + 0.5;
-    } else if (1.0/aspect_ratio < 1.0) {
-        adjustedCoord2.y = (adjustedCoord2.y - 0.5) / aspect_ratio + 0.5;
-    }
 
-
-	vec2 scrolledCoord = adjustedCoord2;
-	scrolledCoord.x += time * 0.01;
 
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
@@ -1275,7 +1282,7 @@ void main() {
 		//return;
 
         // Render obstacles as background coloured
-		FragColor = texture(backgroundTexture, scrolledCoord);
+		FragColor = texture(backgroundTexture, adjustedCoord2);//vec4(0,0,0,1);//texture(backgroundTexture, TexCoord);
 		return;
     }
 
@@ -3073,7 +3080,7 @@ void cull_marked_ships(void)
 
 
 
-void simulationStep() 
+void simulationStep()
 {
 
 
