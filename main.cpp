@@ -3322,7 +3322,7 @@ void display() {
 }
 
 // GLUT idle callback
-void idle() 
+void idle()
 {
 	//static double last_step_time = global_time;
 	//double curr_step_time = global_time;
@@ -3332,7 +3332,7 @@ void idle()
 	//while (elapsed > DT)
 	//{
 	//	elapsed -= DT;
-		simulationStep();
+	simulationStep();
 	//}
 
 	//last_step_time = global_time;// curr_step_time;
@@ -3494,8 +3494,8 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.0025;
-			allyShips[0].velY *= 0.0025;
+			allyShips[0].velX *= 0.005;
+			allyShips[0].velY *= 0.005;
 		}
 	}
 }
@@ -3549,8 +3549,8 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.0025;
-			allyShips[0].velY *= 0.0025;
+			allyShips[0].velX *= 0.005;
+			allyShips[0].velY *= 0.005;
 		}
 	}
 }
