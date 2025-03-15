@@ -3895,8 +3895,8 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.005;
-			allyShips[0].velY *= 0.005 * (WIDTH / HEIGHT);
+			allyShips[0].velX *= 0.01;
+			allyShips[0].velY *= 0.01 * (WIDTH / HEIGHT);
 		}
 	}
 }
@@ -3951,8 +3951,8 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.005;
-			allyShips[0].velY *= 0.005 * (WIDTH / HEIGHT);
+			allyShips[0].velX *= 0.01;
+			allyShips[0].velY *= 0.01 * (WIDTH / HEIGHT);
 		}
 	}
 }
