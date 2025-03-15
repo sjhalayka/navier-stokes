@@ -69,7 +69,7 @@ vector<float> global_maxYs;
 //float global_minX, global_minY, global_maxX, global_maxY;
 
 
-enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM};
+enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM };
 
 enum fire_type ally_fire = STRAIGHT;
 
@@ -2670,7 +2670,7 @@ void updateObstacle()
 				newCentralStamp.posX = allyShips[0].posX;
 				newCentralStamp.posY = allyShips[0].posY;
 
-				for (size_t j = 0; j < 3; j++)
+				for (size_t j = 0; j < 1; j++)
 				{
 					Stamp newStamp = newCentralStamp;
 
@@ -2690,7 +2690,7 @@ void updateObstacle()
 					allyBullets.push_back(newStamp);
 				}
 
-				for (size_t j = 0; j < 5; j++)
+				for (size_t j = 0; j < 1; j++)
 				{
 					Stamp newStamp = newCentralStamp;
 
@@ -3456,10 +3456,10 @@ void mouseMotion(int x, int y) {
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
-	
+
 	case 'q':
 		ally_fire = STRAIGHT;
-		break;	
+		break;
 	case 'w':
 		ally_fire = SINUSOIDAL;
 		break;
@@ -3592,7 +3592,7 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velY /= vel_length;
 
 			allyShips[0].velX *= 0.005;
-			allyShips[0].velY *= 0.005 * (WIDTH/HEIGHT);
+			allyShips[0].velY *= 0.005 * (WIDTH / HEIGHT);
 		}
 	}
 }
