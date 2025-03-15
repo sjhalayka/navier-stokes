@@ -138,9 +138,149 @@ int currentTemplateIndex = 0;       // Index for selecting template stamps
 
 
 
+std::vector<Stamp> bulletTemplates;
 
 
 
+bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
+	// Load image using stb_image - Don't flip vertically for our pixel data
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
+
+	if (!data) {
+		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
+		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+		return false;
+	}
+
+	// Store the pixel data in the vector
+	int dataSize = width * height * channels;
+	pixelData.resize(dataSize);
+	std::memcpy(pixelData.data(), data, dataSize);
+
+	// Now set flip for OpenGL texture loading
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
+
+	if (!glData) {
+		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
+		// If we fail to reload, use the original data for OpenGL too
+		glData = data;
+	}
+
+	// Create texture
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+
+	// Set texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Determine format based on channels
+	GLenum format;
+	switch (channels) {
+	case 1: format = GL_RED; break;
+	case 3: format = GL_RGB; break;
+	case 4: format = GL_RGBA; break;
+	default:
+		format = GL_RGB;
+		std::cerr << "Unsupported number of channels: " << channels << std::endl;
+	}
+
+	// Load texture data to GPU
+	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, glData);
+
+	// Free image data - we've already copied what we need
+	if (glData != data) {
+		stbi_image_free(glData);
+	}
+	stbi_image_free(data);
+
+	return true;
+}
+
+
+
+
+
+
+
+
+
+
+bool loadStampTextures() {
+	// Clear previous template textures
+	for (auto& stamp : stampTemplates) {
+		for (auto& texID : stamp.textureIDs) {
+			if (texID != 0) {
+				glDeleteTextures(1, &texID);
+			}
+		}
+	}
+
+	stampTemplates.clear();
+
+	// Define the file prefixes for each type of game object
+	const std::vector<std::string> prefixes = { "obstacle", "enemy" };
+	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
+
+	bool loadedAny = false;
+
+	// For each prefix, attempt to load all indexed textures
+	for (const auto& prefix : prefixes) {
+		int index = 0;
+
+		while (true) {
+			std::string baseFilename = prefix + std::to_string(index);
+			Stamp newStamp;
+			newStamp.baseFilename = baseFilename;
+			newStamp.textureNames = { "centre", "up", "down" };
+			newStamp.currentVariationIndex = 0; // Default to center
+
+			bool loadedAtLeastOne = false;
+
+			for (size_t i = 0; i < variations.size(); i++) {
+				std::string filename = baseFilename + variations[i] + ".png";
+				GLuint textureID = 0;
+				int width = 0, height = 0, channels = 0;
+				std::vector<unsigned char> pixelData;
+
+				if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
+					if (newStamp.pixelData.empty()) {
+						newStamp.width = width;
+						newStamp.height = height;
+						newStamp.channels = channels;
+					}
+					newStamp.textureIDs.push_back(textureID);
+					newStamp.pixelData.push_back(std::move(pixelData));
+					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
+					loadedAtLeastOne = true;
+				}
+				else {
+					newStamp.textureIDs.push_back(0);
+					newStamp.pixelData.push_back(std::vector<unsigned char>());
+				}
+			}
+
+			if (loadedAtLeastOne) {
+				stampTemplates.push_back(std::move(newStamp));
+				loadedAny = true;
+				index++;
+			}
+			else {
+				break; // No more textures with this prefix
+			}
+		}
+	}
+
+	if (loadedAny) {
+		currentTemplateIndex = 0;
+	}
+
+	return loadedAny;
+}
 
 void RandomUnitVector(float& x_out, float& y_out)
 {
@@ -151,6 +291,199 @@ void RandomUnitVector(float& x_out, float& y_out)
 	x_out = cos(a);
 	y_out = sin(a);
 }
+
+
+bool loadBulletTemplates() {
+	// Clear previous bullet templates
+	for (auto& stamp : bulletTemplates) {
+		for (auto& texID : stamp.textureIDs) {
+			if (texID != 0) {
+				glDeleteTextures(1, &texID);
+			}
+		}
+	}
+	bulletTemplates.clear();
+
+	// Load all bullet textures (bullet0, bullet1, etc.)
+	int index = 0;
+	bool loadedAny = false;
+
+	while (true) {
+		std::string baseFilename = "bullet" + std::to_string(index);
+		Stamp newStamp;
+		newStamp.baseFilename = baseFilename;
+		newStamp.textureNames = { "centre", "up", "down" };
+		newStamp.currentVariationIndex = 0; // Default to center
+
+		bool loadedAtLeastOne = false;
+		const std::vector<std::string> variations = { "_centre", "_up", "_down" };
+
+		for (size_t i = 0; i < variations.size(); i++) {
+			std::string filename = baseFilename + variations[i] + ".png";
+			GLuint textureID = 0;
+			int width = 0, height = 0, channels = 0;
+			std::vector<unsigned char> pixelData;
+
+			if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
+				if (newStamp.pixelData.empty()) {
+					newStamp.width = width;
+					newStamp.height = height;
+					newStamp.channels = channels;
+				}
+				newStamp.textureIDs.push_back(textureID);
+				newStamp.pixelData.push_back(std::move(pixelData));
+				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
+				loadedAtLeastOne = true;
+			}
+			else {
+				newStamp.textureIDs.push_back(0);
+				newStamp.pixelData.push_back(std::vector<unsigned char>());
+			}
+		}
+
+		if (loadedAtLeastOne) {
+			bulletTemplates.push_back(std::move(newStamp));
+			loadedAny = true;
+			index++;
+		}
+		else {
+			break; // No more textures with this prefix
+		}
+	}
+
+	return loadedAny;
+}
+
+
+
+
+void fireBullet() {
+	// Only fire if we have ally ships and bullet templates
+	if (allyShips.empty() || bulletTemplates.empty()) {
+		return;
+	}
+
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed = global_time_end - global_time;
+
+	// Use the first bullet template
+	Stamp bulletTemplate = bulletTemplates[0];
+
+	// Get the ally ship position to fire from
+	bulletTemplate.posX = allyShips[0].posX;
+	bulletTemplate.posY = allyShips[0].posY;
+
+	static const float pi = 4.0f * atanf(1.0f);
+
+	float angle_start = 0;
+	float angle_end = 0;
+	size_t num_streams = 1;
+
+	if (x3_fire) {
+		angle_start = 0.1;
+		angle_end = -0.1;
+		num_streams = 3;
+	}
+
+	if (x5_fire) {
+		angle_start = 0.2;
+		angle_end = -0.2;
+		num_streams = 5;
+	}
+
+	float angle_step = 0;
+	if (num_streams > 1) {
+		angle_step = (angle_end - angle_start) / (num_streams - 1);
+	}
+
+	float angle = angle_start;
+
+	// Fire bullets based on current fire type
+	switch (ally_fire) {
+	case STRAIGHT:
+		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
+			Stamp newBullet = bulletTemplate;
+			newBullet.velX = 0.01 * cos(angle);
+			newBullet.velY = 0.01 * sin(angle);
+			newBullet.sinusoidal_amplitude = 0;
+			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.death_time = -1;
+			allyBullets.push_back(newBullet);
+		}
+		break;
+
+	case SINUSOIDAL:
+		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
+			Stamp newBullet = bulletTemplate;
+			newBullet.velX = 0.01 * cos(angle);
+			newBullet.velY = 0.01 * sin(angle);
+			newBullet.sinusoidal_shift = false;
+			newBullet.sinusoidal_amplitude = 0.001;
+			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.death_time = -1;
+			allyBullets.push_back(newBullet);
+
+			newBullet.sinusoidal_shift = true;
+			allyBullets.push_back(newBullet);
+		}
+		break;
+
+	case RANDOM:
+	{
+		size_t num_streams_local = num_streams;
+
+		Stamp newCentralStamp = bulletTemplate;
+		float x_rad = allyShips[0].width / float(WIDTH) / 2.0;
+		float y_rad = allyShips[0].height / float(HEIGHT) / 2.0;
+		float avg_rad = max(x_rad, y_rad);
+
+		newCentralStamp.colour_radius = avg_rad / 2.0;
+		newCentralStamp.force_radius = avg_rad / 2.0;
+
+		for (size_t j = 0; j < num_streams_local; j++) {
+			Stamp newStamp = newCentralStamp;
+			newStamp.colour_radius = avg_rad / 4;
+			newStamp.force_radius = avg_rad / 4;
+
+			RandomUnitVector(newStamp.velX, newStamp.velY);
+			newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
+			newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
+			newStamp.birth_time = elapsed.count() / 1000.0;
+			newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
+			newStamp.random_forking = 0.001;
+			allyBullets.push_back(newStamp);
+		}
+
+		for (size_t j = 0; j < num_streams_local * 2; j++) {
+			Stamp newStamp = newCentralStamp;
+			newStamp.colour_radius = avg_rad / 8;
+			newStamp.force_radius = avg_rad / 8;
+
+			RandomUnitVector(newStamp.velX, newStamp.velY);
+			newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
+			newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
+			newStamp.birth_time = elapsed.count() / 1000.0;
+			newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
+			newStamp.random_forking = 0.01;
+			allyBullets.push_back(newStamp);
+		}
+	}
+	break;
+	}
+}
+
+
+
+bool spacePressed = false;
+float lastFireTime = 0.0f;
+const float FIRE_COOLDOWN = 0.0f; // 200ms cooldown between shots
+
+
+
+
+
 
 
 
@@ -1415,144 +1748,6 @@ void reapplyAllStamps() {
 
 
 
-bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
-	// Load image using stb_image - Don't flip vertically for our pixel data
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
-
-	if (!data) {
-		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
-		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-		return false;
-	}
-
-	// Store the pixel data in the vector
-	int dataSize = width * height * channels;
-	pixelData.resize(dataSize);
-	std::memcpy(pixelData.data(), data, dataSize);
-
-	// Now set flip for OpenGL texture loading
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
-
-	if (!glData) {
-		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
-		// If we fail to reload, use the original data for OpenGL too
-		glData = data;
-	}
-
-	// Create texture
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_2D, textureID);
-
-	// Set texture parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Determine format based on channels
-	GLenum format;
-	switch (channels) {
-	case 1: format = GL_RED; break;
-	case 3: format = GL_RGB; break;
-	case 4: format = GL_RGBA; break;
-	default:
-		format = GL_RGB;
-		std::cerr << "Unsupported number of channels: " << channels << std::endl;
-	}
-
-	// Load texture data to GPU
-	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, glData);
-
-	// Free image data - we've already copied what we need
-	if (glData != data) {
-		stbi_image_free(glData);
-	}
-	stbi_image_free(data);
-
-	return true;
-}
-
-
-
-
-
-
-
-
-
-
-bool loadStampTextures() {
-	// Clear previous template textures
-	for (auto& stamp : stampTemplates) {
-		for (auto& texID : stamp.textureIDs) {
-			if (texID != 0) {
-				glDeleteTextures(1, &texID);
-			}
-		}
-	}
-	stampTemplates.clear();
-
-	// Define the file prefixes for each type of game object
-	const std::vector<std::string> prefixes = { "obstacle", "bullet", "enemy" };
-	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
-
-	bool loadedAny = false;
-
-	// For each prefix, attempt to load all indexed textures
-	for (const auto& prefix : prefixes) {
-		int index = 0;
-
-		while (true) {
-			std::string baseFilename = prefix + std::to_string(index);
-			Stamp newStamp;
-			newStamp.baseFilename = baseFilename;
-			newStamp.textureNames = { "centre", "up", "down" };
-			newStamp.currentVariationIndex = 0; // Default to center
-
-			bool loadedAtLeastOne = false;
-
-			for (size_t i = 0; i < variations.size(); i++) {
-				std::string filename = baseFilename + variations[i] + ".png";
-				GLuint textureID = 0;
-				int width = 0, height = 0, channels = 0;
-				std::vector<unsigned char> pixelData;
-
-				if (loadStampTextureFile(filename.c_str(), pixelData, textureID, width, height, channels)) {
-					if (newStamp.pixelData.empty()) {
-						newStamp.width = width;
-						newStamp.height = height;
-						newStamp.channels = channels;
-					}
-					newStamp.textureIDs.push_back(textureID);
-					newStamp.pixelData.push_back(std::move(pixelData));
-					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
-					loadedAtLeastOne = true;
-				}
-				else {
-					newStamp.textureIDs.push_back(0);
-					newStamp.pixelData.push_back(std::vector<unsigned char>());
-				}
-			}
-
-			if (loadedAtLeastOne) {
-				stampTemplates.push_back(std::move(newStamp));
-				loadedAny = true;
-				index++;
-			}
-			else {
-				break; // No more textures with this prefix
-			}
-		}
-	}
-
-	if (loadedAny) {
-		currentTemplateIndex = 0;
-	}
-
-	return loadedAny;
-}
 
 
 
@@ -2029,6 +2224,7 @@ void initGL() {
 	}
 
 	loadStampTextures();
+	loadBulletTemplates();
 
 	// Create shader programs
 	advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
@@ -3528,6 +3724,9 @@ void mouseMotion(int x, int y) {
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
+	case ' ': // Space bar
+		fireBullet();
+		break;
 
 	case 'q':
 		ally_fire = STRAIGHT;
