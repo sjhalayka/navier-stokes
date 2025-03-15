@@ -28,6 +28,8 @@ using namespace std;
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
+// to do: add in lightning fire mode, where bullets randomly split into two
+
 // to do: Have various power ups that appear randomly.Move them in straight line and mark them and cull them and do collision with them too.
 // to do: Have multiple types of fire, as well as power ups(larger force) of each fire type.So far I have straight fire, sine fire, and soon to have omnidirecfional electric - like fire.
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
@@ -67,6 +69,16 @@ vector<float> global_maxYs;
 //float global_minX, global_minY, global_maxX, global_maxY;
 
 
+enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM};
+
+enum fire_type ally_fire = STRAIGHT;
+
+bool x3_fire = false;
+bool x5_fire = false;
+
+
+
+
 
 struct Stamp {
 	// StampTexture properties
@@ -99,7 +111,11 @@ struct Stamp {
 	float sinusoidal_frequency = 5.0;
 	float sinusoidal_amplitude = 0.001;
 	bool sinusoidal_shift = false;
-	bool straight_shooting = false;
+	//bool straight_shooting = true;
+	//bool x3_shooting = false;
+	//bool x5_shooting = false;
+
+
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -2609,34 +2625,41 @@ void updateObstacle()
 		}
 		else if (prefix == "bullet")
 		{
-			if (allyShips.size() > 0 && allyShips[0].straight_shooting)
+			if (allyShips.size() > 0 && ally_fire == STRAIGHT)
 			{
 				RandomUnitVector(newStamp.velX, newStamp.velY);
 
 				newStamp.velX = 0.01;
 				newStamp.velY = 0;// *= 0.01;
 
-				//newStamp.velX *= 0.01;
-				//newStamp.velY *= 0.01;
-
-				newStamp.sinusoidal_shift = false;
+				newStamp.sinusoidal_amplitude = 0;
 
 				newStamp.birth_time = elapsed.count() / 1000.0;
-				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
-
-				allyBullets.push_back(newStamp);
-
-
-				//newStamp.velX = 0.01;
-				//newStamp.velY = 0;// *= 0.01;
-				newStamp.sinusoidal_shift = true;
-
-				newStamp.birth_time = elapsed.count() / 1000.0;
-				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
+				newStamp.death_time = -1;
 
 				allyBullets.push_back(newStamp);
 			}
-			else if (allyShips.size() > 0 && false == allyShips[0].straight_shooting)
+			else if (allyShips.size() > 0 && ally_fire == SINUSOIDAL)
+			{
+				RandomUnitVector(newStamp.velX, newStamp.velY);
+
+				newStamp.velX = 0.01;
+				newStamp.velY = 0;
+
+				newStamp.sinusoidal_shift = false;
+				newStamp.sinusoidal_amplitude = 0.001;
+
+				newStamp.birth_time = elapsed.count() / 1000.0;
+				newStamp.death_time = -1;
+
+				allyBullets.push_back(newStamp);
+
+				newStamp.sinusoidal_amplitude = 0.001;
+				newStamp.sinusoidal_shift = true;
+
+				allyBullets.push_back(newStamp);
+			}
+			else if (allyShips.size() > 0 && ally_fire == RANDOM)
 			{
 				Stamp newCentralStamp;
 
@@ -3409,6 +3432,18 @@ void mouseMotion(int x, int y) {
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
+	
+	case 'q':
+		ally_fire = STRAIGHT;
+		break;	
+	case 'w':
+		ally_fire = SINUSOIDAL;
+		break;
+	case 'e':
+		ally_fire = RANDOM;
+		break;
+
+
 	case 'r':
 	case 'R':
 		red_mode = !red_mode;
