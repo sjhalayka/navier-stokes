@@ -73,8 +73,8 @@ enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM };
 
 enum fire_type ally_fire = STRAIGHT;
 
-bool x3_fire = true;
-bool x5_fire = true;
+bool x3_fire = false;
+bool x5_fire = false;
 
 
 
@@ -356,6 +356,14 @@ bool loadBulletTemplates() {
 
 
 
+const float MIN_BULLET_INTERVAL = 0.1f; // Example: 0.2 seconds
+
+// Add a variable to track the time of the last fired bullet
+std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::high_resolution_clock::now();
+
+
+
+
 
 void fireBullet() {
 	// Only fire if we have ally ships and bullet templates
@@ -363,15 +371,25 @@ void fireBullet() {
 		return;
 	}
 
+	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
+
+	if (timeSinceLastBullet.count() < MIN_BULLET_INTERVAL)
+		return;
+
+	lastBulletTime = currentTime;
+
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed = global_time_end - global_time;
 
 	// Use the first bullet template
 	Stamp bulletTemplate = bulletTemplates[0];
 
+	float aspect = WIDTH / float(HEIGHT);
+
 	// Get the ally ship position to fire from
-	bulletTemplate.posX = allyShips[0].posX;
-	bulletTemplate.posY = allyShips[0].posY;
+	bulletTemplate.posX = allyShips[0].posX + allyShips[0].width/float(WIDTH)/2.0;
+	bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT)*aspect)/8.0;
 
 	static const float pi = 4.0f * atanf(1.0f);
 
@@ -433,6 +451,10 @@ void fireBullet() {
 		size_t num_streams_local = num_streams;
 
 		Stamp newCentralStamp = bulletTemplate;
+		
+		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
+		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
+
 		float x_rad = allyShips[0].width / float(WIDTH) / 2.0;
 		float y_rad = allyShips[0].height / float(HEIGHT) / 2.0;
 		float avg_rad = max(x_rad, y_rad);
@@ -477,11 +499,6 @@ void fireBullet() {
 
 
 bool spacePressed = false;
-float lastFireTime = 0.0f;
-const float FIRE_COOLDOWN = 0.0f; // 200ms cooldown between shots
-
-
-
 
 
 
@@ -3244,7 +3261,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - global_time;
 
-	Stamp newCentralStamp = stampTemplates[2];
+	Stamp newCentralStamp = bulletTemplates[0];
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0;
@@ -3668,11 +3685,19 @@ void display() {
 	glutSwapBuffers();
 }
 
+
+
+
+
+
 // GLUT idle callback
 void idle()
 {
 	//global_time += DT;
 	simulationStep();
+
+	if(spacePressed)
+	fireBullet();
 
 
 	//static std::chrono::high_resolution_clock::time_point last_tick_at = std::chrono::high_resolution_clock::now();
@@ -3721,11 +3746,26 @@ void mouseMotion(int x, int y) {
 
 
 
+void keyboardup(unsigned char key, int x, int y) {
+	switch (key) {
+	case ' ': // Space bar
+
+		spacePressed = false;
+
+
+
+
+		break;
+	}
+}
+
+
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case ' ': // Space bar
-		fireBullet();
+
+		spacePressed = true;
 		break;
 
 	case 'q':
@@ -3884,6 +3924,7 @@ void specialKeyboardUp(int key, int x, int y) {
 		rightKeyPressed = false;
 		break;
 	}
+
 
 
 	for (auto& stamp : allyShips) {
@@ -4062,6 +4103,8 @@ int main(int argc, char** argv) {
 	glutMouseFunc(mouseButton);
 	glutMotionFunc(mouseMotion);
 	glutKeyboardFunc(keyboard);
+	glutKeyboardUpFunc(keyboardup);
+	
 	glutReshapeFunc(reshape);
 
 	glutSpecialFunc(specialKeyboard);
