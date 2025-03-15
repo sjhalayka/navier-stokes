@@ -1112,8 +1112,6 @@ void main()
 )";
 
 
-
-
 const char* detectCollisionFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
@@ -1176,7 +1174,7 @@ void main() {
             FragColor = vec4(0.0, 0.0, maxBlue, 1.0); // Blue
         } else {
             // No collision
-            FragColor = vec4(1.0, 0.5, 0.0, 1.0);
+            FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         }
     } else {
         // Not in an obstacle - no collision
@@ -1184,6 +1182,9 @@ void main() {
     }
 }
 )";
+
+
+
 
 
 const char* renderFragmentShader = R"(
@@ -2620,7 +2621,7 @@ void updateObstacle()
 
 				newStamp.sinusoidal_shift = false;
 
-				newStamp.birth_time = elapsed.count()/1000.0;
+				newStamp.birth_time = elapsed.count() / 1000.0;
 				newStamp.death_time = -1;// global_time + 3.0 * rand() / float(RAND_MAX);
 
 				allyBullets.push_back(newStamp);
