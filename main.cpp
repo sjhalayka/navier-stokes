@@ -142,10 +142,14 @@ int currentAllyTemplateIndex = 0;    // Index for selecting ally template stamps
 int currentEnemyTemplateIndex = 0;   // Index for selecting enemy template stamps
 
 // Current template type selection flag (add this after the template vectors)
-enum TemplateType { ALLY, ENEMY, BULLET };
+enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
+
 TemplateType currentTemplateType = ALLY;
 
 
+
+// Add a new variable to track the current powerup template index
+int currentPowerUpTemplateIndex = 0;
 
 
 
@@ -214,8 +218,6 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 
 
-
-
 bool loadStampTextures() {
 	// Clear previous template textures
 	for (auto& stamp : allyTemplates) {
@@ -234,11 +236,20 @@ bool loadStampTextures() {
 		}
 	}
 
+	for (auto& stamp : powerUpTemplates) {
+		for (auto& texID : stamp.textureIDs) {
+			if (texID != 0) {
+				glDeleteTextures(1, &texID);
+			}
+		}
+	}
+
 	allyTemplates.clear();
 	enemyTemplates.clear();
+	powerUpTemplates.clear();
 
 	// Define the file prefixes for each type of game object
-	const std::vector<std::string> prefixes = { "obstacle", "enemy" };
+	const std::vector<std::string> prefixes = { "obstacle", "enemy", "powerup" };
 	const std::vector<std::string> variations = { "_centre", "_up", "_down" };
 
 	bool loadedAny = false;
@@ -286,6 +297,9 @@ bool loadStampTextures() {
 				}
 				else if (prefix == "enemy") {
 					enemyTemplates.push_back(std::move(newStamp));
+				}
+				else if (prefix == "powerup") {
+					powerUpTemplates.push_back(std::move(newStamp));
 				}
 				loadedAny = true;
 				index++;
@@ -488,7 +502,7 @@ void fireBullet() {
 		size_t num_streams_local = num_streams;
 
 		Stamp newCentralStamp = bulletTemplate;
-		
+
 		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
 		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
 
@@ -1740,10 +1754,11 @@ void clearObstacleTexture() {
 }
 
 
+
+
 void reapplyAllStamps() {
 	auto processStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-
 			// If the stamp is dead then don't use it for an obstacle
 			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
 			if (stamp.to_be_culled) continue;
@@ -1776,7 +1791,7 @@ void reapplyAllStamps() {
 		}
 	};
 
-	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty()) return;
+	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty() && allyPowerUps.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -1790,6 +1805,7 @@ void reapplyAllStamps() {
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
+	processStamps(allyPowerUps);  // Add this line to process power-ups
 
 	// Don't treat bullets as obstacles
 	//processStamps(allyBullets);
@@ -2821,9 +2837,8 @@ void addMouseColor()
 
 
 
-
 void updateObstacle() {
-	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty())) return;
+	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
 	if (rightMouseDown && !lastRightMouseDown) {
 		float aspect = HEIGHT / float(WIDTH);
@@ -2846,6 +2861,10 @@ void updateObstacle() {
 		case BULLET:
 			if (bulletTemplates.empty()) return;
 			newStamp = bulletTemplates[0]; // Always use the first bullet template
+			break;
+		case POWERUP:
+			if (powerUpTemplates.empty()) return;
+			newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
 			break;
 		}
 
@@ -2913,6 +2932,11 @@ void updateObstacle() {
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
 			break;
+
+		case POWERUP:
+			allyPowerUps.push_back(newStamp);
+			std::cout << "Added new power up";
+			break;
 		}
 
 		std::string variationName = "unknown";
@@ -2926,6 +2950,8 @@ void updateObstacle() {
 
 	lastRightMouseDown = rightMouseDown;
 }
+
+
 
 
 
@@ -3424,7 +3450,6 @@ void simulationStep()
 
 
 
-
 void renderToScreen() {
 	// Bind default framebuffer (the screen)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -3434,9 +3459,7 @@ void renderToScreen() {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Use a render shader program
-
 	glUseProgram(renderProgram);
-
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -3467,7 +3490,6 @@ void renderToScreen() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
 	glEnable(GL_BLEND);
@@ -3477,8 +3499,6 @@ void renderToScreen() {
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-
-
 			int variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
@@ -3518,47 +3538,9 @@ void renderToScreen() {
 	renderStamps(enemyShips);
 	renderStamps(allyBullets);
 	renderStamps(enemyBullets);
+	renderStamps(allyPowerUps);  // Add this line to render power-ups
 
 	glDisable(GL_BLEND);
-
-	// Draw bounding boxes for all stamps to debug
-	//for (const auto& stamp : allyShips) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
-	//}
-
-	//for (const auto& stamp : enemyShips) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
-	//}
-
-	//for (const auto& stamp : allyBullets) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
-	//}
-
-	//for (const auto& stamp : enemyBullets) {
-	//	if (stamp.active) {
-	//		drawBoundingBox(stamp);
-	//	}
-	//}
-
-	// Debug visualization of global bounding box
-	for (size_t i = 0; i < global_minXs.size(); i++)
-	{
-		drawBoundingBox(global_minXs[i], global_minYs[i], global_maxXs[i], global_maxYs[i]);
-	}
-
-
-	global_minXs.clear();
-	global_minYs.clear();
-	global_maxXs.clear();
-	global_maxYs.clear();
-
-
 }
 
 
@@ -3595,8 +3577,8 @@ void idle()
 	//global_time += DT;
 	simulationStep();
 
-	if(spacePressed)
-	fireBullet();
+	if (spacePressed)
+		fireBullet();
 
 	glutPostRedisplay();
 }
@@ -3647,7 +3629,6 @@ void keyboardup(unsigned char key, int x, int y) {
 void keyboard(unsigned char key, int x, int y) {
 	switch (key) {
 	case ' ': // Space bar
-
 		spacePressed = true;
 		break;
 
@@ -3660,7 +3641,6 @@ void keyboard(unsigned char key, int x, int y) {
 	case 'e':
 		ally_fire = RANDOM;
 		break;
-
 
 	case 'r':
 	case 'R':
@@ -3676,7 +3656,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 	case 't':  // Cycle to the next template type
 	case 'T':
-		// Cycle through template types first
+		// Cycle through template types
 		if (currentTemplateType == ALLY) {
 			currentTemplateType = ENEMY;
 			std::cout << "Switched to Enemy Ship templates" << std::endl;
@@ -3684,6 +3664,10 @@ void keyboard(unsigned char key, int x, int y) {
 		else if (currentTemplateType == ENEMY) {
 			currentTemplateType = BULLET;
 			std::cout << "Switched to Bullet templates" << std::endl;
+		}
+		else if (currentTemplateType == BULLET) {
+			currentTemplateType = POWERUP;
+			std::cout << "Switched to PowerUp templates" << std::endl;
 		}
 		else {
 			currentTemplateType = ALLY;
@@ -3710,6 +3694,13 @@ void keyboard(unsigned char key, int x, int y) {
 		else if (currentTemplateType == BULLET && !bulletTemplates.empty()) {
 			std::cout << "Using bullet template: "
 				<< bulletTemplates[0].baseFilename << std::endl;
+		}
+		else if (currentTemplateType == POWERUP && !powerUpTemplates.empty()) {
+			currentPowerUpTemplateIndex = (currentPowerUpTemplateIndex + 1) % powerUpTemplates.size();
+			std::cout << "Switched to powerup template: "
+				<< powerUpTemplates[currentPowerUpTemplateIndex].baseFilename
+				<< " (" << (currentPowerUpTemplateIndex + 1) << " of "
+				<< powerUpTemplates.size() << ")" << std::endl;
 		}
 		else {
 			std::cout << "No templates of the selected type loaded. Press 'L' to load textures." << std::endl;
@@ -3843,7 +3834,6 @@ void specialKeyboardUp(int key, int x, int y) {
 
 
 
-
 void reshape(int w, int h) {
 	glViewport(0, 0, w, h);
 	WIDTH = w;
@@ -3878,7 +3868,6 @@ void reshape(int w, int h) {
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
 
-	// Delete stamp textures from templates
 	for (auto& stamp : allyTemplates) {
 		for (auto& textureID : stamp.textureIDs) {
 			if (textureID != 0) {
@@ -3903,9 +3892,18 @@ void reshape(int w, int h) {
 		}
 	}
 
+	for (auto& stamp : powerUpTemplates) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
 	allyTemplates.clear();
 	enemyTemplates.clear();
 	bulletTemplates.clear();
+	powerUpTemplates.clear();
 
 	// Delete stamp textures from active stamps
 	for (auto& stamp : allyShips) {
@@ -3916,7 +3914,6 @@ void reshape(int w, int h) {
 		}
 	}
 
-	// Delete stamp textures from active stamps
 	for (auto& stamp : enemyShips) {
 		for (auto& textureID : stamp.textureIDs) {
 			if (textureID != 0) {
@@ -3941,9 +3938,19 @@ void reshape(int w, int h) {
 		}
 	}
 
+	for (auto& stamp : allyPowerUps) {
+		for (auto& textureID : stamp.textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+	}
+
 	// Reinitialize OpenGL
 	initGL();
 }
+
+
 
 
 
@@ -3997,7 +4004,7 @@ int main(int argc, char** argv) {
 	glutMotionFunc(mouseMotion);
 	glutKeyboardFunc(keyboard);
 	glutKeyboardUpFunc(keyboardup);
-	
+
 	glutReshapeFunc(reshape);
 
 	glutSpecialFunc(specialKeyboard);
