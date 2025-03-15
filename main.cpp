@@ -3096,6 +3096,23 @@ void simulationStep()
 	updateDynamicTextures(enemyBullets);
 
 
+	clearObstacleTexture();
+	reapplyAllStamps();
+
+	move_bullets();
+	mark_colliding_bullets();
+	mark_old_bullets();
+	mark_offscreen_bullets();
+	cull_marked_bullets();
+
+	move_ships();
+	mark_colliding_ships();
+	mark_offscreen_ships();
+	mark_dying_ships();
+	proceed_stamp_opacity();
+	cull_marked_ships();
+
+
 	bool old_red_mode = red_mode;
 
 	red_mode = true;
@@ -3126,8 +3143,6 @@ void simulationStep()
 	updateObstacle();
 
 
-	clearObstacleTexture();
-	reapplyAllStamps();
 
 	advectVelocity();
 	diffuseVelocity();
@@ -3139,18 +3154,7 @@ void simulationStep()
 	solvePressure(20);
 	subtractPressureGradient();
 
-	move_bullets();
-	mark_colliding_bullets();
-	mark_old_bullets();
-	mark_offscreen_bullets();
-	cull_marked_bullets();
 
-	move_ships();
-	mark_colliding_ships();
-	mark_offscreen_ships();
-	mark_dying_ships();
-	proceed_stamp_opacity();
-	cull_marked_ships();
 
 	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
 	{
