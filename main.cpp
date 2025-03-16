@@ -29,8 +29,9 @@ using namespace std;
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
 
-// to do: Have various power ups that appear randomly.Move them in straight line and mark them and cull them and do collision with them too.
-// to do: Have multiple types of fire, as well as power ups(larger force) of each fire type.So far I have straight fire, sine fire, and soon to have omnidirecfional electric - like fire.
+// to do: Have various power ups that appear randomly. Move them in straight line and mark them and cull them and do collision with them too.
+
+
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
@@ -47,7 +48,7 @@ const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collisio
 const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
-std::chrono::high_resolution_clock::time_point global_time = std::chrono::high_resolution_clock::now();
+std::chrono::high_resolution_clock::time_point app_start_time = std::chrono::high_resolution_clock::now();
 
 
 
@@ -91,7 +92,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 1.0;
+	float health = 0.1;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -132,24 +133,21 @@ std::vector<Stamp> enemyBullets;
 std::vector<Stamp> allyPowerUps;
 
 
-std::vector<Stamp> allyTemplates;    // Stores template stamps for ally ships
-std::vector<Stamp> enemyTemplates;   // Stores template stamps for enemy ships
-std::vector<Stamp> bulletTemplates;  // This already exists in your code
+std::vector<Stamp> allyTemplates;    
+std::vector<Stamp> enemyTemplates;   
+std::vector<Stamp> bulletTemplates;  
 std::vector<Stamp> powerUpTemplates;
 
 
 int currentAllyTemplateIndex = 0;    // Index for selecting ally template stamps
 int currentEnemyTemplateIndex = 0;   // Index for selecting enemy template stamps
+int currentPowerUpTemplateIndex = 0;
 
-// Current template type selection flag (add this after the template vectors)
 enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
 
 TemplateType currentTemplateType = ALLY;
 
 
-
-// Add a new variable to track the current powerup template index
-int currentPowerUpTemplateIndex = 0;
 
 
 
@@ -422,7 +420,7 @@ void fireBullet() {
 	lastBulletTime = currentTime;
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float, std::milli> elapsed = global_time_end - global_time;
+	std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 	// Use the first bullet template
 	Stamp bulletTemplate = bulletTemplates[0];
@@ -1215,47 +1213,6 @@ void main() {
 
 
 
-// Add to the start of the file where other shaders are defined
-const char* addColorFragmentShader = R"(
-#version 330 core
-uniform sampler2D colorTexture;
-uniform sampler2D obstacleTexture;
-uniform vec2 point;
-uniform float radius;
-
-out float FragColor;
-
-in vec2 TexCoord;
-
-void main() 
-{
-    // Check if we're in an obstacle
-    float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
-
-    // Get current color intensity
-    float currentValue = texture(colorTexture, TexCoord).r;
-    
-    // Calculate distance to application point
-    float distance = length(TexCoord - point);
-    
-    // Apply color based on radius
-    if (distance < radius) {
-        // Apply with smooth falloff
-        float falloff = 1.0 - (distance / radius);
-        falloff = falloff * falloff;
-        
-        // Add intensity with falloff
-        float newValue = falloff;
-        FragColor = currentValue + newValue;
-    } else {
-        FragColor = currentValue;
-    }
-}
-)";
 
 
 
@@ -1467,6 +1424,51 @@ void main() {
 }
 )";
 
+
+
+
+// Add to the start of the file where other shaders are defined
+const char* addColorFragmentShader = R"(
+#version 330 core
+uniform sampler2D colorTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 point;
+uniform float radius;
+
+out float FragColor;
+
+in vec2 TexCoord;
+
+void main() 
+{
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
+
+    // Get current color intensity
+    float currentValue = texture(colorTexture, TexCoord).r;
+    
+    // Calculate distance to application point
+    float distance = length(TexCoord - point);
+    
+    // Apply color based on radius
+    if (distance < radius) {
+        // Apply with smooth falloff
+        float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
+        
+        // Add intensity with falloff
+        float newValue = falloff;
+        FragColor = currentValue + newValue;
+    } else {
+        FragColor = currentValue;
+    }
+}
+)";
+
 const char* addForceFragmentShader = R"(
 #version 330 core
 uniform sampler2D velocityTexture;
@@ -1499,10 +1501,10 @@ void main()
 
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
@@ -1954,7 +1956,8 @@ void generateFluidStampCollisionsDamage()
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i]);
 
-				if (collides) {
+				if (collides) 
+				{
 					stampCollisions++;
 
 					if (point.r > 0) {
@@ -1968,8 +1971,8 @@ void generateFluidStampCollisionsDamage()
 					}
 
 					if (point.r > 0 && point.b > 0) {
-						red_count += point.r;
-						blue_count += point.b;
+						//red_count += point.r;
+						//blue_count += point.b;
 
 						bothStampCollisions++;
 					}
@@ -1994,8 +1997,17 @@ void generateFluidStampCollisionsDamage()
 				else
 					damage = red_count;
 
-				stamps[i].health -= damage * DT;
+				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
+
+				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				std::chrono::duration<float, std::milli> elapsed;
+				elapsed = global_time_end - last_did_damage_at;
+
+				stamps[i].health -= damage * (elapsed.count() / 1000.0);// *fps_coeff;
 				cout << stamps[i].health << endl;
+
+				last_did_damage_at = global_time_end;
+
 			}
 		}
 	};
@@ -2903,7 +2915,7 @@ void updateObstacle() {
 
 		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<float, std::milli> elapsed;
-		elapsed = global_time_end - global_time;
+		elapsed = global_time_end - app_start_time;
 
 		// Add the stamp to the appropriate vector based on the template type
 		switch (currentTemplateType) {
@@ -2966,7 +2978,7 @@ void move_and_fork_bullets(void)
 		{
 			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float, std::milli> elapsed;
-			elapsed = global_time_end - global_time;
+			elapsed = global_time_end - app_start_time;
 
 			// Store the original direction vector
 			float dirX = stamp.velX * aspect;
@@ -3043,27 +3055,25 @@ void mark_colliding_bullets(void)
 {
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
-	elapsed = global_time_end - global_time;
+	elapsed = global_time_end - app_start_time;
 
 	// If collided, then make bullet mortal for long enough to penetrate the enemy
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-				allyBullets[i].death_time = elapsed.count() / 1000.0 + 0.000001;
+				allyBullets[i].death_time = elapsed.count() / 1000.0 + 0.0000025;
 
-
-	// If collided, ...
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = elapsed.count() / 1000.0 + 0.000001;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0 + 0.0000025;
 }
 
 void mark_old_bullets(void)
 {
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
-	elapsed = global_time_end - global_time;
+	elapsed = global_time_end - app_start_time;
 
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 	{
@@ -3182,7 +3192,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
-	elapsed = global_time_end - global_time;
+	elapsed = global_time_end - app_start_time;
 
 	Stamp newCentralStamp = bulletTemplates[0];
 
@@ -3361,6 +3371,85 @@ void cull_marked_ships(void)
 
 
 
+
+void move_powerups(void)
+{
+	auto update_powerups = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			const float aspect = WIDTH / float(HEIGHT);
+
+			stamp.posX += stamp.velX / aspect;
+			stamp.posY += stamp.velY;
+		}
+	};
+
+	update_powerups(allyPowerUps);
+}
+
+
+
+
+void mark_colliding_powerups(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
+		for (size_t j = 0; j < allyPowerUps.size(); ++j)
+		{
+			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
+			{
+				allyPowerUps[i].to_be_culled = true;
+			}
+		}
+	}
+}
+
+void mark_offscreen_powerups(void)
+{
+	auto update_powerups = [&](std::vector<Stamp>& stamps)
+	{
+		for (auto& stamp : stamps)
+		{
+			float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			// Check if the stamp is outside the visible area
+			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
+				adjustedPosY < -0.1 || adjustedPosY > 1.1)
+			{
+				stamp.to_be_culled = true;
+			}
+		}
+	};
+
+	update_powerups(allyPowerUps);
+}
+
+
+
+void cull_marked_powerups(void)
+{
+	auto update_powerups = [&](std::vector<Stamp>& stamps)
+	{
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			if (stamps[i].to_be_culled)
+			{
+				cout << "culling marked powerup" << endl;
+				stamps.erase(stamps.begin() + i);
+				i = 0;
+			}
+		}
+	};
+
+	update_powerups(allyPowerUps);
+}
+
+
+
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -3380,6 +3469,13 @@ void simulationStep()
 	mark_old_bullets();
 	mark_offscreen_bullets();
 	cull_marked_bullets();
+	
+
+	move_powerups();
+	mark_colliding_powerups();
+	mark_offscreen_powerups();
+	cull_marked_powerups();
+
 
 	move_ships();
 	mark_colliding_ships();
@@ -3396,7 +3492,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, allyBullets[i].force_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -3404,7 +3500,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, enemyBullets[i].force_radius);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -3435,7 +3531,7 @@ void simulationStep()
 
 
 
-	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
+	if (1)//frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
 	{
 		detectCollisions();
 		generateFluidStampCollisionsDamage();
@@ -3461,7 +3557,7 @@ void renderToScreen() {
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
-	elapsed = global_time_end - global_time;
+	elapsed = global_time_end - app_start_time;
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
