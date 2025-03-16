@@ -3019,15 +3019,18 @@ void move_and_fork_bullets(void)
 
 					float len = sqrt(dir_x * dir_x + dir_y * dir_y);
 
+
 					dir_x /= len;
 					dir_y /= len;
 					dir_x /= 100;
 					dir_y /= 100;
 
 
+					float rand_x = 0, rand_y = 0;
+					RandomUnitVector(rand_x, rand_y);
 
-					stamp.velX =  dir_x;
-					stamp.velY =  dir_y;
+					stamp.velX = dir_x;
+					stamp.velY = dir_y;
 
 					stamp.posX += stamp.velX;
 					stamp.posY += stamp.velY;
