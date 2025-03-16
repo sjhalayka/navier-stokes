@@ -3974,7 +3974,7 @@ void keyboardup(unsigned char key, int x, int y) {
 
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
-	switch (key) 
+	switch (key)	
 	{
 	case '0':
 	{
@@ -3988,7 +3988,11 @@ void keyboard(unsigned char key, int x, int y) {
 
 		vec2 middle;
 		middle.x = 0.5;
-		middle.y = rand() / float(RAND_MAX);
+
+		if(rand() % 2 == 0)
+			middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
