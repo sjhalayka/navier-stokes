@@ -2924,20 +2924,6 @@ void updateObstacle() {
 			std::cout << "Added new ally ship";
 			break;
 
-		case BULLET:
-			// Bullet handling code (same as your existing code)
-			if (allyShips.size() > 0 && ally_fire == STRAIGHT) {
-				// ... existing straight fire code
-			}
-			else if (allyShips.size() > 0 && ally_fire == SINUSOIDAL) {
-				// ... existing sinusoidal fire code
-			}
-			else if (allyShips.size() > 0 && ally_fire == RANDOM) {
-				// ... existing random fire code
-			}
-			std::cout << "Added new ally bullet";
-			break;
-
 		case ENEMY:
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
@@ -3630,9 +3616,9 @@ void renderToScreen() {
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-	renderStamps(allyBullets);
-	renderStamps(enemyBullets);
-	renderStamps(allyPowerUps);  // Add this line to render power-ups
+	//renderStamps(allyBullets);
+	//renderStamps(enemyBullets);
+	renderStamps(allyPowerUps);
 
 	glDisable(GL_BLEND);
 }
