@@ -48,7 +48,7 @@ const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
+//const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
 std::chrono::high_resolution_clock::time_point app_start_time = std::chrono::high_resolution_clock::now();
@@ -3593,13 +3593,8 @@ void simulationStep()
 	solvePressure(20);
 	subtractPressureGradient();
 
-
-
-	if (1)//frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
-	{
-		detectCollisions();
-		generateFluidStampCollisionsDamage();
-	}
+	detectCollisions();
+	generateFluidStampCollisionsDamage();
 }
 
 
@@ -3714,8 +3709,8 @@ void display() {
 	frameCount++;
 
 	// Check if it's time to report collisions
-	if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
-		reportCollisions = true;
+	//if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
+	//	reportCollisions = true;
 
 	// Render to screen
 	renderToScreen();
@@ -4143,7 +4138,6 @@ void printInstructions() {
 	std::cout << "T: Cycle through loaded textures (obstacles=ally ships, bullets, enemy)" << std::endl;
 	std::cout << "UP/DOWN Arrow Keys: Change ship orientation when placing" << std::endl;
 	std::cout << "Highlights show colour-obstacle collisions" << std::endl;
-	std::cout << "Collision reports are generated every " << FLUID_STAMP_COLLISION_REPORT_INTERVAL << " frames" << std::endl;
 	std::cout << "-----------------------------------" << std::endl;
 	std::cout << "File Naming Convention:" << std::endl;
 	std::cout << "  obstacle*.png - Ally ships" << std::endl;
