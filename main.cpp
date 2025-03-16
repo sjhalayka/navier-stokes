@@ -72,12 +72,13 @@ vector<float> global_maxYs;
 //float global_minX, global_minY, global_maxX, global_maxY;
 
 
-enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM };
+enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM, HOMING };
 
 enum fire_type ally_fire = STRAIGHT;
 
 bool has_sinusoidal_fire = true;
 bool has_random_fire = true;
+bool has_homing_fire = true;
 
 bool x3_fire = false;
 bool x5_fire = false;
@@ -437,8 +438,8 @@ void fireBullet() {
 
 	if (ally_fire == RANDOM)
 	{
-		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
-		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
+		bulletTemplate.posX = allyShips[0].posX;
+		bulletTemplate.posY = allyShips[0].posY;
 	}
 	else
 	{
@@ -548,6 +549,20 @@ void fireBullet() {
 		}
 	}
 	break;
+
+	case HOMING:
+		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
+			Stamp newBullet = bulletTemplate;
+			newBullet.velX = 0.01 * cos(angle);
+			newBullet.velY = 0.01 * sin(angle);
+			newBullet.sinusoidal_amplitude = 0;
+			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.death_time = -1;
+			allyBullets.push_back(newBullet);
+		}
+		break;
+
+
 	}
 }
 
@@ -2968,72 +2983,126 @@ void move_and_fork_bullets(void)
 
 		for (auto& stamp : stamps)
 		{
-			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<float, std::milli> elapsed;
-			elapsed = global_time_end - app_start_time;
-
-			// Store the original direction vector
-			float dirX = stamp.velX * aspect;
-			float dirY = stamp.velY;
-
-			// Normalize the direction vector
-			float dirLength = sqrt(dirX * dirX + dirY * dirY);
-			if (dirLength > 0) {
-				dirX /= dirLength;
-				dirY /= dirLength;
-			}
-
-			// Calculate the perpendicular direction vector (rotate 90 degrees)
-			float perpX = -dirY;
-			float perpY = dirX;
-
-			// Calculate time-based sinusoidal amplitude
-			// Use the birth_time to ensure continuous motion
-			float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
-			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
-			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
-
-
-			float sinValue = 0;
-
-			if (stamp.sinusoidal_shift)
-				sinValue = -sin(timeSinceCreation * frequency);
-			else
-				sinValue = sin(timeSinceCreation * frequency);
-
-			// Move forward along original path
-			float forwardSpeed = dirLength; // Original velocity magnitude
-			stamp.posX += dirX * forwardSpeed;
-			stamp.posY += dirY * forwardSpeed;
-
-			// Add sinusoidal motion perpendicular to the path
-			stamp.posX += perpX * sinValue * amplitude;
-			stamp.posY += perpY * sinValue * amplitude;
-
-			// Add in random walking, like lightning (from original code)
-			float rand_x = 0, rand_y = 0;
-			RandomUnitVector(rand_x, rand_y);
-			stamp.posX += rand_x * stamp.path_randomization;
-			stamp.posY += rand_y * stamp.path_randomization;
-
-
-			float r = rand() / float(RAND_MAX);
-
-			if (r < stamp.random_forking)
+			if (type == "ally" && ally_fire == HOMING)
 			{
-				Stamp newBullet = stamp;
+				long long signed int closest_enemy = -1;
+				float closest_distance = FLT_MAX;
 
+				for (size_t i = 0; i < enemyShips.size(); i++)
+				{
+					if (enemyShips[i].to_be_culled)
+						continue;
+
+					float x0 = stamp.posX;
+					float y0 = stamp.posY;
+					float x1 = enemyShips[i].posX;
+					float y1 = enemyShips[i].posY;
+
+					float d = sqrt(pow(x1 - x0, 2.0f) + pow(y1 - y0, 2.0f));
+
+					if (d < closest_distance)
+					{
+						closest_enemy = i;
+						closest_distance = d;
+					}
+				}
+
+				if (closest_enemy == -1)
+				{
+					stamp.posX += stamp.velX;
+					stamp.posY += stamp.velY;
+				}
+				else
+				{
+					float dir_x = enemyShips[closest_enemy].posX - stamp.posX;
+					float dir_y = enemyShips[closest_enemy].posY - stamp.posY;
+
+					float len = sqrt(dir_x * dir_x + dir_y * dir_y);
+
+					dir_x /= len;
+					dir_y /= len;
+					dir_x /= 100;
+					dir_y /= 100;
+
+
+
+					stamp.velX =  dir_x;
+					stamp.velY =  dir_y;
+
+					stamp.posX += stamp.velX;
+					stamp.posY += stamp.velY;
+				}
+			}
+			else
+			{
+
+				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				std::chrono::duration<float, std::milli> elapsed;
+				elapsed = global_time_end - app_start_time;
+
+				// Store the original direction vector
+				float dirX = stamp.velX * aspect;
+				float dirY = stamp.velY;
+
+				// Normalize the direction vector
+				float dirLength = sqrt(dirX * dirX + dirY * dirY);
+				if (dirLength > 0) {
+					dirX /= dirLength;
+					dirY /= dirLength;
+				}
+
+				// Calculate the perpendicular direction vector (rotate 90 degrees)
+				float perpX = -dirY;
+				float perpY = dirX;
+
+				// Calculate time-based sinusoidal amplitude
+				// Use the birth_time to ensure continuous motion
+				float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
+				float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+				float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+
+
+				float sinValue = 0;
+
+				if (stamp.sinusoidal_shift)
+					sinValue = -sin(timeSinceCreation * frequency);
+				else
+					sinValue = sin(timeSinceCreation * frequency);
+
+				// Move forward along original path
+				float forwardSpeed = dirLength; // Original velocity magnitude
+				stamp.posX += dirX * forwardSpeed;
+				stamp.posY += dirY * forwardSpeed;
+
+				// Add sinusoidal motion perpendicular to the path
+				stamp.posX += perpX * sinValue * amplitude;
+				stamp.posY += perpY * sinValue * amplitude;
+
+				// Add in random walking, like lightning (from original code)
 				float rand_x = 0, rand_y = 0;
 				RandomUnitVector(rand_x, rand_y);
-				newBullet.velX += rand_x * r;
-				newBullet.velY += rand_y * r;
+				stamp.posX += rand_x * stamp.path_randomization;
+				stamp.posY += rand_y * stamp.path_randomization;
 
-				if (type == "ally")
-					allyBullets.push_back(newBullet);
 
-				if (type == "enemy")
-					enemyBullets.push_back(newBullet);
+				float r = rand() / float(RAND_MAX);
 
+				if (r < stamp.random_forking)
+				{
+					Stamp newBullet = stamp;
+
+					float rand_x = 0, rand_y = 0;
+					RandomUnitVector(rand_x, rand_y);
+					newBullet.velX += rand_x * r;
+					newBullet.velY += rand_y * r;
+
+					if (type == "ally")
+						allyBullets.push_back(newBullet);
+
+					if (type == "enemy")
+						enemyBullets.push_back(newBullet);
+
+				}
 			}
 		}
 	};
@@ -3735,12 +3804,19 @@ void keyboard(unsigned char key, int x, int y) {
 			ally_fire = RANDOM;
 
 		break;
-
 	case 'r':
-	case 'R':
-		red_mode = !red_mode;
-		std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
+
+		if (has_homing_fire)
+			ally_fire = HOMING;
+
 		break;
+
+
+	//case 'r':
+	//case 'R':
+	//	red_mode = !red_mode;
+	//	std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
+	//	break;
 
 	case 'c':  // Report collisions immediately
 	case 'C':
