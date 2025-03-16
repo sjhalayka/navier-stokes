@@ -31,10 +31,7 @@ using namespace std;
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
-
 // to do: Have various power ups that appear randomly. Move them in straight line and mark them and cull them and do collision with them too.
-
-
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
