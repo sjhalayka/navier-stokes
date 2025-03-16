@@ -25,6 +25,9 @@ using namespace std;
 
 
 
+// to do: At the beginning of level, generate all enemies for that level, using a particular seed. That way the users can share seed numbers.
+// to do: Engine fire from mortal bullets shooting backwards 
+
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
@@ -72,6 +75,9 @@ vector<float> global_maxYs;
 enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM };
 
 enum fire_type ally_fire = STRAIGHT;
+
+bool has_sinusoidal_fire = true;
+bool has_random_fire = true;
 
 bool x3_fire = false;
 bool x5_fire = false;
@@ -3713,13 +3719,21 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 
 	case 'q':
+
 		ally_fire = STRAIGHT;
 		break;
+
 	case 'w':
-		ally_fire = SINUSOIDAL;
+
+		if(has_sinusoidal_fire)
+			ally_fire = SINUSOIDAL;
+
 		break;
 	case 'e':
-		ally_fire = RANDOM;
+
+		if (has_random_fire)
+			ally_fire = RANDOM;
+
 		break;
 
 	case 'r':
