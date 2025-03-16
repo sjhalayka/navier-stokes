@@ -27,10 +27,6 @@ using namespace std;
 
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
-// to do: set appropriate texture for enemies when their vel.y is not zero
-
-// to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
-
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
@@ -390,10 +386,12 @@ bool loadStampTextures() {
 	bool loadedAny = false;
 
 	// For each prefix, attempt to load all indexed textures
-	for (const auto& prefix : prefixes) {
+	for (const auto& prefix : prefixes) 
+	{
 		int index = 0;
 
-		while (true) {
+		while (true) 
+		{
 			std::string baseFilename = prefix + std::to_string(index);
 			Stamp newStamp;
 			newStamp.baseFilename = baseFilename;
@@ -479,6 +477,7 @@ bool loadBulletTemplates() {
 			}
 		}
 	}
+
 	bulletTemplates.clear();
 
 	// Load all bullet textures (bullet0, bullet1, etc.)
@@ -3375,6 +3374,8 @@ void move_ships(void)
 			}
 			else
 			{
+				stamp.currentVariationIndex = 0;
+
 				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - app_start_time;
@@ -3384,8 +3385,23 @@ void move_ships(void)
 
 				vec2 vd = get_curve_point(stamp.curve_path, t);
 
+				const float prevPosY = stamp.posY;
+
 				stamp.posX = vd.x;
 				stamp.posY = vd.y;
+
+				const float vel_y = stamp.posY - prevPosY;
+
+				if(vel_y > 0)
+					stamp.currentVariationIndex = 1;
+				else if(vel_y == 0)
+					stamp.currentVariationIndex = 0;
+				else if(vel_y < 0)
+					stamp.currentVariationIndex = 2;
+
+
+
+
 			}
 		}
 	};
@@ -4008,7 +4024,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 3.0;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
 
 		enemyShips.push_back(newStamp);
 		break;
