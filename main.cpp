@@ -36,6 +36,34 @@ using namespace std;
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
+class vec2_with_density
+{
+public:
+	float x, y, density;
+};
+
+vec2_with_density get_curve_point(vector<vec2_with_density> points, float t)
+{
+	int i = points.size() - 1;
+
+	while (i > 0)
+	{
+		for (int k = 0; k < i; k++)
+		{
+			points[k].x += t * (points[k + 1].x - points[k].x);
+			points[k].y += t * (points[k + 1].y - points[k].y);
+			points[k].density += t * (points[k + 1].density - points[k].density);
+		}
+
+		i--;
+	}
+
+	return points[0];
+}
+
+
+
+
 
 // Simulation parameters
 int WIDTH = 960;
@@ -117,6 +145,8 @@ struct Stamp {
 	bool sinusoidal_shift = false;
 	float random_forking = 0.0;
 
+	vector<vec2_with_density> curve_path;
+
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
 	float velX = 0, velY = 0;
@@ -137,9 +167,9 @@ std::vector<Stamp> enemyBullets;
 std::vector<Stamp> allyPowerUps;
 
 
-std::vector<Stamp> allyTemplates;    
-std::vector<Stamp> enemyTemplates;   
-std::vector<Stamp> bulletTemplates;  
+std::vector<Stamp> allyTemplates;
+std::vector<Stamp> enemyTemplates;
+std::vector<Stamp> bulletTemplates;
 std::vector<Stamp> powerUpTemplates;
 
 
@@ -2071,7 +2101,7 @@ void generateFluidStampCollisionsDamage()
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i]);
 
-				if (collides) 
+				if (collides)
 				{
 					stampCollisions++;
 
@@ -3311,17 +3341,17 @@ void cull_marked_bullets(void)
 
 void move_ships(void)
 {
-	auto update_ships = [&](std::vector<Stamp>& stamps, bool keep_within_screen_bounds)
+	auto update_ships = [&](std::vector<Stamp>& stamps, bool is_ally)
 	{
 		for (auto& stamp : stamps)
 		{
 			const float aspect = WIDTH / float(HEIGHT);
 
-			stamp.posX += stamp.velX / aspect;
-			stamp.posY += stamp.velY;
-
-			if (keep_within_screen_bounds)
+			if (is_ally)
 			{
+				stamp.posX += stamp.velX / aspect;
+				stamp.posY += stamp.velY;
+
 				// Calculate adjusted Y coordinate that accounts for aspect ratio
 				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
@@ -3336,6 +3366,20 @@ void move_ships(void)
 					stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
 				if (adjustedPosY > 1)
 					stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+			}
+			else
+			{
+				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				std::chrono::duration<float, std::milli> elapsed;
+				elapsed = global_time_end - app_start_time;
+
+				float t = elapsed.count() / 1000.0 - stamp.birth_time;
+				t /= stamp.death_time - stamp.birth_time;
+
+				vec2_with_density vd = get_curve_point(stamp.curve_path, t);
+
+				stamp.posX = vd.x;
+				stamp.posY = vd.y;
 			}
 		}
 	};
@@ -3675,7 +3719,7 @@ void simulationStep()
 	mark_old_bullets();
 	mark_offscreen_bullets();
 	cull_marked_bullets();
-	
+
 
 	move_powerups();
 	mark_colliding_powerups();
@@ -3924,7 +3968,41 @@ void keyboardup(unsigned char key, int x, int y) {
 
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
-	switch (key) {
+	switch (key) 
+	{
+	case '0':
+	{
+		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
+
+		vec2_with_density start;
+		start.x = 1.05;
+		start.y = 0.5; // make this random
+		newStamp.curve_path.push_back(start);
+
+		vec2_with_density middle;
+		middle.x = 0.5;
+		middle.y = 0.5; // make this random
+		newStamp.curve_path.push_back(middle);
+
+		vec2_with_density end;
+		end.x = -0.05;
+		end.y = 0.5; // make this random
+		newStamp.curve_path.push_back(end);
+
+		newStamp.posX = start.x;
+		newStamp.posY = start.y;
+
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+
+		newStamp.birth_time = elapsed.count() / 1000.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 3.0;
+
+
+		enemyShips.push_back(newStamp);
+		break;
+	}
+
 	case ' ': // Space bar
 		spacePressed = true;
 		break;
@@ -3936,7 +4014,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 	case 'w':
 
-		if(has_sinusoidal_fire)
+		if (has_sinusoidal_fire)
 			ally_fire = SINUSOIDAL;
 
 		break;
@@ -3954,11 +4032,11 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 
 
-	//case 'r':
-	//case 'R':
-	//	red_mode = !red_mode;
-	//	std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
-	//	break;
+		//case 'r':
+		//case 'R':
+		//	red_mode = !red_mode;
+		//	std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
+		//	break;
 
 	case 'c':  // Report collisions immediately
 	case 'C':
