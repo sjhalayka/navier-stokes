@@ -25,13 +25,14 @@ using namespace std;
 
 
 
-// to do: At the beginning of level, generate all enemies for that level, using a particular seed. That way the users can share seed numbers.
-// to do: Engine thruster fire from mortal bullets shooting backwards 
+// to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
+
+// to do: set appropriate texture for enemies when their vel.y is not zero
 
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
+
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
-// to do: Have various power ups that appear randomly. Move them in straight line and mark them and cull them and do collision with them too.
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
@@ -3044,7 +3045,10 @@ void updateObstacle() {
 			break;
 
 		case POWERUP:
+			newStamp.velX = -0.001;
+			newStamp.velY = 0.0;
 			allyPowerUps.push_back(newStamp);
+
 			std::cout << "Added new power up";
 			break;
 		}
@@ -3533,12 +3537,57 @@ void move_powerups(void)
 {
 	auto update_powerups = [&](std::vector<Stamp>& stamps)
 	{
+		//for (auto& stamp : stamps)
+		//{
+		//	const float aspect = WIDTH / float(HEIGHT);
+
+		//	stamp.posX += stamp.velX / aspect;
+		//	stamp.posY += stamp.velY;
+		//}
+
 		for (auto& stamp : stamps)
 		{
 			const float aspect = WIDTH / float(HEIGHT);
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed;
+			elapsed = global_time_end - app_start_time;
 
-			stamp.posX += stamp.velX / aspect;
+			// Store the original direction vector
+			float dirX = stamp.velX * aspect;
+			float dirY = stamp.velY;
+
+			// Normalize the direction vector
+			float dirLength = sqrt(dirX * dirX + dirY * dirY);
+			if (dirLength > 0) {
+				dirX /= dirLength;
+				dirY /= dirLength;
+			}
+
+			// Calculate the perpendicular direction vector (rotate 90 degrees)
+			float perpX = -dirY;
+			float perpY = dirX;
+
+			// Calculate time-based sinusoidal amplitude
+			// Use the birth_time to ensure continuous motion
+			float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
+			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+
+			float sinValue = 0;
+
+			if (stamp.sinusoidal_shift)
+				sinValue = -sin(timeSinceCreation * frequency);
+			else
+				sinValue = sin(timeSinceCreation * frequency);
+
+			// Move forward along original path
+			float forwardSpeed = dirLength; // Original velocity magnitude
+			stamp.posX += stamp.velX * aspect;
 			stamp.posY += stamp.velY;
+
+			// Add sinusoidal motion perpendicular to the path
+			stamp.posX += perpX * sinValue * amplitude;
+			stamp.posY += perpY * sinValue * amplitude;
 		}
 	};
 
