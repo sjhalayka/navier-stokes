@@ -45,7 +45,6 @@ const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
-//const int FLUID_STAMP_COLLISION_REPORT_INTERVAL = FPS / 6; // Every N frames update the collision data
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
 std::chrono::high_resolution_clock::time_point app_start_time = std::chrono::high_resolution_clock::now();
@@ -111,7 +110,7 @@ struct Stamp {
 
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
-	float path_randomization = 0;// force_radius / 50.0;
+	float path_randomization = 0.0;// force_radius / 50.0;
 	float sinusoidal_frequency = 5.0;
 	float sinusoidal_amplitude = 0.001;
 	bool sinusoidal_shift = false;
@@ -214,6 +213,103 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 	return true;
 }
 
+
+
+
+//
+//void createThrusterFire() {
+//	// Only create thruster fire if we have ally ships
+//	if (allyShips.empty() || bulletTemplates.empty()) {
+//		return;
+//	}
+//
+//	// Check if the ally ship is moving
+//	if (allyShips[0].velX < 0 && allyShips[0].velY == 0) {
+//		return;  // Ship is stationary, don't create thruster fire
+//	}
+//
+//	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
+//	static std::chrono::high_resolution_clock::time_point lastThrusterTime = currentTime;
+//	std::chrono::duration<float> timeSinceThruster = currentTime - lastThrusterTime;
+//
+//	// Create thruster fire particles at a certain rate
+//	const float THRUSTER_INTERVAL = 0.1f; // Faster than regular bullets
+//	if (timeSinceThruster.count() < THRUSTER_INTERVAL)
+//		return;
+//
+//	lastThrusterTime = currentTime;
+//	std::chrono::duration<float, std::milli> elapsed = currentTime - app_start_time;
+//
+//	// Use the first bullet template
+//	Stamp thrusterParticle = bulletTemplates[0];
+//
+//	float aspect = WIDTH / float(HEIGHT);
+//
+//	// Calculate position behind the ship (opposite direction of movement)
+//	float normalizedVelX = 1;// allyShips[0].velX;
+//	float normalizedVelY = 0;// allyShips[0].velY;
+//
+//	// Normalize if needed
+//	float velLength = sqrt(normalizedVelX * normalizedVelX + normalizedVelY * normalizedVelY);
+//	if (velLength > 0) {
+//		normalizedVelX /= velLength;
+//		normalizedVelY /= velLength;
+//	}
+//
+//	// Position the thruster particle behind the ship
+//	float offsetMultiplier = allyShips[0].width / float(WIDTH) / 2.0;
+//	float offsetMultiplierY = allyShips[0].height / float(HEIGHT) / 2.0;
+//
+//
+//	thrusterParticle.posX = allyShips[0].posX;// -normalizedVelX * offsetMultiplier;
+//	thrusterParticle.posY = allyShips[0].posY;// normalizedVelY* offsetMultiplierY;
+//
+//	// Add some randomness to the position
+//	//float randOffsetX = (rand() / float(RAND_MAX) - 0.5f) * offsetMultiplier * 0.5f;
+//	//float randOffsetY = (rand() / float(RAND_MAX) - 0.5f) * offsetMultiplier * 0.5f;
+//	//thrusterParticle.posX += randOffsetX;
+//	//thrusterParticle.posY += randOffsetY;
+//
+//	// Set velocity (opposite to ship movement, plus some randomness)
+//	thrusterParticle.velX = -normalizedVelX * 0.005f;
+//	thrusterParticle.velY = 0;// -normalizedVelY * 0;
+//
+//	// Add some randomness to velocity
+//	//thrusterParticle.velX += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
+//	//thrusterParticle.velY += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
+//
+//	// Make smaller than normal bullets
+//	thrusterParticle.colour_radius = 0.01;// offsetMultiplier * 0.3f;
+//	thrusterParticle.force_radius = 0.01;// offsetMultiplier * 0.3f;
+//
+//	// Set short lifetime
+//	thrusterParticle.birth_time = elapsed.count() / 1000.0;
+//	thrusterParticle.death_time = elapsed.count() / 1000.0 + 10.0;
+//	// Add some path randomization for a flame-like effect
+//	//thrusterParticle.path_randomization = 0.002f;
+//
+//	thrusterParticle.sinusoidal_amplitude = 0;
+//
+//	thrusterParticle.posY = allyShips[0].posY + offsetMultiplierY / 8;// normalizedVelY* offsetMultiplierY;
+//
+//	thrusterParticle.colour_radius = 0.005;// offsetMultiplier * 0.3f;
+//	thrusterParticle.force_radius = 0.005;// offsetMultiplier * 0.3f;
+//	thrusterParticle.death_time = elapsed.count() / 1000.0 + 2.0;
+//
+//	allyBullets.push_back(thrusterParticle);
+//
+//	thrusterParticle.colour_radius = 0.01;// offsetMultiplier * 0.3f;
+//	thrusterParticle.force_radius = 0.01;// offsetMultiplier * 0.3f;
+//	thrusterParticle.death_time = elapsed.count() / 1000.0 + 1.0;
+//	allyBullets.push_back(thrusterParticle);
+//
+//	thrusterParticle.colour_radius = 0.1;// offsetMultiplier * 0.3f;
+//	thrusterParticle.force_radius = 0.1;// offsetMultiplier * 0.3f;
+//	thrusterParticle.death_time = elapsed.count() / 1000.0 + 0.1;
+//
+//	allyBullets.push_back(thrusterParticle);
+//
+//}
 
 
 
@@ -3729,6 +3825,8 @@ void idle()
 
 	if (spacePressed)
 		fireBullet();
+
+	//createThrusterFire();
 
 	glutPostRedisplay();
 }
