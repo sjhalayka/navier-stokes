@@ -36,14 +36,21 @@ using namespace std;
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
-class vec2_with_density
+class vec2
 {
 public:
-	float x, y, density;
+	float x, y;
 };
 
-vec2_with_density get_curve_point(vector<vec2_with_density> points, float t)
+vec2 get_curve_point(vector<vec2> points, float t)
 {
+	if (points.size() == 0)
+	{
+		vec2 vd;
+		vd.x = vd.y = 0;
+		return vd;
+	}
+
 	int i = points.size() - 1;
 
 	while (i > 0)
@@ -52,7 +59,6 @@ vec2_with_density get_curve_point(vector<vec2_with_density> points, float t)
 		{
 			points[k].x += t * (points[k + 1].x - points[k].x);
 			points[k].y += t * (points[k + 1].y - points[k].y);
-			points[k].density += t * (points[k + 1].density - points[k].density);
 		}
 
 		i--;
@@ -145,7 +151,7 @@ struct Stamp {
 	bool sinusoidal_shift = false;
 	float random_forking = 0.0;
 
-	vector<vec2_with_density> curve_path;
+	vector<vec2> curve_path;
 
 	// StampInfo properties
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
@@ -3299,8 +3305,8 @@ void mark_offscreen_bullets(void)
 			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			// Check if the stamp is outside the visible area
-			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
-				adjustedPosY < -0.1 || adjustedPosY > 1.1)
+			if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
+				adjustedPosY < -0.5 || adjustedPosY > 1.5)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -3376,7 +3382,7 @@ void move_ships(void)
 				float t = elapsed.count() / 1000.0 - stamp.birth_time;
 				t /= stamp.death_time - stamp.birth_time;
 
-				vec2_with_density vd = get_curve_point(stamp.curve_path, t);
+				vec2 vd = get_curve_point(stamp.curve_path, t);
 
 				stamp.posX = vd.x;
 				stamp.posY = vd.y;
@@ -3516,8 +3522,8 @@ void mark_offscreen_ships(void)
 			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			// Check if the stamp is outside the visible area
-			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
-				adjustedPosY < -0.1 || adjustedPosY > 1.1)
+			if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
+				adjustedPosY < -0.5 || adjustedPosY > 1.5)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -3974,19 +3980,21 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
-		vec2_with_density start;
+		vec2 start;
 		start.x = 1.05;
-		start.y = 0.5; // make this random
+		start.y = rand()/float(RAND_MAX);
+
 		newStamp.curve_path.push_back(start);
 
-		vec2_with_density middle;
+		vec2 middle;
 		middle.x = 0.5;
-		middle.y = 0.5; // make this random
+		middle.y = rand() / float(RAND_MAX);
+
 		newStamp.curve_path.push_back(middle);
 
-		vec2_with_density end;
+		vec2 end;
 		end.x = -0.05;
-		end.y = 0.5; // make this random
+		end.y = rand() / float(RAND_MAX); 
 		newStamp.curve_path.push_back(end);
 
 		newStamp.posX = start.x;
@@ -3997,7 +4005,6 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
 		newStamp.death_time = elapsed.count() / 1000.0f + 3.0;
-
 
 		enemyShips.push_back(newStamp);
 		break;
