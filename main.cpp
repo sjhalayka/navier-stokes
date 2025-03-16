@@ -26,7 +26,7 @@ using namespace std;
 
 
 // to do: At the beginning of level, generate all enemies for that level, using a particular seed. That way the users can share seed numbers.
-// to do: Engine fire from mortal bullets shooting backwards 
+// to do: Engine thruster fire from mortal bullets shooting backwards 
 
 // to do: make Bezier path for enemy ships. Along with the path is density along the curve; the denser the path, the slower the traveller is along that path
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
