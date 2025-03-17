@@ -1320,7 +1320,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.95;
+const float fake_dispersion = 0.9;
 
 void main() {
     // Check if we're in an obstacle
@@ -1405,7 +1405,7 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 float turbulenceScale = 100.0f;     // Control the overall turbulence amount
-float turbulenceDetail = 0.01f;    // Control frequency of turbulence detail
+float turbulenceDetail = 1000.0f;    // Control frequency of turbulence detail
 
 
 float stepAndOutputRNGFloat(inout uint rngState)
@@ -1483,17 +1483,17 @@ void main() {
 
 	if(false)//add_turbulence != 0)
 	{
-		float velMagnitude = 1.0;//length(vel);
+		float velMagnitude = length(vel);
 
 		vec3 noiseInput = vec3(TexCoord * turbulenceDetail, time);
 		float rand = random(noiseInput);
 		uint seed = uint(rand * 4294967295.0);    
 
-		vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale*0.25;
-		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
-		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 1.0;
+		vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
+		//turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
+		//turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 1.0;
 
-		vel += turbulence;
+		vel += 100*turbulence;
 	}
 
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
