@@ -4040,6 +4040,16 @@ void keyboard(unsigned char key, int x, int y) {
 		newStamp.curve_path.push_back(start);
 
 		vec2 middle;
+
+		middle.x = 0.85;
+
+		if (rand() % 2 == 0)
+			middle.y = 0.85 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.85 - 0.1 * (rand() / float(RAND_MAX));
+
+		newStamp.curve_path.push_back(middle);
+
 		middle.x = 0.5;
 
 		if (rand() % 2 == 0)
@@ -4048,6 +4058,16 @@ void keyboard(unsigned char key, int x, int y) {
 			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
+
+		middle.x = 0.15;
+
+		if (rand() % 2 == 0)
+			middle.y = 0.15 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.15 - 0.1 * (rand() / float(RAND_MAX));
+
+		newStamp.curve_path.push_back(middle);
+
 
 		vec2 end;
 		end.x = -0.05;
