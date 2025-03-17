@@ -44,6 +44,9 @@ class ivec2
 {
 public:
 	size_t x, y;
+
+	size_t stamp_index = 0;
+	size_t stamp_type = 0;
 };
 
 
@@ -184,7 +187,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 0.1;
+	float health = 1.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -212,6 +215,8 @@ struct Stamp {
 	float velX = 0, velY = 0;
 
 	int currentVariationIndex = 0;              // Which texture variation to use
+
+	vector<ivec2> blackening_points;
 };
 
 
@@ -2122,7 +2127,8 @@ void reapplyAllStamps() {
 
 
 
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string &stamp_type)
+{
 	//if (!stamp.active) return false;
 
 	//// Validate variation index
@@ -2204,8 +2210,13 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	ivec2 iv;
 	iv.x = pixelX;
 	iv.y = pixelY;
+	iv.stamp_index = stamp_index;
 
-	ally_blackening_points.push_back(iv);
+	if (stamp_type == "Ally Ship")
+		allyShips[stamp_index].blackening_points.push_back(iv);
+	else
+		enemyShips[stamp_index].blackening_points.push_back(iv);
+
 
 
 
@@ -2262,7 +2273,7 @@ void generateFluidStampCollisionsDamage()
 				float normY = point.y / float(HEIGHT);
 
 				// Perform the actual collision check
-				bool collides = isCollisionInStamp(point, stamps[i]);
+				bool collides = isCollisionInStamp(point, stamps[i], i, type);
 
 				if (collides)
 				{
