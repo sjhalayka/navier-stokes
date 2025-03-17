@@ -472,6 +472,8 @@ bool loadStampTextures() {
 					}
 					newStamp.textureIDs.push_back(textureID);
 					newStamp.pixelData.push_back(std::move(pixelData));
+					newStamp.backupData.push_back(std::move(pixelData));
+
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
 					loadedAtLeastOne = true;
 				}
@@ -506,6 +508,8 @@ bool loadStampTextures() {
 		currentEnemyTemplateIndex = 0;
 		currentTemplateType = ALLY; // Default to ally template
 	}
+
+
 
 	return loadedAny;
 }
@@ -566,12 +570,14 @@ bool loadBulletTemplates() {
 				}
 				newStamp.textureIDs.push_back(textureID);
 				newStamp.pixelData.push_back(std::move(pixelData));
+				newStamp.backupData.push_back(std::move(pixelData));
 				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
 				loadedAtLeastOne = true;
 			}
 			else {
 				newStamp.textureIDs.push_back(0);
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
+				newStamp.backupData.push_back(std::move(pixelData));
 			}
 		}
 
@@ -2620,8 +2626,15 @@ void initGL() {
 		exit(1);
 	}
 
+
+
+
 	loadStampTextures();
 	loadBulletTemplates();
+
+
+
+
 
 	// Create shader programs
 	advectProgram = createShaderProgram(vertexShaderSource, advectFragmentShader);
