@@ -386,11 +386,11 @@ bool loadStampTextures() {
 	bool loadedAny = false;
 
 	// For each prefix, attempt to load all indexed textures
-	for (const auto& prefix : prefixes) 
+	for (const auto& prefix : prefixes)
 	{
 		int index = 0;
 
-		while (true) 
+		while (true)
 		{
 			std::string baseFilename = prefix + std::to_string(index);
 			Stamp newStamp;
@@ -1386,13 +1386,15 @@ void main() {
 
 
 const char* advectFragmentShader = R"(
-#version 330 core
+#version 430 core
 uniform sampler2D velocityTexture;
 uniform sampler2D sourceTexture;
 uniform sampler2D obstacleTexture;
 uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
+uniform float time;
+
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
@@ -1401,6 +1403,89 @@ float aspect_ratio = WIDTH/HEIGHT;
 out vec4 FragColor;
 
 in vec2 TexCoord;
+
+float turbulenceScale = 50.0f;     // Control the overall turbulence amount
+float turbulenceDetail = 50.0f;    // Control frequency of turbulence detail
+
+
+float stepAndOutputRNGFloat(inout uint rngState)
+{
+  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+  rngState  = rngState * 747796405 + 1;
+  uint word = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
+  word      = (word >> 22) ^ word;
+  return float(word) / 4294967295.0f;
+}
+
+// https://github.com/nvpro-samples/vk_mini_path_tracer/blob/main/vk_mini_path_tracer/shaders/raytrace.comp.glsl#L26
+// https://www.shadertoy.com/view/fsK3zd
+// 
+vec2 RandomUnitVector(inout uint state)
+{
+	const float TWO_PI = 8.0*atan(1.0);
+    float a = stepAndOutputRNGFloat(state) * TWO_PI;
+    float x = cos(a);
+    float y = sin(a);
+    return vec2(x, y);
+}
+
+// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
+uint hash( uint x ) {
+    x += ( x << 10u );
+    x ^= ( x >>  6u );
+    x += ( x <<  3u );
+    x ^= ( x >> 11u );
+    x += ( x << 15u );
+    return x;
+}
+
+
+
+// Compound versions of the hashing algorithm I whipped together.
+uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
+uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
+uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
+
+
+
+// Construct a float with half-open range [0:1] using low 23 bits.
+// All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
+float floatConstruct( uint m ) {
+    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
+    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
+
+    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
+    m |= ieeeOne;                          // Add fractional part to 1.0
+
+    float  f = uintBitsToFloat( m );       // Range [1:2]
+    return f - 1.0;                        // Range [0:1]
+}
+
+
+
+// Pseudo-random value in half-open range [0:1].
+float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
+float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+
+vec2 addTurbulence(vec2 velocity, vec2 position, float time) {
+    float velMagnitude = length(velocity);
+    vec2 result = velocity;
+
+    vec3 noiseInput = vec3(position * turbulenceDetail, time);
+    float rand = random(noiseInput);
+    uint seed = uint(rand * 4294967295.0);    
+
+    vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
+    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
+    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.25;
+    
+    result += turbulence * 1000.0f;
+    return result;
+}
+
+
 
 void main() {
     // Check if we're in an obstacle
@@ -1412,7 +1497,18 @@ void main() {
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-    //vec2 pos = TexCoord - dt * vel * texelSize;
+    float velMagnitude = 1.0;//length(vel);
+
+    vec3 noiseInput = vec3(TexCoord * turbulenceDetail, time);
+    float rand = random(noiseInput);
+    uint seed = uint(rand * 4294967295.0);    
+
+    vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
+    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
+    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.25;
+
+	vel += turbulence;
+
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
 
     // Sample the source texture at the back-traced position
@@ -2582,6 +2678,14 @@ void advectColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
+
+
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - app_start_time;
+	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
+
+
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
@@ -2613,6 +2717,13 @@ void advectFriendlyColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - app_start_time;
+	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
+
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2646,6 +2757,12 @@ void advectVelocity() {
 	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - app_start_time;
+	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
+
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -3392,11 +3509,11 @@ void move_ships(void)
 
 				const float vel_y = stamp.posY - prevPosY;
 
-				if(vel_y > 0)
+				if (vel_y > 0)
 					stamp.currentVariationIndex = 1;
-				else if(vel_y == 0)
+				else if (vel_y == 0)
 					stamp.currentVariationIndex = 0;
-				else if(vel_y < 0)
+				else if (vel_y < 0)
 					stamp.currentVariationIndex = 2;
 
 
@@ -3990,7 +4107,7 @@ void keyboardup(unsigned char key, int x, int y) {
 
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
-	switch (key)	
+	switch (key)
 	{
 	case '0':
 	{
@@ -3998,14 +4115,14 @@ void keyboard(unsigned char key, int x, int y) {
 
 		vec2 start;
 		start.x = 1.05;
-		start.y = rand()/float(RAND_MAX);
+		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
 
 		vec2 middle;
 		middle.x = 0.5;
 
-		if(rand() % 2 == 0)
+		if (rand() % 2 == 0)
 			middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
 		else
 			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
@@ -4014,7 +4131,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 		vec2 end;
 		end.x = -0.05;
-		end.y = rand() / float(RAND_MAX); 
+		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
 		newStamp.posX = start.x;
