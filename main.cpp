@@ -32,6 +32,7 @@ using namespace std;
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 
+
 class vec2
 {
 public:
@@ -153,6 +154,11 @@ bool has_homing_fire = true;
 
 bool x3_fire = false;
 bool x5_fire = true;
+
+
+float eddyIntensity = 1.0;
+float eddyDensity = 10;
+
 
 
 
@@ -1438,59 +1444,121 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
-uniform float eddyAmplitude = 0.001f;  // New uniform: Strength of eddies
-uniform float eddyFrequency = 0.01f;  // New uniform: Frequency (scale) of eddies
+uniform float eddyIntensity = 100.0;  // Controls overall intensity of eddies
+uniform float eddyDensity = 0.1;    // Controls how many eddies appear
+uniform float fbm_amplitude = 100.0;
+uniform float fbm_frequency = 10.0;
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
 float aspect_ratio = WIDTH / HEIGHT;
 
 out vec4 FragColor;
-
 in vec2 TexCoord;
 
-// Simple random noise function (can be replaced with Perlin noise for better results)
-float rand(vec2 co) {
-    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+// Hash function for pseudo-random number generation
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
 }
 
-// Simple noise function based on coordinates and time
-float noise(vec2 p, float t) {
-    return rand(p * eddyFrequency + vec2(t, t)) * 2.0 - 1.0; // Range [-1, 1]
+// Value noise function
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    
+    // Four corners in 2D of a tile
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    
+    // Smooth interpolation
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    
+    // Mix the four corners
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+// Fractal Brownian Motion (fBm) for multi-scale noise
+float fbm(vec2 p, int octaves) {
+    float value = 0.0;
+    float amplitude = fbm_amplitude;//100.0;
+    float frequency = fbm_frequency;//10.0;
+    
+    for (int i = 0; i < octaves; i++) {
+        value += amplitude * noise(p * frequency);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    return value;
+}
+
+// Create a vector field for eddies
+vec2 eddyField(vec2 p, float t) {
+    // Multi-scale noise for different sized eddies
+    float noise1 = fbm(p * 3.0 + vec2(t * 0.1, t * 0.2), 3);
+    float noise2 = fbm(p * 8.0 + vec2(t * 0.2, -t * 0.1), 2);
+    float noise3 = fbm(p * 15.0 + vec2(-t * 0.3, t * 0.3), 1);
+    
+    // Calculate rotational vector field based on noise
+    vec2 grad1 = vec2(
+        fbm(p * 3.0 + vec2(0.01, 0.0) + vec2(t * 0.1, t * 0.2), 3) - noise1,
+        fbm(p * 3.0 + vec2(0.0, 0.01) + vec2(t * 0.1, t * 0.2), 3) - noise1
+    ) * 2.0;
+    
+    vec2 grad2 = vec2(
+        fbm(p * 8.0 + vec2(0.01, 0.0) + vec2(t * 0.2, -t * 0.1), 2) - noise2,
+        fbm(p * 8.0 + vec2(0.0, 0.01) + vec2(t * 0.2, -t * 0.1), 2) - noise2
+    ) * 1.0;
+    
+    vec2 grad3 = vec2(
+        fbm(p * 15.0 + vec2(0.01, 0.0) + vec2(-t * 0.3, t * 0.3), 1) - noise3,
+        fbm(p * 15.0 + vec2(0.0, 0.01) + vec2(-t * 0.3, t * 0.3), 1) - noise3
+    ) * 0.5;
+    
+    // Create swirling motion by rotating the gradients
+    vec2 swirl1 = vec2(-grad1.y, grad1.x);
+    vec2 swirl2 = vec2(-grad2.y, grad2.x);
+    vec2 swirl3 = vec2(-grad3.y, grad3.x);
+    
+    // Combine eddies of different scales
+    return (swirl1 + swirl2 + swirl3) * eddyIntensity * eddyDensity;
 }
 
 void main() {
-    // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
     if (obstacle > 0.0) {
         FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
-    // Advection
+    // Get base velocity
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-
-    // Base back-traced position
+    
+    // Calculate multi-scale eddy perturbation
+    vec2 eddyVel = eddyField(TexCoord, time);
+    
+    // Add eddy perturbation to base velocity
+    vel = vel + eddyVel * dt;
+    
+    // Calculate backtracing position with perturbed velocity
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
 
-    // Add small-scale eddy perturbation
-    //vec2 eddyPerturb;
-    //eddyPerturb.x = noise(TexCoord + vec2(0.1, 0.0), time) * eddyAmplitude;
-    //eddyPerturb.y = noise(TexCoord + vec2(0.0, 0.1), time) * eddyAmplitude;
-    //pos += eddyPerturb;// * texelSize; // Scale perturbation by texel size for consistency
-
-    // Sample the source texture at the perturbed back-traced position
+    // Sample from the back-traced position
     vec4 result = texture(sourceTexture, pos);
 
-    // Boundary handling - don’t advect from obstacles
-    vec2 samplePos = pos;
-    float obstacleSample = texture(obstacleTexture, samplePos).r;
+    // Prevent sampling from obstacles
+    float obstacleSample = texture(obstacleTexture, pos).r;
     if (obstacleSample > 0.0) {
-        result = vec4(0.0, 0.0, 0.0, 1.0); // Kill velocity if sampling from obstacle
+        result = vec4(0.0, 0.0, 0.0, 1.0);
     }
 
     FragColor = result;
 }
+
 
 )";
 
@@ -2624,7 +2692,6 @@ void initGL() {
 
 }
 
-
 void advectColor() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
@@ -2639,13 +2706,14 @@ void advectColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
+	// Eddy parameters - same as in advectVelocity
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyIntensity"), eddyIntensity);
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyDensity"), eddyDensity);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - app_start_time;
 	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2664,7 +2732,6 @@ void advectColor() {
 }
 
 
-
 void advectFriendlyColor() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
@@ -2679,13 +2746,14 @@ void advectFriendlyColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
+	// Eddy parameters - same as above
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyIntensity"), eddyIntensity);
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyDensity"), eddyDensity);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - app_start_time;
 	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2705,6 +2773,9 @@ void advectFriendlyColor() {
 
 
 
+
+
+
 // Apply the advection step
 void advectVelocity() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -2720,13 +2791,14 @@ void advectVelocity() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 1);
+	// Eddy parameters
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyIntensity"), eddyIntensity); // Adjust for desired strength
+	glUniform1f(glGetUniformLocation(advectProgram, "eddyDensity"), eddyDensity);   // Adjust for more/fewer eddies
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - app_start_time;
 	glUniform1f(glGetUniformLocation(advectProgram, "time"), elapsed.count() / 1000.0f);
-
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -2743,6 +2815,12 @@ void advectVelocity() {
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
 }
+
+
+
+
+
+
 
 // Compute the velocity divergence
 void computeDivergence() {
@@ -3467,8 +3545,8 @@ void move_ships(void)
 				vec2 vd = get_curve_point(stamp.curve_path, t);
 				vec2 vd2 = get_straight_point(stamp.curve_path, t);
 
-				vd.x = lerp(vd.x, vd2.x, 0.25);
-				vd.y = lerp(vd.y, vd2.y, 0.25);
+				vd.x = lerp(vd.x, vd2.x, 0.15);
+				vd.y = lerp(vd.y, vd2.y, 0.15);
 
 
 
