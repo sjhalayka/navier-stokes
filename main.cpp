@@ -1394,19 +1394,26 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
-
+uniform float eddyAmplitude = 0.001f;  // New uniform: Strength of eddies
+uniform float eddyFrequency = 0.01f;  // New uniform: Frequency (scale) of eddies
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
-float aspect_ratio = WIDTH/HEIGHT;
+float aspect_ratio = WIDTH / HEIGHT;
 
 out vec4 FragColor;
 
 in vec2 TexCoord;
 
+// Simple random noise function (can be replaced with Perlin noise for better results)
+float rand(vec2 co) {
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+}
 
-
-
+// Simple noise function based on coordinates and time
+float noise(vec2 p, float t) {
+    return rand(p * eddyFrequency + vec2(t, t)) * 2.0 - 1.0; // Range [-1, 1]
+}
 
 void main() {
     // Check if we're in an obstacle
@@ -1419,28 +1426,28 @@ void main() {
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
 
+    // Base back-traced position
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
 
-    // Sample the source texture at the back-traced position
+    // Add small-scale eddy perturbation
+    //vec2 eddyPerturb;
+    //eddyPerturb.x = noise(TexCoord + vec2(0.1, 0.0), time) * eddyAmplitude;
+    //eddyPerturb.y = noise(TexCoord + vec2(0.0, 0.1), time) * eddyAmplitude;
+    //pos += eddyPerturb;// * texelSize; // Scale perturbation by texel size for consistency
+
+    // Sample the source texture at the perturbed back-traced position
     vec4 result = texture(sourceTexture, pos);
-    
-    // Boundary handling - don't advect from obstacles
+
+    // Boundary handling - don’t advect from obstacles
     vec2 samplePos = pos;
     float obstacleSample = texture(obstacleTexture, samplePos).r;
-    
     if (obstacleSample > 0.0) {
-        // If we sampled from an obstacle, reflect the velocity
-//        result = vec4(-vel, 0.0, 1.0);
-
-
-        // If we sampled from an obstacle, kill the velocity
-		// We do this to avoid generating the opposite colour as a bug
-		result = vec4(0.0, 0.0, 0.0, 1.0);
-
+        result = vec4(0.0, 0.0, 0.0, 1.0); // Kill velocity if sampling from obstacle
     }
-    
+
     FragColor = result;
 }
+
 )";
 
 const char* divergenceFragmentShader = R"(
