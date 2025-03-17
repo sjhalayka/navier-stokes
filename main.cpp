@@ -38,6 +38,50 @@ public:
 	float x, y;
 };
 
+
+
+
+
+
+
+vec2 get_straight_point(vector<vec2> points, float t)
+{
+	if (points.empty()) return { 0, 0 };
+	if (points.size() == 1) return points[0];
+
+	// Scale t to the total path length
+	float scaledT = t * (points.size() - 1);
+
+	// Determine which segment we're in
+	int segment = static_cast<int>(scaledT);
+	if (segment >= points.size() - 1) {
+		return points.back();
+	}
+
+	// Calculate the interpolation parameter for this segment
+	float segmentT = scaledT - segment;
+
+	// Linear interpolation between the two points
+	vec2 p1 = points[segment];
+	vec2 p2 = points[segment + 1];
+
+	vec2 ret;
+	ret.x = p1.x + (p2.x - p1.x) * segmentT;
+	ret.y = p1.y + (p2.y - p1.y) * segmentT;
+
+	return ret;
+}
+
+
+
+
+
+
+
+
+
+
+// to do: make a straight line function?
 vec2 get_curve_point(vector<vec2> points, float t)
 {
 	if (points.size() == 0)
@@ -3421,6 +3465,14 @@ void move_ships(void)
 				t /= stamp.death_time - stamp.birth_time;
 
 				vec2 vd = get_curve_point(stamp.curve_path, t);
+				vec2 vd2 = get_straight_point(stamp.curve_path, t);
+
+				vd.x = lerp(vd.x, vd2.x, 0.25);
+				vd.y = lerp(vd.y, vd2.y, 0.25);
+
+
+
+
 
 				const float prevPosY = stamp.posY;
 
