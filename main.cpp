@@ -1394,7 +1394,7 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
-uniform int add_turbulence;
+
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
@@ -1403,79 +1403,6 @@ float aspect_ratio = WIDTH/HEIGHT;
 out vec4 FragColor;
 
 in vec2 TexCoord;
-
-
-
-//
-//float turbulenceScale = 100.0f;     // Control the overall turbulence amount
-//float turbulenceDetail = 1000.0f;    // Control frequency of turbulence detail
-//
-//
-//float stepAndOutputRNGFloat(inout uint rngState)
-//{
-//	
-//
-//  // Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
-//  rngState  = rngState * 747796405 + 1;
-//  uint word = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
-//  word      = (word >> 22) ^ word;
-//  return float(word) / 4294967295.0f;
-//}
-//
-//// https://github.com/nvpro-samples/vk_mini_path_tracer/blob/main/vk_mini_path_tracer/shaders/raytrace.comp.glsl#L26
-//// https://www.shadertoy.com/view/fsK3zd
-//// 
-//vec2 RandomUnitVector(inout uint state)
-//{
-//	const float TWO_PI = 8.0*atan(1.0);
-//    float a = stepAndOutputRNGFloat(state) * TWO_PI;
-//    float x = cos(a);
-//    float y = sin(a);
-//    return vec2(x, y);
-//}
-//
-//// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
-//uint hash( uint x ) {
-//    x += ( x << 10u );
-//    x ^= ( x >>  6u );
-//    x += ( x <<  3u );
-//    x ^= ( x >> 11u );
-//    x += ( x << 15u );
-//    return x;
-//}
-//
-//
-//
-//// Compound versions of the hashing algorithm I whipped together.
-//uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
-//uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
-//uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
-//
-//
-//
-//// Construct a float with half-open range [0:1] using low 23 bits.
-//// All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
-//float floatConstruct( uint m ) {
-//    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
-//    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
-//
-//    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
-//    m |= ieeeOne;                          // Add fractional part to 1.0
-//
-//    float  f = uintBitsToFloat( m );       // Range [1:2]
-//    return f - 1.0;                        // Range [0:1]
-//}
-//
-//
-//
-//// Pseudo-random value in half-open range [0:1].
-//float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
-//float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-//float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-//float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-
-
-
 
 
 
@@ -1491,21 +1418,6 @@ void main() {
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-
-	//if(false)//add_turbulence != 0)
-	//{
-	//	float velMagnitude = length(vel);
-
-	//	vec3 noiseInput = vec3(TexCoord * turbulenceDetail, time);
-	//	float rand = random(noiseInput);
-	//	uint seed = uint(rand * 4294967295.0);    
-
-	//	vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
-	//	//turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
-	//	//turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 1.0;
-
-	//	vel += 100*turbulence;
-	//}
 
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
 
