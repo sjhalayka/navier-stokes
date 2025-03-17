@@ -1394,7 +1394,7 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
-
+uniform int add_turbulence;
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
@@ -1404,8 +1404,8 @@ out vec4 FragColor;
 
 in vec2 TexCoord;
 
-float turbulenceScale = 50.0f;     // Control the overall turbulence amount
-float turbulenceDetail = 50.0f;    // Control frequency of turbulence detail
+float turbulenceScale = 100.0f;     // Control the overall turbulence amount
+float turbulenceDetail = 0.01f;    // Control frequency of turbulence detail
 
 
 float stepAndOutputRNGFloat(inout uint rngState)
@@ -1473,15 +1473,19 @@ vec2 addTurbulence(vec2 velocity, vec2 position, float time) {
     float velMagnitude = length(velocity);
     vec2 result = velocity;
 
-    vec3 noiseInput = vec3(position * turbulenceDetail, time);
-    float rand = random(noiseInput);
-    uint seed = uint(rand * 4294967295.0);    
+	if(add_turbulence == 1)
+	{
+		vec3 noiseInput = vec3(position * turbulenceDetail, time);
+		float rand = random(noiseInput);
+		uint seed = uint(rand * 4294967295.0);    
 
-    vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
-    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
-    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.25;
+		vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
+		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * stepAndOutputRNGFloat(seed)*0.5;
+		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * stepAndOutputRNGFloat(seed)*0.25;
     
-    result += turbulence * 1000.0f;
+		result += turbulence;
+	}
+
     return result;
 }
 
@@ -2678,7 +2682,7 @@ void advectColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-
+	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -2718,6 +2722,7 @@ void advectFriendlyColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
+	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -2757,6 +2762,8 @@ void advectVelocity() {
 	glUniform1f(glGetUniformLocation(advectProgram, "dt"), DT);
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 1);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
