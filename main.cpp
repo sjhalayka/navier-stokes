@@ -1469,27 +1469,6 @@ float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
-vec2 addTurbulence(vec2 velocity, vec2 position, float time) {
-    float velMagnitude = length(velocity);
-    vec2 result = velocity;
-
-	if(add_turbulence == 1)
-	{
-		vec3 noiseInput = vec3(position * turbulenceDetail, time);
-		float rand = random(noiseInput);
-		uint seed = uint(rand * 4294967295.0);    
-
-		vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
-		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * stepAndOutputRNGFloat(seed)*0.5;
-		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * stepAndOutputRNGFloat(seed)*0.25;
-    
-		result += turbulence;
-	}
-
-    return result;
-}
-
-
 
 void main() {
     // Check if we're in an obstacle
@@ -1501,17 +1480,21 @@ void main() {
 
     // Advection
     vec2 vel = texture(velocityTexture, TexCoord).xy;
-    float velMagnitude = 1.0;//length(vel);
 
-    vec3 noiseInput = vec3(TexCoord * turbulenceDetail, time);
-    float rand = random(noiseInput);
-    uint seed = uint(rand * 4294967295.0);    
+	if(false)//add_turbulence != 0)
+	{
+		float velMagnitude = 1.0;//length(vel);
 
-    vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale;
-    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
-    turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.25;
+		vec3 noiseInput = vec3(TexCoord * turbulenceDetail, time);
+		float rand = random(noiseInput);
+		uint seed = uint(rand * 4294967295.0);    
 
-	vel += turbulence;
+		vec2 turbulence = RandomUnitVector(seed) * velMagnitude * turbulenceScale*0.25;
+		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 0.5;
+		turbulence += RandomUnitVector(seed) * velMagnitude * turbulenceScale * 1.0;
+
+		vel += turbulence;
+	}
 
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
 
@@ -2682,7 +2665,7 @@ void advectColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -2722,7 +2705,7 @@ void advectFriendlyColor() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
+	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 0);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -2763,7 +2746,7 @@ void advectVelocity() {
 	glUniform1f(glGetUniformLocation(advectProgram, "gridScale"), 1.0f);
 	glUniform2f(glGetUniformLocation(advectProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
 
-	glUniform1f(glGetUniformLocation(advectProgram, "add_turbulence"), 1);
+	glUniform1i(glGetUniformLocation(advectProgram, "add_turbulence"), 1);
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
