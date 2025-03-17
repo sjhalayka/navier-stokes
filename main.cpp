@@ -45,13 +45,32 @@ class ivec2
 public:
 	size_t x, y;
 
+	bool operator<(const ivec2& right)
+	{
+		if (right.x > x)
+			return true;
+		else if (right.x < x)
+			return false;
+
+		if (right.y > y)
+			return true;
+		else if (right.y < y)
+			return false;
+	}
+
+	bool operator==(const ivec2& right)
+	{
+		if (x == right.x && y == right.y)
+			return true;
+
+		return false;
+	}
+
+
 	size_t stamp_index = 0;
-	size_t stamp_type = 0;
+	string stamp_type = "";
 };
 
-
-
-vector<ivec2> ally_blackening_points;
 
 
 
@@ -178,16 +197,21 @@ struct Stamp {
 	int height = 0; // pixels
 	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
-	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
+	std::vector<std::vector<unsigned char>> pixelData;
 
-	std::vector<std::vector<unsigned char>> backupData;  // Multiple pixel data arrays
+	std::vector<std::vector<unsigned char>> blackeningData;
+
+	std::vector<std::vector<unsigned char>> backupData;
+
+
+
 
 
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
 
-	float health = 1.0;
+	float health = 1000.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -476,8 +500,9 @@ bool loadStampTextures() {
 						newStamp.channels = channels;
 					}
 					newStamp.textureIDs.push_back(textureID);
-					newStamp.pixelData.push_back(std::move(pixelData));
-					newStamp.backupData.push_back(std::move(pixelData));
+					newStamp.pixelData.push_back((pixelData));
+					newStamp.blackeningData.push_back(pixelData);
+					newStamp.backupData.push_back((pixelData));
 
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
 					loadedAtLeastOne = true;
@@ -485,6 +510,8 @@ bool loadStampTextures() {
 				else {
 					newStamp.textureIDs.push_back(0);
 					newStamp.pixelData.push_back(std::vector<unsigned char>());
+					newStamp.blackeningData.push_back(std::vector<unsigned char>());
+					newStamp.backupData.push_back(std::vector<unsigned char>());
 				}
 			}
 
@@ -574,15 +601,23 @@ bool loadBulletTemplates() {
 					newStamp.channels = channels;
 				}
 				newStamp.textureIDs.push_back(textureID);
-				newStamp.pixelData.push_back(std::move(pixelData));
-				newStamp.backupData.push_back(std::move(pixelData));
+
+				
+				
+				newStamp.pixelData.push_back((pixelData));
+				newStamp.blackeningData.push_back((pixelData));
+				newStamp.backupData.push_back((pixelData));
+				
+				
 				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
 				loadedAtLeastOne = true;
 			}
 			else {
 				newStamp.textureIDs.push_back(0);
+
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
-				newStamp.backupData.push_back(std::move(pixelData));
+				newStamp.blackeningData.push_back(std::vector<unsigned char>());
+				newStamp.backupData.push_back(std::vector<unsigned char>());
 			}
 		}
 
@@ -2037,17 +2072,52 @@ void main() {
 }
 )";
 
-void updateDynamicTexture(Stamp& stamp) {
-	// For each valid texture in the stamp
-	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
+void updateDynamicTexture(Stamp& stamp) 
+{
+	for (size_t i = 0; i < stamp.textureIDs.size(); i++) 
+	{
+		for (size_t j = 0; j < stamp.blackening_points.size(); j++)
+		{
+			cout << "pixel" << endl;
+			cout << stamp.blackening_points[j].x << " " << stamp.blackening_points[j].y << endl;
+		}
+
+		
+
+		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty())
+		{
+			for (int y = 0; y < stamp.height; ++y)
+			{
+				for (int x = 0; x < stamp.width; ++x)
+				{
+					ivec2 iv;
+					iv.x = x;
+					iv.y = y;
+
+					vector<ivec2>::const_iterator iter = find(stamp.blackening_points.begin(), stamp.blackening_points.end(), iv);
+
+					if (iter != stamp.blackening_points.end())
+					{
+						size_t index = (iter->y * stamp.width + iter->x) * 4;
+
+						stamp.pixelData[i][index + 0] = 0;
+						stamp.pixelData[i][index + 1] = 255;
+						stamp.pixelData[i][index + 2] = 0;
+						stamp.pixelData[i][index + 3] = 255;
+					}
+				}
+			}
+
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
+
 			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
 				(stamp.channels == 1) ? GL_RED :
 				(stamp.channels == 3) ? GL_RGB : GL_RGBA,
 				GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 		}
 	}
+
+	stamp.blackening_points.clear();
 }
 
 
@@ -2127,7 +2197,7 @@ void reapplyAllStamps() {
 
 
 
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string &stamp_type)
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string &stamp_type, vector<ivec2> &collision_pixel_locations)
 {
 	//if (!stamp.active) return false;
 
@@ -2168,6 +2238,10 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	//		pointY >= minY && pointY <= maxY);
 	//}
 
+
+
+
+
 	// Get the normalized stamp position (0-1 in screen space)
 	float stampX = stamp.posX;  // Normalized X position
 	float stampY = stamp.posY;  // Normalized Y position
@@ -2207,16 +2281,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
 	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
 
-	ivec2 iv;
-	iv.x = pixelX;
-	iv.y = pixelY;
-	iv.stamp_index = stamp_index;
-
-	if (stamp_type == "Ally Ship")
-		allyShips[stamp_index].blackening_points.push_back(iv);
-	else
-		enemyShips[stamp_index].blackening_points.push_back(iv);
-
 
 
 
@@ -2239,8 +2303,21 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 		opacity = (r + g + b) / 3.0f;
 	}
 
+
+	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
+
+	if (is_opaque_enough)
+	{
+		ivec2 iv;
+		iv.x = pixelX;
+		iv.y = pixelY;
+		iv.stamp_index = stamp_index;
+		iv.stamp_type = stamp_type;
+		collision_pixel_locations.push_back(iv);
+	}
+
 	// Check if the pixel is opaque enough for a collision
-	return opacity > COLOR_DETECTION_THRESHOLD;
+	return is_opaque_enough;
 }
 
 
@@ -2266,6 +2343,8 @@ void generateFluidStampCollisionsDamage()
 			float red_count = 0;
 			float blue_count = 0;
 
+			vector<ivec2> collision_pixel_locations;
+
 			// Test each collision point against this stamp
 			for (const auto& point : collisionPoints)
 			{
@@ -2273,7 +2352,7 @@ void generateFluidStampCollisionsDamage()
 				float normY = point.y / float(HEIGHT);
 
 				// Perform the actual collision check
-				bool collides = isCollisionInStamp(point, stamps[i], i, type);
+				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
 
 				if (collides)
 				{
@@ -2290,9 +2369,6 @@ void generateFluidStampCollisionsDamage()
 					}
 
 					if (point.r > 0 && point.b > 0) {
-						//red_count += point.r;
-						//blue_count += point.b;
-
 						bothStampCollisions++;
 					}
 				}
@@ -2303,6 +2379,10 @@ void generateFluidStampCollisionsDamage()
 			{
 				stampHitCount++;
 
+
+
+
+
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
 
@@ -2312,9 +2392,18 @@ void generateFluidStampCollisionsDamage()
 				float damage = 0.0f;
 
 				if (type == "Ally Ship")
+				{
 					damage = blue_count;
+
+					allyShips[i].blackening_points = collision_pixel_locations;
+				}
 				else
+				{
 					damage = red_count;
+
+					enemyShips[i].blackening_points = collision_pixel_locations;
+
+				}
 
 				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 
@@ -3799,9 +3888,6 @@ void cull_marked_ships(void)
 		{
 			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
 			{
-				if(type == "Ally")
-					ally_blackening_points.clear();
-
 				cout << "culling " << type << " ship" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
@@ -4303,11 +4389,11 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 
 
-		//case 'r':
-		//case 'R':
-		//	red_mode = !red_mode;
-		//	std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
-		//	break;
+		case 'b':
+		case 'B':
+			red_mode = !red_mode;
+			std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
+			break;
 
 	case 'c':  // Report collisions immediately
 	case 'C':
