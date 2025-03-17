@@ -40,8 +40,15 @@ public:
 };
 
 
+class ivec2
+{
+public:
+	size_t x, y;
+};
 
 
+
+vector<ivec2> ally_blackening_points;
 
 
 
@@ -80,9 +87,6 @@ vec2 get_straight_point(vector<vec2> points, float t)
 
 
 
-
-
-// to do: make a straight line function?
 vec2 get_curve_point(vector<vec2> points, float t)
 {
 	if (points.size() == 0)
@@ -172,6 +176,10 @@ struct Stamp {
 	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;  // Multiple pixel data arrays
+
+	std::vector<std::vector<unsigned char>> backupData;  // Multiple pixel data arrays
+
+
 	int channels = 0;                         // Store the number of channels
 
 	bool to_be_culled = false;
@@ -697,12 +705,17 @@ void fireBullet() {
 		newCentralStamp.colour_radius = avg_rad / 2.0;
 		newCentralStamp.force_radius = avg_rad / 2.0;
 
-		for (size_t j = 0; j < num_streams_local; j++) {
+		for (size_t j = 0; j < num_streams_local; j++) 
+		{
 			Stamp newStamp = newCentralStamp;
 			newStamp.colour_radius = avg_rad / 4;
 			newStamp.force_radius = avg_rad / 4;
 
+			// Make elliptical fire
 			RandomUnitVector(newStamp.velX, newStamp.velY);
+			newStamp.velX *= WIDTH / float(HEIGHT);
+			newStamp.velX *= 2.0;
+
 			newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
 			newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
@@ -712,12 +725,17 @@ void fireBullet() {
 			allyBullets.push_back(newStamp);
 		}
 
-		for (size_t j = 0; j < num_streams_local * 2; j++) {
+		for (size_t j = 0; j < num_streams_local * 2; j++) 
+		{
 			Stamp newStamp = newCentralStamp;
 			newStamp.colour_radius = avg_rad / 8;
 			newStamp.force_radius = avg_rad / 8;
 
+			// Make elliptical fire
 			RandomUnitVector(newStamp.velX, newStamp.velY);
+			newStamp.velX *= WIDTH / float(HEIGHT);
+			newStamp.velX *= 2.0;
+
 			newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
 			newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
@@ -1445,7 +1463,7 @@ uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
 uniform float eddyIntensity = 100.0;  // Controls overall intensity of eddies
-uniform float eddyDensity = 0.1;    // Controls how many eddies appear
+uniform float eddyDensity = 1;    // Controls how many eddies appear
 uniform float fbm_amplitude = 100.0;
 uniform float fbm_frequency = 10.0;
 
@@ -2176,6 +2194,15 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp) {
 	int pixelY = int(texCoordY * stamp.height);
 	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
 	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
+
+	ivec2 iv;
+	iv.x = pixelX;
+	iv.y = pixelY;
+
+	ally_blackening_points.push_back(iv);
+
+
+
 
 	// Get the alpha/opacity at this pixel for the current variation
 	float opacity = 0.0f;
@@ -2941,13 +2968,16 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	float mouseVelX = velX;
 	float mouseVelY = velY;
 
+	float mouse_vel_length = sqrt(velX * velX + velY * velY);
+
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length*strength);
 	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), WIDTH);
 	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), HEIGHT);
 
@@ -3745,6 +3775,9 @@ void cull_marked_ships(void)
 		{
 			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
 			{
+				if(type == "Ally")
+					ally_blackening_points.clear();
+
 				cout << "culling " << type << " ship" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
