@@ -2078,6 +2078,7 @@ void main() {
 
 
 
+
 void applyGaussianBlurRGBA(const std::vector<unsigned char>& input,
 	std::vector<unsigned char>& output,
 	int width, int height, double sigma) {
@@ -2164,6 +2165,27 @@ void dilateImageRGBA(const std::vector<unsigned char>& input,
 }
 
 
+
+
+void perform_convolutions(Stamp& stamp, size_t i)
+{
+	std::vector<unsigned char> result(stamp.width * stamp.height * 4);
+
+	dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
+	stamp.blackeningData[i] = result;
+
+	applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 10.0);
+	stamp.blackeningData[i] = result;
+}
+
+
+
+
+
+
+
+
+
 void updateDynamicTexture(Stamp& stamp)
 {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++)
@@ -2189,8 +2211,6 @@ void updateDynamicTexture(Stamp& stamp)
 
 
 
-				//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
-				//stamp.blackeningData[i] = result;
 
 				for (size_t j = 0; j < stamp.blackening_points.size(); j++)
 				{
@@ -2202,13 +2222,9 @@ void updateDynamicTexture(Stamp& stamp)
 					stamp.blackeningData[i][index + 3] = 255;
 				}
 
-				std::vector<unsigned char> result(stamp.width * stamp.height * 4);
 
-				dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
-				stamp.blackeningData[i] = result;
+				perform_convolutions(stamp, i);
 
-				applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 10.0);
-				stamp.blackeningData[i] = result;
 
 				for (int y = 0; y < stamp.height; ++y)
 				{
