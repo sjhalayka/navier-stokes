@@ -602,13 +602,13 @@ bool loadBulletTemplates() {
 				}
 				newStamp.textureIDs.push_back(textureID);
 
-				
-				
+
+
 				newStamp.pixelData.push_back((pixelData));
 				newStamp.blackeningData.push_back((pixelData));
 				newStamp.backupData.push_back((pixelData));
-				
-				
+
+
 				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
 				loadedAtLeastOne = true;
 			}
@@ -751,7 +751,7 @@ void fireBullet() {
 		newCentralStamp.colour_radius = avg_rad / 2.0;
 		newCentralStamp.force_radius = avg_rad / 2.0;
 
-		for (size_t j = 0; j < num_streams_local; j++) 
+		for (size_t j = 0; j < num_streams_local; j++)
 		{
 			Stamp newStamp = newCentralStamp;
 			newStamp.colour_radius = avg_rad / 4;
@@ -771,7 +771,7 @@ void fireBullet() {
 			allyBullets.push_back(newStamp);
 		}
 
-		for (size_t j = 0; j < num_streams_local * 2; j++) 
+		for (size_t j = 0; j < num_streams_local * 2; j++)
 		{
 			Stamp newStamp = newCentralStamp;
 			newStamp.colour_radius = avg_rad / 8;
@@ -2078,188 +2078,185 @@ void main() {
 
 
 
-	void applyGaussianBlurRGBA(const std::vector<unsigned char>& input,
-		std::vector<unsigned char>& output,
-		int width, int height, double sigma) {
-		int kernelRadius = static_cast<int>(std::ceil(2.0 * sigma));
-		int kernelSize = 2 * kernelRadius + 1;
-		std::vector<double> kernel(kernelSize);
+void applyGaussianBlurRGBA(const std::vector<unsigned char>& input,
+	std::vector<unsigned char>& output,
+	int width, int height, double sigma) {
+	int kernelRadius = static_cast<int>(std::ceil(2.0 * sigma));
+	int kernelSize = 2 * kernelRadius + 1;
+	std::vector<double> kernel(kernelSize);
 
-		// Generate the Gaussian kernel
-		double sum = 0.0;
-		for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-			kernel[i + kernelRadius] = std::exp(-(i * i) / (2 * sigma * sigma));
-			sum += kernel[i + kernelRadius];
-		}
-		for (auto& value : kernel) {
-			value /= sum;
-		}
+	// Generate the Gaussian kernel
+	double sum = 0.0;
+	for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+		kernel[i + kernelRadius] = std::exp(-(i * i) / (2 * sigma * sigma));
+		sum += kernel[i + kernelRadius];
+	}
+	for (auto& value : kernel) {
+		value /= sum;
+	}
 
-		// Apply the Gaussian blur (separable kernel)
-		std::vector<unsigned char> temp(width * height * 4);
+	// Apply the Gaussian blur (separable kernel)
+	std::vector<unsigned char> temp(width * height * 4);
 
-		// Horizontal pass
-		for (int y = 0; y < height; ++y) {
-			for (int x = 0; x < width; ++x) {
-				for (int c = 0; c < 4; ++c) { // RGBA channels
-					double value = 0.0;
-					for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-						int px = std::clamp(x + i, 0, width - 1);
-						value += input[(y * width + px) * 4 + c] * kernel[i + kernelRadius];
-					}
-					temp[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
+	// Horizontal pass
+	for (int y = 0; y < height; ++y) {
+		for (int x = 0; x < width; ++x) {
+			for (int c = 0; c < 4; ++c) { // RGBA channels
+				double value = 0.0;
+				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+					int px = std::clamp(x + i, 0, width - 1);
+					value += input[(y * width + px) * 4 + c] * kernel[i + kernelRadius];
 				}
-			}
-		}
-
-		// Vertical pass
-		for (int y = 0; y < height; ++y) {
-			for (int x = 0; x < width; ++x) {
-				for (int c = 0; c < 4; ++c) { // RGBA channels
-					double value = 0.0;
-					for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-						int py = std::clamp(y + i, 0, height - 1);
-						value += temp[(py * width + x) * 4 + c] * kernel[i + kernelRadius];
-					}
-					output[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
-				}
+				temp[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
 			}
 		}
 	}
 
-
-
-
-	void dilateImageRGBA(const std::vector<unsigned char>& input,
-		std::vector<unsigned char>& output,
-		int width, int height, int radius) {
-		int channels = 4; // RGBA channels
-
-		// Initialize output with input image (optional, but clarifies code)
-		output = input;
-
-		// Create a temporary buffer to store the intermediate dilation results
-		std::vector<unsigned char> temp = input;
-
-		// Dilation logic
-		for (int y = 0; y < height; ++y) {
-			for (int x = 0; x < width; ++x) {
-				for (int c = 0; c < channels; ++c) {
-					unsigned char maxValue = 0; // Initialize max value for the channel
-
-					// Check neighboring pixels within the dilation radius
-					for (int dy = -radius; dy <= radius; ++dy) {
-						for (int dx = -radius; dx <= radius; ++dx) {
-							int nx = std::clamp(x + dx, 0, width - 1);
-							int ny = std::clamp(y + dy, 0, height - 1);
-							maxValue = std::max(maxValue, temp[(ny * width + nx) * channels + c]);
-						}
-					}
-
-					// Set the output pixel to the maximum value in the neighborhood
-					output[(y * width + x) * channels + c] = maxValue;
+	// Vertical pass
+	for (int y = 0; y < height; ++y) {
+		for (int x = 0; x < width; ++x) {
+			for (int c = 0; c < 4; ++c) { // RGBA channels
+				double value = 0.0;
+				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+					int py = std::clamp(y + i, 0, height - 1);
+					value += temp[(py * width + x) * 4 + c] * kernel[i + kernelRadius];
 				}
+				output[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
 			}
 		}
 	}
+}
 
 
-void updateDynamicTexture(Stamp& stamp) 
+
+
+void dilateImageRGBA(const std::vector<unsigned char>& input,
+	std::vector<unsigned char>& output,
+	int width, int height, int radius) {
+	int channels = 4; // RGBA channels
+
+	// Initialize output with input image (optional, but clarifies code)
+	output = input;
+
+	// Create a temporary buffer to store the intermediate dilation results
+	std::vector<unsigned char> temp = input;
+
+	// Dilation logic
+	for (int y = 0; y < height; ++y) {
+		for (int x = 0; x < width; ++x) {
+			for (int c = 0; c < channels; ++c) {
+				unsigned char maxValue = 0; // Initialize max value for the channel
+
+				// Check neighboring pixels within the dilation radius
+				for (int dy = -radius; dy <= radius; ++dy) {
+					for (int dx = -radius; dx <= radius; ++dx) {
+						int nx = std::clamp(x + dx, 0, width - 1);
+						int ny = std::clamp(y + dy, 0, height - 1);
+						maxValue = std::max(maxValue, temp[(ny * width + nx) * channels + c]);
+					}
+				}
+
+				// Set the output pixel to the maximum value in the neighborhood
+				output[(y * width + x) * channels + c] = maxValue;
+			}
+		}
+	}
+}
+
+
+void updateDynamicTexture(Stamp& stamp)
 {
-	for (size_t i = 0; i < stamp.textureIDs.size(); i++) 
+	for (size_t i = 0; i < stamp.textureIDs.size(); i++)
 	{
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty())
 		{
-			stamp.pixelData[i] = stamp.backupData[i];
-
-			for (int y = 0; y < stamp.height; ++y)
+			if (stamp.blackening_points.size() != 0)
 			{
-				for (int x = 0; x < stamp.width; ++x)
+				stamp.pixelData[i] = stamp.backupData[i];
+
+				for (int y = 0; y < stamp.height; ++y)
 				{
-					size_t index = (y * stamp.width + x) * 4;
-
-					stamp.blackeningData[i][index + 0] = 0;
-					stamp.blackeningData[i][index + 1] = 0;
-					stamp.blackeningData[i][index + 2] = 0;
-					stamp.blackeningData[i][index + 3] = 255;
-				}
-			}
-
-
-
-			//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
-			//stamp.blackeningData[i] = result;
-
-			for (size_t j = 0; j < stamp.blackening_points.size(); j++)
-			{
-				size_t index = (stamp.blackening_points[j].y * stamp.width + stamp.blackening_points[j].x) * 4;
-
-				stamp.blackeningData[i][index + 0] = 255;
-				stamp.blackeningData[i][index + 1] = 255;
-				stamp.blackeningData[i][index + 2] = 255;
-				stamp.blackeningData[i][index + 3] = 255;
-			}
-
-			std::vector<unsigned char> result(stamp.width * stamp.height * 4);
-
-			dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
-			stamp.blackeningData[i] = result;
-
-			for (int y = 0; y < stamp.height; ++y)
-			{
-				for (int x = 0; x < stamp.width; ++x)
-				{
-					size_t index = (y * stamp.width + x) * 4;
-
-					stamp.blackeningData[i][index + 0] = 255 - stamp.blackeningData[i][index + 0];
-					stamp.blackeningData[i][index + 1] = 255 - stamp.blackeningData[i][index + 1];
-					stamp.blackeningData[i][index + 2] = 255 - stamp.blackeningData[i][index + 2];
-					stamp.blackeningData[i][index + 3] = 255;
-				}
-			}
-
-
-			//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
-//stamp.blackeningData[i] = result;
-
-			for (int y = 0; y < stamp.height; ++y)
-			{
-				for (int x = 0; x < stamp.width; ++x)
-				{
-					size_t index = (y * stamp.width + x) * 4;
-
-					const unsigned char p_red = stamp.pixelData[i][index + 0];
-					const unsigned char p_green = stamp.pixelData[i][index + 1];
-					const unsigned char p_blue = stamp.pixelData[i][index + 2];
-					const unsigned char p_alpha = stamp.pixelData[i][index + 3];
-
-					const unsigned char b_red = stamp.blackeningData[i][index + 0];
-					const unsigned char b_green = stamp.blackeningData[i][index + 1];
-					const unsigned char b_blue = stamp.blackeningData[i][index + 2];
-					const unsigned char b_alpha = stamp.blackeningData[i][index + 3];
-
-					const bool is_darker = (b_red < p_red) || (b_green < p_green) || (b_blue < p_blue);
-
-					if (is_darker)
+					for (int x = 0; x < stamp.width; ++x)
 					{
-						stamp.pixelData[i][index + 0] = stamp.blackeningData[i][index + 0];
-						stamp.pixelData[i][index + 1] = stamp.blackeningData[i][index + 1];
-						stamp.pixelData[i][index + 2] = stamp.blackeningData[i][index + 2];
-						stamp.pixelData[i][index + 3] = stamp.pixelData[i][index + 3];
+						size_t index = (y * stamp.width + x) * 4;
+
+						stamp.blackeningData[i][index + 0] = 0;
+						stamp.blackeningData[i][index + 1] = 0;
+						stamp.blackeningData[i][index + 2] = 0;
+						stamp.blackeningData[i][index + 3] = 255;
 					}
-					//else
-					//{
-					//	stamp.pixelData[i][index + 0] = stamp.pixelData[i][index + 0];
-					//	stamp.pixelData[i][index + 1] = stamp.pixelData[i][index + 1];
-					//	stamp.pixelData[i][index + 2] = stamp.pixelData[i][index + 2];
-					//	stamp.pixelData[i][index + 3] = stamp.pixelData[i][index + 3];
-					//}
-
 				}
+
+
+
+				//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
+				//stamp.blackeningData[i] = result;
+
+				for (size_t j = 0; j < stamp.blackening_points.size(); j++)
+				{
+					size_t index = (stamp.blackening_points[j].y * stamp.width + stamp.blackening_points[j].x) * 4;
+
+					stamp.blackeningData[i][index + 0] = 255;
+					stamp.blackeningData[i][index + 1] = 255;
+					stamp.blackeningData[i][index + 2] = 255;
+					stamp.blackeningData[i][index + 3] = 255;
+				}
+
+				std::vector<unsigned char> result(stamp.width * stamp.height * 4);
+
+				dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
+				stamp.blackeningData[i] = result;
+
+				applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 10.0);
+				stamp.blackeningData[i] = result;
+
+				for (int y = 0; y < stamp.height; ++y)
+				{
+					for (int x = 0; x < stamp.width; ++x)
+					{
+						size_t index = (y * stamp.width + x) * 4;
+
+						stamp.blackeningData[i][index + 0] = 255 - stamp.blackeningData[i][index + 0];
+						stamp.blackeningData[i][index + 1] = 255 - stamp.blackeningData[i][index + 1];
+						stamp.blackeningData[i][index + 2] = 255 - stamp.blackeningData[i][index + 2];
+						stamp.blackeningData[i][index + 3] = 255;
+					}
+				}
+
+
+				//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
+	//stamp.blackeningData[i] = result;
+
+				for (int y = 0; y < stamp.height; ++y)
+				{
+					for (int x = 0; x < stamp.width; ++x)
+					{
+						size_t index = (y * stamp.width + x) * 4;
+
+						const unsigned char p_red = stamp.pixelData[i][index + 0];
+						const unsigned char p_green = stamp.pixelData[i][index + 1];
+						const unsigned char p_blue = stamp.pixelData[i][index + 2];
+						const unsigned char p_alpha = stamp.pixelData[i][index + 3];
+
+						const unsigned char b_red = stamp.blackeningData[i][index + 0];
+						const unsigned char b_green = stamp.blackeningData[i][index + 1];
+						const unsigned char b_blue = stamp.blackeningData[i][index + 2];
+						const unsigned char b_alpha = stamp.blackeningData[i][index + 3];
+
+						const bool is_darker = (b_red < p_red) && (b_green < p_green) && (b_blue < p_blue);
+
+						if (is_darker)
+						{
+							stamp.pixelData[i][index + 0] = stamp.blackeningData[i][index + 0];
+							stamp.pixelData[i][index + 1] = stamp.blackeningData[i][index + 1];
+							stamp.pixelData[i][index + 2] = stamp.blackeningData[i][index + 2];
+							stamp.pixelData[i][index + 3] = stamp.pixelData[i][index + 3];
+						}
+					}
+				}
+			
+				//stamp.blackening_points.clear();
 			}
-
-
-
 
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 
@@ -2350,7 +2347,7 @@ void reapplyAllStamps() {
 
 
 
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string &stamp_type, vector<ivec2> &collision_pixel_locations)
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<ivec2>& collision_pixel_locations)
 {
 	//if (!stamp.active) return false;
 
@@ -2548,7 +2545,7 @@ void generateFluidStampCollisionsDamage()
 				{
 					damage = blue_count;
 
-					if(blueStampCollisions > 0)
+					if (blueStampCollisions > 0)
 						allyShips[i].blackening_points = collision_pixel_locations;
 				}
 				else
@@ -3245,7 +3242,7 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length*strength);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length * strength);
 	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), WIDTH);
 	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), HEIGHT);
 
@@ -4544,11 +4541,11 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 
 
-		case 'b':
-		case 'B':
-			red_mode = !red_mode;
-			std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
-			break;
+	case 'b':
+	case 'B':
+		red_mode = !red_mode;
+		std::cout << "Switched to " << (red_mode ? "RED" : "BLUE") << " color mode" << std::endl;
+		break;
 
 	case 'c':  // Report collisions immediately
 	case 'C':
@@ -4920,3 +4917,4 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
+ 
