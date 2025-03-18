@@ -119,7 +119,7 @@ vec2 get_curve_point(vector<vec2> points, float t)
 		return vd;
 	}
 
-	int i = points.size() - 1;
+	size_t i = points.size() - 1;
 
 	while (i > 0)
 	{
@@ -222,16 +222,16 @@ struct Stamp {
 
 	float stamp_opacity = 1;
 
-	float force_radius = 0.02;
+	float force_radius = 0.02f;
 	float colour_radius = force_radius;
 
 	float force_randomization = 0;// force_radius / 100.0;
 	float colour_randomization = 0;// force_radius / 10.0;
-	float path_randomization = 0.0;// force_radius / 50.0;
-	float sinusoidal_frequency = 5.0;
-	float sinusoidal_amplitude = 0.001;
+	float path_randomization = 0.0f;// force_radius / 50.0;
+	float sinusoidal_frequency = 5.0f;
+	float sinusoidal_amplitude = 0.001f;
 	bool sinusoidal_shift = false;
-	float random_forking = 0.0;
+	float random_forking = 0.0f;
 
 	vector<vec2> curve_path;
 
@@ -239,7 +239,7 @@ struct Stamp {
 	float posX = 0, posY = 0;                       // Normalized position (0-1)
 	float velX = 0, velY = 0;
 
-	int currentVariationIndex = 0;              // Which texture variation to use
+	size_t currentVariationIndex = 0;              // Which texture variation to use
 
 	set<ivec2> blackening_points;
 };
@@ -554,7 +554,7 @@ bool loadStampTextures() {
 
 void RandomUnitVector(float& x_out, float& y_out)
 {
-	const static float pi = 4.0 * atan(1.0);
+	const static float pi = 4.0f * atanf(1.0f);
 
 	const float a = (rand() / float(RAND_MAX)) * 2.0f * pi;
 
@@ -677,8 +677,8 @@ void fireBullet() {
 	}
 	else
 	{
-		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / float(WIDTH) / 2.0;
-		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
+		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / float(WIDTH) / 2.0f;
+		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT) * aspect) / 8.0f;
 	}
 
 	static const float pi = 4.0f * atanf(1.0f);
@@ -688,14 +688,14 @@ void fireBullet() {
 	size_t num_streams = 1;
 
 	if (x3_fire) {
-		angle_start = 0.1;
-		angle_end = -0.1;
+		angle_start = 0.1f;
+		angle_end = -0.1f;
 		num_streams = 3;
 	}
 
 	if (x5_fire) {
-		angle_start = 0.2;
-		angle_end = -0.2;
+		angle_start = 0.2f;
+		angle_end = -0.2f;
 		num_streams = 5;
 	}
 
@@ -711,10 +711,10 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01 * cos(angle);
-			newBullet.velY = 0.01 * sin(angle);
+			newBullet.velX = 0.01f * cos(angle);
+			newBullet.velY = 0.01f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
-			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.birth_time = elapsed.count() / 1000.0f;
 			newBullet.death_time = -1;
 			allyBullets.push_back(newBullet);
 		}
@@ -723,11 +723,11 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01 * cos(angle);
-			newBullet.velY = 0.01 * sin(angle);
+			newBullet.velX = 0.01f * cos(angle);
+			newBullet.velY = 0.01f * sin(angle);
 			newBullet.sinusoidal_shift = false;
-			newBullet.sinusoidal_amplitude = 0.005;
-			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.sinusoidal_amplitude = 0.005f;
+			newBullet.birth_time = elapsed.count() / 1000.0f;
 			newBullet.death_time = -1;
 			allyBullets.push_back(newBullet);
 
@@ -745,50 +745,50 @@ void fireBullet() {
 		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
 		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
 
-		float x_rad = allyShips[0].width / float(WIDTH) / 2.0;
-		float y_rad = allyShips[0].height / float(HEIGHT) / 2.0;
+		float x_rad = allyShips[0].width / float(WIDTH) / 2.0f;
+		float y_rad = allyShips[0].height / float(HEIGHT) / 2.0f;
 		float avg_rad = max(x_rad, y_rad);
 
-		newCentralStamp.colour_radius = avg_rad / 2.0;
-		newCentralStamp.force_radius = avg_rad / 2.0;
+		newCentralStamp.colour_radius = avg_rad / 2.0f;
+		newCentralStamp.force_radius = avg_rad / 2.0f;
 
 		for (size_t j = 0; j < num_streams_local; j++)
 		{
 			Stamp newStamp = newCentralStamp;
-			newStamp.colour_radius = avg_rad / 4;
-			newStamp.force_radius = avg_rad / 4;
+			newStamp.colour_radius = avg_rad / 4.0f;
+			newStamp.force_radius = avg_rad / 4.0f;
 
 			// Make elliptical fire
 			RandomUnitVector(newStamp.velX, newStamp.velY);
 			newStamp.velX *= WIDTH / float(HEIGHT);
-			newStamp.velX *= 2.0;
+			newStamp.velX *= 2.0f;
 
-			newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
-			newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
-			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-			newStamp.birth_time = elapsed.count() / 1000.0;
-			newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
-			newStamp.random_forking = 0.001;
+			newStamp.velX /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
+			newStamp.birth_time = elapsed.count() / 1000.0f;
+			newStamp.death_time = elapsed.count() / 1000.0f + 1.0f * rand() / float(RAND_MAX);
+			newStamp.random_forking = 0.001f;
 			allyBullets.push_back(newStamp);
 		}
 
 		for (size_t j = 0; j < num_streams_local * 2; j++)
 		{
 			Stamp newStamp = newCentralStamp;
-			newStamp.colour_radius = avg_rad / 8;
-			newStamp.force_radius = avg_rad / 8;
+			newStamp.colour_radius = avg_rad / 8.0f;
+			newStamp.force_radius = avg_rad / 8.0f;
 
 			// Make elliptical fire
 			RandomUnitVector(newStamp.velX, newStamp.velY);
 			newStamp.velX *= WIDTH / float(HEIGHT);
-			newStamp.velX *= 2.0;
+			newStamp.velX *= 2.0f;
 
-			newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
-			newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
-			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-			newStamp.birth_time = elapsed.count() / 1000.0;
-			newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
-			newStamp.random_forking = 0.01;
+			newStamp.velX /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.velY /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
+			newStamp.birth_time = elapsed.count() / 1000.0f;
+			newStamp.death_time = elapsed.count() / 1000.0f + 3.0f * rand() / float(RAND_MAX);
+			newStamp.random_forking = 0.01f;
 			allyBullets.push_back(newStamp);
 		}
 	}
@@ -797,10 +797,10 @@ void fireBullet() {
 	case HOMING:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01 * cos(angle);
-			newBullet.velY = 0.01 * sin(angle);
+			newBullet.velX = 0.01f * cos(angle);
+			newBullet.velY = 0.01f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
-			newBullet.birth_time = elapsed.count() / 1000.0;
+			newBullet.birth_time = elapsed.count() / 1000.0f;
 			newBullet.death_time = -1;
 			allyBullets.push_back(newBullet);
 		}
@@ -910,7 +910,7 @@ bool isBoundingBoxOverlap(const Stamp& a, const Stamp& b) {
 
 
 
-unsigned char getPixelValueFromStamp(const Stamp& stamp, int variationIndex, int x, int y, int channel) {
+unsigned char getPixelValueFromStamp(const Stamp& stamp, size_t variationIndex, int x, int y, int channel) {
 	// Make sure coordinates and indices are within bounds
 	if (x < 0 || x >= stamp.width || y < 0 || y >= stamp.height ||
 		channel < 0 || channel >= stamp.channels ||
@@ -953,10 +953,10 @@ bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
 	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
 		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
 			// Map to texture space for both stamps
-			int texAx = (x - aMinX) / (aMaxX - aMinX) * a.width;
-			int texAy = (y - aMinY) / (aMaxY - aMinY) * a.height;
-			int texBx = (x - bMinX) / (bMaxX - bMinX) * b.width;
-			int texBy = (y - bMinY) / (bMaxY - bMinY) * b.height;
+			int texAx = int((x - aMinX) / (aMaxX - aMinX) * a.width);
+			int texAy = int((y - aMinY) / (aMaxY - aMinY) * a.height);
+			int texBx = int((x - bMinX) / (bMaxX - bMinX) * b.width);
+			int texBy = int((y - bMinY) / (bMaxY - bMinY) * b.height);
 
 			// Get alpha values
 			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
@@ -2169,13 +2169,6 @@ void dilateImageRGBA(const std::vector<unsigned char>& input,
 
 
 
-void perform_convolutions(size_t stamp_width, size_t stamp_height, const vector<unsigned char>& input, vector<unsigned char>& output)
-{
-
-}
-
-
-
 
 
 
@@ -2216,7 +2209,6 @@ void updateDynamicTexture(Stamp& stamp)
 				std::vector<unsigned char> result(stamp.blackeningData[i].size(), 0);
 				dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
 				applyGaussianBlurRGBA(result, stamp.blackeningData[i], stamp.width, stamp.height, 10.0);
-
 
 				for (int y = 0; y < stamp.height; ++y)
 				{
@@ -2288,7 +2280,7 @@ void reapplyAllStamps() {
 			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
 			if (stamp.to_be_culled) continue;
 
-			int variationIndex = stamp.currentVariationIndex;
+			size_t variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
 				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
@@ -2304,7 +2296,7 @@ void reapplyAllStamps() {
 			}
 
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
-			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), stamp.width, stamp.height);
+			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -2326,7 +2318,7 @@ void reapplyAllStamps() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
@@ -2351,7 +2343,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	//if (!stamp.active) return false;
 
 	//// Validate variation index
-	int variationIndex = stamp.currentVariationIndex;
+	size_t variationIndex = stamp.currentVariationIndex;
 	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
 	//	stamp.pixelData[variationIndex].empty()) {
 	//	// Fall back to first available texture
@@ -2570,7 +2562,7 @@ void generateFluidStampCollisionsDamage()
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - last_did_damage_at;
 
-				stamps[i].health -= damage * (elapsed.count() / 1000.0);// *fps_coeff;
+				stamps[i].health -= damage * (elapsed.count() / 1000.0f);// *fps_coeff;
 				cout << stamps[i].health << endl;
 
 				last_did_damage_at = global_time_end;
@@ -2621,7 +2613,8 @@ void applyBitmapObstacle() {
 		break;
 	}
 
-	int currentVariation = 0;
+	size_t currentVariation = 0;
+
 	if (upKeyPressed) {
 		currentVariation = 1;
 	}
@@ -2642,9 +2635,9 @@ void applyBitmapObstacle() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"),
-		currentStamp->width, currentStamp->height);
+		(float)currentStamp->width, (float)currentStamp->height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), WIDTH, HEIGHT);
+	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -3250,8 +3243,8 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length * strength);
-	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), WIDTH);
-	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), HEIGHT);
+	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
+	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -3338,8 +3331,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0.01 * rand() / float(RAND_MAX);
-	float y_shift = 0.01 * rand() / float(RAND_MAX);
+	float x_shift = 0.01f * rand() / float(RAND_MAX);
+	float y_shift = 0.01f * rand() / float(RAND_MAX);
 
 	float mousePosX = posX;// +x_shift;
 	float mousePosY = posY;// +y_shift;
@@ -3541,8 +3534,8 @@ void updateObstacle() {
 			break;
 
 		case POWERUP:
-			newStamp.velX = -0.001;
-			newStamp.velY = 0.0;
+			newStamp.velX = -0.001f;
+			newStamp.velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -3653,7 +3646,7 @@ void move_and_fork_bullets(void)
 
 				// Calculate time-based sinusoidal amplitude
 				// Use the birth_time to ensure continuous motion
-				float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
+				float timeSinceCreation = elapsed.count() / 1000.0f - stamp.birth_time;
 				float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
 				float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
 
@@ -3718,12 +3711,12 @@ void mark_colliding_bullets(void)
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-				allyBullets[i].death_time = elapsed.count() / 1000.0 + 0.1;
+				allyBullets[i].death_time = elapsed.count() / 1000.0f + 0.1f;
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = elapsed.count() / 1000.0 + 0.1;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0f + 0.1f;
 }
 
 void mark_old_bullets(void)
@@ -3734,19 +3727,19 @@ void mark_old_bullets(void)
 
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 	{
-		if (allyBullets[i].death_time < 0.0)
+		if (allyBullets[i].death_time < 0.0f)
 			continue;
 
-		if (allyBullets[i].death_time <= elapsed.count() / 1000.0)
+		if (allyBullets[i].death_time <= elapsed.count() / 1000.0f)
 			allyBullets[i].to_be_culled = true;
 	}
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 	{
-		if (enemyBullets[i].death_time < 0.0)
+		if (enemyBullets[i].death_time < 0.0f)
 			continue;
 
-		if (enemyBullets[i].death_time <= elapsed.count() / 1000.0)
+		if (enemyBullets[i].death_time <= elapsed.count() / 1000.0f)
 			enemyBullets[i].to_be_culled = true;
 	}
 
@@ -3841,14 +3834,14 @@ void move_ships(void)
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - app_start_time;
 
-				float t = elapsed.count() / 1000.0 - stamp.birth_time;
+				float t = elapsed.count() / 1000.0f - stamp.birth_time;
 				t /= stamp.death_time - stamp.birth_time;
 
 				vec2 vd = get_curve_point(stamp.curve_path, t);
 				vec2 vd2 = get_straight_point(stamp.curve_path, t);
 
-				vd.x = lerp(vd.x, vd2.x, 0.15);
-				vd.y = lerp(vd.y, vd2.y, 0.15);
+				vd.x = lerp(vd.x, vd2.x, 0.15f);
+				vd.y = lerp(vd.y, vd2.y, 0.15f);
 
 
 
@@ -3892,19 +3885,19 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	Stamp newCentralStamp = bulletTemplates[0];
 
-	float x_rad = stamp.width / float(WIDTH) / 2.0;
-	float y_rad = stamp.height / float(HEIGHT) / 2.0;
+	float x_rad = stamp.width / float(WIDTH) / 2.0f;
+	float y_rad = stamp.height / float(HEIGHT) / 2.0f;
 
 	float avg_rad = max(x_rad, y_rad);// 0.5 * (x_rad + y_rad);
 
-	newCentralStamp.colour_radius = avg_rad / 2.0;
-	newCentralStamp.force_radius = avg_rad / 2.0;
+	newCentralStamp.colour_radius = avg_rad / 2.0f;
+	newCentralStamp.force_radius = avg_rad / 2.0f;
 
 	newCentralStamp.posX = stamp.posX;
 	newCentralStamp.posY = stamp.posY;
 
-	newCentralStamp.birth_time = elapsed.count() / 1000.0;
-	newCentralStamp.death_time = elapsed.count() / 1000.0 + 0.1;
+	newCentralStamp.birth_time = elapsed.count() / 1000.0f;
+	newCentralStamp.death_time = elapsed.count() / 1000.0f + 0.1f;
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -3920,11 +3913,11 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
-		newStamp.velX /= 250.0 / (rand() / float(RAND_MAX));
-		newStamp.velY /= 250.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-		newStamp.birth_time = elapsed.count() / 1000.0;
-		newStamp.death_time = elapsed.count() / 1000.0 + 1 * rand() / float(RAND_MAX);
+		newStamp.velX /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.velY /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
+		newStamp.birth_time = elapsed.count() / 1000.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 1.0f * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -3941,11 +3934,11 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 		RandomUnitVector(newStamp.velX, newStamp.velY);
 
-		newStamp.velX /= 100.0 / (rand() / float(RAND_MAX));
-		newStamp.velY /= 100.0 / (rand() / float(RAND_MAX));
-		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01;
-		newStamp.birth_time = elapsed.count() / 1000.0;
-		newStamp.death_time = elapsed.count() / 1000.0 + 3.0 * rand() / float(RAND_MAX);
+		newStamp.velX /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.velY /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
+		newStamp.birth_time = elapsed.count() / 1000.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 3.0f * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -4104,7 +4097,7 @@ void move_powerups(void)
 
 			// Calculate time-based sinusoidal amplitude
 			// Use the birth_time to ensure continuous motion
-			float timeSinceCreation = elapsed.count() / 1000.0 - stamp.birth_time;
+			float timeSinceCreation = elapsed.count() / 1000.0f - stamp.birth_time;
 			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
 			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
 
@@ -4302,7 +4295,7 @@ void renderToScreen() {
 	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
 	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
 	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-	glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0f);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE1);
@@ -4329,7 +4322,7 @@ void renderToScreen() {
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
-			int variationIndex = stamp.currentVariationIndex;
+			size_t variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
 				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
@@ -4349,9 +4342,9 @@ void renderToScreen() {
 
 			glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
 			glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
-			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), stamp.width, stamp.height);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
-			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), WIDTH, HEIGHT);
+			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 			// added in opacity as a uniform, so that the stamp can fade away over time upon death
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
@@ -4466,43 +4459,43 @@ void keyboard(unsigned char key, int x, int y) {
 		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
 		vec2 start;
-		start.x = 1.05;
+		start.x = 1.05f;
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
 
 		vec2 middle;
 
-		middle.x = 0.75;
+		middle.x = 0.75f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.75 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.75 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.5;
+		middle.x = 0.5f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.25;
+		middle.x = 0.25f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.25 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.25 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
 
 		vec2 end;
-		end.x = -0.05;
+		end.x = -0.05f;
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
@@ -4513,7 +4506,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
@@ -4676,8 +4669,8 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.01;
-			allyShips[0].velY *= 0.01 * (WIDTH / HEIGHT);
+			allyShips[0].velX *= 0.01f;
+			allyShips[0].velY *= 0.01f * (WIDTH / HEIGHT);
 		}
 	}
 }
@@ -4732,8 +4725,8 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.01;
-			allyShips[0].velY *= 0.01 * (WIDTH / HEIGHT);
+			allyShips[0].velX *= 0.01f;
+			allyShips[0].velY *= 0.01f * (WIDTH / HEIGHT);
 		}
 	}
 }
