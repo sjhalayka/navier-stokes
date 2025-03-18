@@ -61,6 +61,8 @@ public:
 			return true;
 		else if (right.y < y)
 			return false;
+
+		return false;
 	}
 
 	bool operator==(const ivec2& right)
@@ -1724,7 +1726,7 @@ void main() {
     vec2 eddyVel = eddyField(TexCoord, time);
     
     // Add eddy perturbation to base velocity
-    vel = vel + eddyVel * dt;
+    vel = vel + eddyVel * aspect_ratio *0.1;// * dt;
     
     // Calculate backtracing position with perturbed velocity
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
@@ -3945,12 +3947,17 @@ void mark_colliding_bullets(void)
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-				allyBullets[i].death_time = elapsed.count() / 1000.0f + 0.1f;
+			{
+				allyBullets[i].death_time = allyBullets[i].birth_time;// elapsed.count() / 1000.0f + 0.0001f;
+				allyBullets[i].to_be_culled = true;
+			}
+
+
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = elapsed.count() / 1000.0f + 0.1f;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0f + 0.0001f;
 }
 
 void mark_old_bullets(void)
@@ -4692,11 +4699,35 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
+
 		vec2 start;
-		start.x = 1.05f;
-		start.y = rand() / float(RAND_MAX);
+		start.x = 0.5;
+		start.y = 0.5;//
+
+
 
 		newStamp.curve_path.push_back(start);
+
+
+		newStamp.posX = start.x;
+		newStamp.posY = start.y;
+
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+
+		newStamp.birth_time = elapsed.count() / 1000.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
+
+		enemyShips.push_back(newStamp);
+
+
+		break;
+
+
+		//vec2 start;
+		//start.x = 1.05f;
+		//start.y = rand() / float(RAND_MAX);
+
 
 		vec2 middle;
 
@@ -4736,11 +4767,8 @@ void keyboard(unsigned char key, int x, int y) {
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
 
-		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
-
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
+		newStamp.death_time = -1;// elapsed.count() / 1000.0f + 5.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
