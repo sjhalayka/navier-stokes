@@ -2168,21 +2168,10 @@ void dilateImageRGBA(const std::vector<unsigned char>& input,
 
 
 
-//void perform_convolutions(Stamp& stamp, size_t i)
-//{
-//	std::vector<unsigned char> result(stamp.width * stamp.height * 4);
-//
-//	dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
-//	stamp.blackeningData[i] = result;
-//
-//	applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 10.0);
-//	stamp.blackeningData[i] = result;
-//}
-
 
 void perform_convolutions(size_t stamp_width, size_t stamp_height, const vector<unsigned char> &input, vector<unsigned char> &output)
 {
-	std::vector<unsigned char> result(stamp_width * stamp_height * 4);
+	std::vector<unsigned char> result(input.size());
 
 	dilateImageRGBA(input, result, stamp_width, stamp_height, 5);
 	output = result;
