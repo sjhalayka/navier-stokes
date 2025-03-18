@@ -4109,12 +4109,12 @@ void move_ships(void)
 
 				const float vel_y = stamp.posY - prevPosY;
 
-				if (vel_y > 0)
+				if (vel_y > 0.001)
 					stamp.currentVariationIndex = 1;
-				else if (vel_y == 0)
-					stamp.currentVariationIndex = 0;
-				else if (vel_y < 0)
+				else if (vel_y < -0.001)
 					stamp.currentVariationIndex = 2;
+				else
+					stamp.currentVariationIndex = 0;
 
 
 
@@ -4712,81 +4712,61 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 	case '0':
 	{
-		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
+			Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
-		vec2 start;
-		start.x = 0.5;
-		start.y = 0.5;//
+			vec2 start;
+			start.x = 1.05;
+			start.y = rand() / float(RAND_MAX);
 
+			newStamp.curve_path.push_back(start);
 
+			vec2 middle;
 
-		newStamp.curve_path.push_back(start);
+			middle.x = 0.75;
 
+			if (rand() % 2 == 0)
+				middle.y = 0.75 + 0.1 * (rand() / float(RAND_MAX));
+			else
+				middle.y = 0.75 - 0.1 * (rand() / float(RAND_MAX));
 
-		newStamp.posX = start.x;
-		newStamp.posY = start.y;
+			newStamp.curve_path.push_back(middle);
 
-		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+			middle.x = 0.5;
 
-		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
+			if (rand() % 2 == 0)
+				middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
+			else
+				middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
 
-		enemyShips.push_back(newStamp);
+			newStamp.curve_path.push_back(middle);
 
+			middle.x = 0.25;
 
-		break;
+			if (rand() % 2 == 0)
+				middle.y = 0.25 + 0.1 * (rand() / float(RAND_MAX));
+			else
+				middle.y = 0.25 - 0.1 * (rand() / float(RAND_MAX));
 
+			newStamp.curve_path.push_back(middle);
+			   
 
-		//vec2 start;
-		//start.x = 1.05f;
-		//start.y = rand() / float(RAND_MAX);
+			vec2 end;
+			end.x = -0.05;
+			end.y = rand() / float(RAND_MAX);
+			newStamp.curve_path.push_back(end);
 
+			newStamp.posX = start.x;
+			newStamp.posY = start.y;
 
-		vec2 middle;
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
-		middle.x = 0.75f;
+			newStamp.birth_time = elapsed.count() / 1000.0f;
+			newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
 
-		if (rand() % 2 == 0)
-			middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
-
-		newStamp.curve_path.push_back(middle);
-
-		middle.x = 0.5f;
-
-		if (rand() % 2 == 0)
-			middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
-
-		newStamp.curve_path.push_back(middle);
-
-		middle.x = 0.25f;
-
-		if (rand() % 2 == 0)
-			middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
-
-		newStamp.curve_path.push_back(middle);
-
-
-		vec2 end;
-		end.x = -0.05f;
-		end.y = rand() / float(RAND_MAX);
-		newStamp.curve_path.push_back(end);
-
-		newStamp.posX = start.x;
-		newStamp.posY = start.y;
-
-		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = -1;// elapsed.count() / 1000.0f + 5.0f;
-
-		enemyShips.push_back(newStamp);
-		break;
+			enemyShips.push_back(newStamp);
+			break;
 	}
 
 	case ' ': // Space bar
