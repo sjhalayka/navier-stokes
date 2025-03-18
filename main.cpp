@@ -18,6 +18,7 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
+#include <set>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -45,7 +46,7 @@ class ivec2
 public:
 	size_t x, y;
 
-	bool operator<(const ivec2& right)
+	bool operator<(const ivec2& right) const
 	{
 		if (right.x > x)
 			return true;
@@ -240,7 +241,7 @@ struct Stamp {
 
 	int currentVariationIndex = 0;              // Which texture variation to use
 
-	vector<ivec2> blackening_points;
+	set<ivec2> blackening_points;
 };
 
 
@@ -2209,12 +2210,9 @@ void updateDynamicTexture(Stamp& stamp)
 					}
 				}
 
-
-
-
-				for (size_t j = 0; j < stamp.blackening_points.size(); j++)
+				for(set<ivec2>::const_iterator ci = stamp.blackening_points.begin(); ci != stamp.blackening_points.end(); ci++)
 				{
-					size_t index = (stamp.blackening_points[j].y * stamp.width + stamp.blackening_points[j].x) * 4;
+					size_t index = (ci->y * stamp.width + ci->x) * 4;
 
 					stamp.blackeningData[i][index + 0] = 255;
 					stamp.blackeningData[i][index + 1] = 255;
@@ -2555,7 +2553,7 @@ void generateFluidStampCollisionsDamage()
 					if (blueStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+							allyShips[i].blackening_points.insert(collision_pixel_locations[j]);
 					}
 				}
 				else
@@ -2565,7 +2563,7 @@ void generateFluidStampCollisionsDamage()
 					if (redStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+							enemyShips[i].blackening_points.insert(collision_pixel_locations[j]);
 
 					}
 
@@ -4907,8 +4905,6 @@ int main(int argc, char** argv) {
 
 	// Initialize OpenGL
 	initGL();
-
-
 
 	// Register callbacks
 	glutDisplayFunc(display);
