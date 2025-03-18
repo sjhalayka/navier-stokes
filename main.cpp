@@ -1262,121 +1262,6 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
-const char* dilateFragmentShader = R"(
-#version 330 core
-
-uniform sampler2D inputTexture;
-uniform vec2 texelSize; // Size of a texel in texture space
-uniform int radius; // Dilation radius
-
-out vec4 FragColor;
-
-in vec2 TexCoord;
-
-void main() {
-	vec4 maxVal = vec4(0.0);
-
-	// Iterate over the neighborhood
-	for (int dx = -radius; dx <= radius; ++dx) {
-		for (int dy = -radius; dy <= radius; ++dy) {
-			vec2 offset = vec2(dx, dy) * texelSize;
-			vec4 sample = texture(inputTexture, TexCoord + offset);
-			maxVal = max(maxVal, sample);
-		}
-	}
-
-	FragColor = maxVal;
-}
-)";
-
-//
-//const char* gaussianBlurFragmentShader = R"(
-//#version 330 core
-//
-//uniform sampler2D inputTexture;
-//uniform vec2 texelSize; // Size of a texel in texture space
-//uniform float kernel[15]; // Gaussian kernel
-//
-//out vec4 FragColor;
-//
-//in vec2 TexCoord;
-//
-//void main() {
-//    vec4 result = vec4(0.0);
-//
-//    // Horizontal pass
-//    for (int i = -7; i <= 7; ++i) {
-//        vec2 offset = vec2(float(i), 0.0) * texelSize; // Horizontal offsets
-//        result += texture(inputTexture, TexCoord + offset) * kernel[i + 7];
-//    }
-//
-//    vec4 tempResult = result; // Store result after horizontal pass
-//
-//    result = vec4(0.0); // Reset result for vertical pass
-//
-//    // Vertical pass
-//    for (int i = -7; i <= 7; ++i) {
-//        vec2 offset = vec2(0.0, float(i)) * texelSize; // Vertical offsets
-//        result += tempResult * kernel[i + 7];
-//    }
-//
-//    FragColor = result;
-//}
-//
-//)";
-
-
-
-// Horizontal pass shader
-const char* gaussianBlurHorizontalFragmentShader = R"(
-#version 330 core
-
-uniform sampler2D inputTexture;
-uniform vec2 texelSize; // Size of a texel in texture space
-uniform float kernel[15]; // Gaussian kernel
-
-out vec4 FragColor;
-
-in vec2 TexCoord;
-
-void main() {
-    vec4 result = vec4(0.0);
-
-    // Horizontal pass
-    for (int i = -7; i <= 7; ++i) {
-        vec2 offset = vec2(float(i), 0.0) * texelSize; // Horizontal offsets
-        result += texture(inputTexture, TexCoord + offset) * kernel[i + 7];
-    }
-
-    FragColor = result;
-}
-)";
-
-// Vertical pass shader
-const char* gaussianBlurVerticalFragmentShader = R"(
-#version 330 core
-
-uniform sampler2D inputTexture;
-uniform vec2 texelSize; // Size of a texel in texture space
-uniform float kernel[15]; // Gaussian kernel
-
-out vec4 FragColor;
-
-in vec2 TexCoord;
-
-void main() {
-    vec4 result = vec4(0.0);
-
-    // Vertical pass
-    for (int i = -7; i <= 7; ++i) {
-        vec2 offset = vec2(0.0, float(i)) * texelSize; // Vertical offsets
-        result += texture(inputTexture, TexCoord + offset) * kernel[i + 7];
-    }
-
-    FragColor = result;
-}
-)";
-
 
 
 
@@ -2191,49 +2076,6 @@ void main() {
 
 
 
-		// Utility function to create and compile shaders
-		GLuint compileShader(GLenum type, const char* source) {
-			GLuint shader = glCreateShader(type);
-			glShaderSource(shader, 1, &source, nullptr);
-			glCompileShader(shader);
-
-			// Check for compilation errors
-			GLint success;
-			glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-			if (!success) {
-				GLchar infoLog[512];
-				glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-				std::cerr << "Shader compilation error: " << infoLog << std::endl;
-			}
-
-			return shader;
-		}
-
-		// Utility function to create and link a shader program
-		GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource) {
-			GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-			GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-
-			GLuint program = glCreateProgram();
-			glAttachShader(program, vertexShader);
-			glAttachShader(program, fragmentShader);
-			glLinkProgram(program);
-
-			// Check for linking errors
-			GLint success;
-			glGetProgramiv(program, GL_LINK_STATUS, &success);
-			if (!success) {
-				GLchar infoLog[512];
-				glGetProgramInfoLog(program, 512, nullptr, infoLog);
-				std::cerr << "Shader program linking error: " << infoLog << std::endl;
-			}
-
-			glDeleteShader(vertexShader);
-			glDeleteShader(fragmentShader);
-
-			return program;
-		}
-
 
 
 
@@ -2326,128 +2168,11 @@ void dilateImageRGBA(const std::vector<unsigned char>& input,
 
 
 
+
 void perform_convolutions(size_t stamp_width, size_t stamp_height, const vector<unsigned char>& input, vector<unsigned char>& output)
 {
-	std::vector<unsigned char> result(input.size());
 
-	dilateImageRGBA(input, result, stamp_width, stamp_height, 5);
-	output = result;
-
-	applyGaussianBlurRGBA(output, result, stamp_width, stamp_height, 10.0);
-	output = result;
 }
-
-
-
-
-void perform_convolutions_GPU(size_t stamp_width, size_t stamp_height, const std::vector<unsigned char>& input, std::vector<unsigned char>& output) {
-	// Initialize OpenGL textures and framebuffers
-	GLuint inputTexture, tempTexture, outputTexture, framebuffer;
-
-	// Create input texture
-	glGenTextures(1, &inputTexture);
-	glBindTexture(GL_TEXTURE_2D, inputTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp_width, stamp_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, input.data());
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Create temporary texture for intermediate results
-	glGenTextures(1, &tempTexture);
-	glBindTexture(GL_TEXTURE_2D, tempTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp_width, stamp_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Create output texture
-	glGenTextures(1, &outputTexture);
-	glBindTexture(GL_TEXTURE_2D, outputTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp_width, stamp_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Create framebuffer
-	glGenFramebuffers(1, &framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-	// Step 1: Apply dilation shader
-	GLuint dilateProgram = createShaderProgram(vertexShaderSource, dilateFragmentShader);
-	glUseProgram(dilateProgram);
-	glUniform1i(glGetUniformLocation(dilateProgram, "inputTexture"), 0);
-	glUniform2f(glGetUniformLocation(dilateProgram, "texelSize"), 1.0f / stamp_width, 1.0f / stamp_height);
-	glUniform1i(glGetUniformLocation(dilateProgram, "radius"), 5);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture, 0);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, inputTexture);
-
-	glViewport(0, 0, stamp_width, stamp_height);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4); // Render fullscreen quad
-
-	// Calculate Gaussian kernel (or use predefined one)
-	//float gaussianKernel[15] = {
-	//	0.0022, 0.0088, 0.0270, 0.0648, 0.1210, 0.1760,
-	//	0.1995, 0.1760, 0.1210, 0.0648, 0.0270, 0.0088,
-	//	0.0022, 0.0, 0.0  // Padding to 15 elements
-	//};
-
-	float gaussianKernel[9] = {
-	0.0625f, 0.125f, 0.0625f,
-	0.125f,  0.25f,  0.125f,
-	0.0625f, 0.125f, 0.0625f
-	};
-
-
-	// Step 2: Horizontal Gaussian blur pass
-	GLuint horizontalBlurProgram = createShaderProgram(vertexShaderSource, gaussianBlurHorizontalFragmentShader);
-	glUseProgram(horizontalBlurProgram);
-	glUniform1i(glGetUniformLocation(horizontalBlurProgram, "inputTexture"), 0);
-	glUniform2f(glGetUniformLocation(horizontalBlurProgram, "texelSize"), 1.0f / stamp_width, 1.0f / stamp_height);
-	glUniform1fv(glGetUniformLocation(horizontalBlurProgram, "kernel"), 9, gaussianKernel);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tempTexture); // Use dilated output as input
-
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Step 3: Vertical Gaussian blur pass
-	GLuint verticalBlurProgram = createShaderProgram(vertexShaderSource, gaussianBlurVerticalFragmentShader);
-	glUseProgram(verticalBlurProgram);
-	glUniform1i(glGetUniformLocation(verticalBlurProgram, "inputTexture"), 0);
-	glUniform2f(glGetUniformLocation(verticalBlurProgram, "texelSize"), 1.0f / stamp_width, 1.0f / stamp_height);
-	glUniform1fv(glGetUniformLocation(verticalBlurProgram, "kernel"), 9, gaussianKernel);
-
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture, 0);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, outputTexture); // Use horizontal blur result as input
-
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Read back result
-	output.resize(stamp_width * stamp_height * 4);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture, 0);
-	glReadPixels(0, 0, stamp_width, stamp_height, GL_RGBA, GL_UNSIGNED_BYTE, output.data());
-
-	// Reset viewport to original dimensions
-	glViewport(0, 0, WIDTH, HEIGHT);
-
-	// Cleanup
-	glDeleteTextures(1, &inputTexture);
-	glDeleteTextures(1, &tempTexture);
-	glDeleteTextures(1, &outputTexture);
-	glDeleteFramebuffers(1, &framebuffer);
-	glDeleteProgram(dilateProgram);
-	glDeleteProgram(horizontalBlurProgram);
-	glDeleteProgram(verticalBlurProgram);
-}
-
-
 
 
 
@@ -2488,10 +2213,10 @@ void updateDynamicTexture(Stamp& stamp)
 					stamp.blackeningData[i][index + 3] = 255;
 				}
 
-				vector<unsigned char> output(stamp.blackeningData[i].size(), 0);
-				perform_convolutions(stamp.width, stamp.height, stamp.blackeningData[i], output);
-				//perform_convolutions_GPU(stamp.width, stamp.height, stamp.blackeningData[i], output);
-				stamp.blackeningData[i] = output;
+				std::vector<unsigned char> result(stamp.blackeningData[i].size(), 0);
+				dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
+				applyGaussianBlurRGBA(result, stamp.blackeningData[i], stamp.width, stamp.height, 10.0);
+
 
 				for (int y = 0; y < stamp.height; ++y)
 				{
@@ -3078,6 +2803,49 @@ void detectCollisions()
 
 
 
+
+// Utility function to create and compile shaders
+GLuint compileShader(GLenum type, const char* source) {
+	GLuint shader = glCreateShader(type);
+	glShaderSource(shader, 1, &source, nullptr);
+	glCompileShader(shader);
+
+	// Check for compilation errors
+	GLint success;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		GLchar infoLog[512];
+		glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+		std::cerr << "Shader compilation error: " << infoLog << std::endl;
+	}
+
+	return shader;
+}
+
+// Utility function to create and link a shader program
+GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource) {
+	GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+	GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, fragmentShader);
+	glLinkProgram(program);
+
+	// Check for linking errors
+	GLint success;
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+	if (!success) {
+		GLchar infoLog[512];
+		glGetProgramInfoLog(program, 512, nullptr, infoLog);
+		std::cerr << "Shader program linking error: " << infoLog << std::endl;
+	}
+
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	return program;
+}
 
 // Create a texture for simulation
 GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
