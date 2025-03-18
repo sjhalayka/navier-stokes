@@ -25,6 +25,10 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+// claude ai prompt: how to convert updateDynamicTexture and dilateImageRGBA and applyGaussianBlurRGBA to work on the GPU instead of the CPU? please include all necessary code changes. include full code for the necessary functions. please use GLSL 330 shaders. try to work it so that the texture data is not copied from the GPU to the CPU and back again
+
+
+
 
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
@@ -1141,8 +1145,12 @@ GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
 int friendlyColorIndex = 0;      // Index for current friendly color texture
-
 GLuint backgroundTexture;
+
+GLuint processingFBO;
+GLuint tempTexture1;
+GLuint tempTexture2;
+
 
 
 GLuint advectProgram;
@@ -1157,7 +1165,10 @@ GLuint diffuseVelocityProgram;
 GLuint stampObstacleProgram;
 GLuint stampTextureProgram;
 GLuint renderProgram;
-
+GLuint dilationProgram;
+GLuint gaussianBlurHorizontalProgram;
+GLuint gaussianBlurVerticalProgram;
+GLuint blackeningProgram;
 
 
 
@@ -1259,6 +1270,112 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 //std::vector<std::pair<int, int>> collisionLocations;
 
 
+
+const char* dilationFragmentShader = R"(
+#version 330 core
+uniform sampler2D inputTexture;
+uniform int radius;
+uniform vec2 texelSize;
+
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    vec4 maxValue = vec4(0.0, 0.0, 0.0, 0.0);
+    
+    // Iterate through neighborhood to find maximum value for each channel
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            vec2 offset = vec2(dx, dy) * texelSize;
+            vec4 neighborValue = texture(inputTexture, TexCoord + offset);
+            maxValue = max(maxValue, neighborValue);
+        }
+    }
+    
+    FragColor = maxValue;
+}
+)";
+
+// New GLSL shader for Gaussian blur (horizontal pass)
+const char* gaussianBlurHorizontalFragmentShader = R"(
+#version 330 core
+uniform sampler2D inputTexture;
+uniform float sigma;
+uniform vec2 texelSize;
+
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    float kernelRadius = ceil(2.0 * sigma);
+    vec4 sum = vec4(0.0);
+    float weightSum = 0.0;
+    
+    // Apply the horizontal pass of the separable Gaussian kernel
+    for (int i = -int(kernelRadius); i <= int(kernelRadius); i++) {
+        float weight = exp(-(i * i) / (2.0 * sigma * sigma));
+        vec2 offset = vec2(i, 0) * texelSize;
+        vec4 sample = texture(inputTexture, TexCoord + offset);
+        
+        sum += sample * weight;
+        weightSum += weight;
+    }
+    
+    FragColor = sum / weightSum;
+}
+)";
+
+// New GLSL shader for Gaussian blur (vertical pass)
+const char* gaussianBlurVerticalFragmentShader = R"(
+#version 330 core
+uniform sampler2D inputTexture;
+uniform float sigma;
+uniform vec2 texelSize;
+
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    float kernelRadius = ceil(2.0 * sigma);
+    vec4 sum = vec4(0.0);
+    float weightSum = 0.0;
+    
+    // Apply the vertical pass of the separable Gaussian kernel
+    for (int i = -int(kernelRadius); i <= int(kernelRadius); i++) {
+        float weight = exp(-(i * i) / (2.0 * sigma * sigma));
+        vec2 offset = vec2(0, i) * texelSize;
+        vec4 sample = texture(inputTexture, TexCoord + offset);
+        
+        sum += sample * weight;
+        weightSum += weight;
+    }
+    
+    FragColor = sum / weightSum;
+}
+)";
+
+// New GLSL shader for blackening effect
+const char* blackeningFragmentShader = R"(
+#version 330 core
+uniform sampler2D originalTexture;
+uniform sampler2D maskTexture;
+
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    vec4 original = texture(originalTexture, TexCoord);
+    vec4 mask = texture(maskTexture, TexCoord);
+    
+    // Since the mask texture is white where blackening should occur,
+    // we need to invert it to get the right effect
+    float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
+    
+    // Apply the blackening effect to the original texture
+    FragColor = original * (1.0 - maskIntensity);
+    FragColor.a = original.a; // Preserve alpha channel
+}
+)";
 
 
 
@@ -2077,189 +2194,103 @@ void main() {
 
 
 
+//
+//
+//
+//void applyGaussianBlurRGBA(const std::vector<unsigned char>& input,
+//	std::vector<unsigned char>& output,
+//	int width, int height, double sigma) {
+//	int kernelRadius = static_cast<int>(std::ceil(2.0 * sigma));
+//	int kernelSize = 2 * kernelRadius + 1;
+//	std::vector<double> kernel(kernelSize);
+//
+//	// Generate the Gaussian kernel
+//	double sum = 0.0;
+//	for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+//		kernel[i + kernelRadius] = std::exp(-(i * i) / (2 * sigma * sigma));
+//		sum += kernel[i + kernelRadius];
+//	}
+//	for (auto& value : kernel) {
+//		value /= sum;
+//	}
+//
+//	// Apply the Gaussian blur (separable kernel)
+//	std::vector<unsigned char> temp(width * height * 4);
+//
+//	// Horizontal pass
+//	for (int y = 0; y < height; ++y) {
+//		for (int x = 0; x < width; ++x) {
+//			for (int c = 0; c < 4; ++c) { // RGBA channels
+//				double value = 0.0;
+//				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+//					int px = std::clamp(x + i, 0, width - 1);
+//					value += input[(y * width + px) * 4 + c] * kernel[i + kernelRadius];
+//				}
+//				temp[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
+//			}
+//		}
+//	}
+//
+//	// Vertical pass
+//	for (int y = 0; y < height; ++y) {
+//		for (int x = 0; x < width; ++x) {
+//			for (int c = 0; c < 4; ++c) { // RGBA channels
+//				double value = 0.0;
+//				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
+//					int py = std::clamp(y + i, 0, height - 1);
+//					value += temp[(py * width + x) * 4 + c] * kernel[i + kernelRadius];
+//				}
+//				output[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
+//			}
+//		}
+//	}
+//}
+//
+//
+//
+//
+//void dilateImageRGBA(const std::vector<unsigned char>& input,
+//	std::vector<unsigned char>& output,
+//	int width, int height, int radius) {
+//	int channels = 4; // RGBA channels
+//
+//	// Initialize output with input image (optional, but clarifies code)
+//	output = input;
+//
+//	// Create a temporary buffer to store the intermediate dilation results
+//	std::vector<unsigned char> temp = input;
+//
+//	// Dilation logic
+//	for (int y = 0; y < height; ++y) {
+//		for (int x = 0; x < width; ++x) {
+//			for (int c = 0; c < channels; ++c) {
+//				unsigned char maxValue = 0; // Initialize max value for the channel
+//
+//				// Check neighboring pixels within the dilation radius
+//				for (int dy = -radius; dy <= radius; ++dy) {
+//					for (int dx = -radius; dx <= radius; ++dx) {
+//						int nx = std::clamp(x + dx, 0, width - 1);
+//						int ny = std::clamp(y + dy, 0, height - 1);
+//						maxValue = std::max(maxValue, temp[(ny * width + nx) * channels + c]);
+//					}
+//				}
+//
+//				// Set the output pixel to the maximum value in the neighborhood
+//				output[(y * width + x) * channels + c] = maxValue;
+//			}
+//		}
+//	}
+//}
+//
+//
 
 
 
-void applyGaussianBlurRGBA(const std::vector<unsigned char>& input,
-	std::vector<unsigned char>& output,
-	int width, int height, double sigma) {
-	int kernelRadius = static_cast<int>(std::ceil(2.0 * sigma));
-	int kernelSize = 2 * kernelRadius + 1;
-	std::vector<double> kernel(kernelSize);
-
-	// Generate the Gaussian kernel
-	double sum = 0.0;
-	for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-		kernel[i + kernelRadius] = std::exp(-(i * i) / (2 * sigma * sigma));
-		sum += kernel[i + kernelRadius];
-	}
-	for (auto& value : kernel) {
-		value /= sum;
-	}
-
-	// Apply the Gaussian blur (separable kernel)
-	std::vector<unsigned char> temp(width * height * 4);
-
-	// Horizontal pass
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			for (int c = 0; c < 4; ++c) { // RGBA channels
-				double value = 0.0;
-				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-					int px = std::clamp(x + i, 0, width - 1);
-					value += input[(y * width + px) * 4 + c] * kernel[i + kernelRadius];
-				}
-				temp[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
-			}
-		}
-	}
-
-	// Vertical pass
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			for (int c = 0; c < 4; ++c) { // RGBA channels
-				double value = 0.0;
-				for (int i = -kernelRadius; i <= kernelRadius; ++i) {
-					int py = std::clamp(y + i, 0, height - 1);
-					value += temp[(py * width + x) * 4 + c] * kernel[i + kernelRadius];
-				}
-				output[(y * width + x) * 4 + c] = static_cast<unsigned char>(value);
-			}
-		}
-	}
-}
-
-
-
-
-void dilateImageRGBA(const std::vector<unsigned char>& input,
-	std::vector<unsigned char>& output,
-	int width, int height, int radius) {
-	int channels = 4; // RGBA channels
-
-	// Initialize output with input image (optional, but clarifies code)
-	output = input;
-
-	// Create a temporary buffer to store the intermediate dilation results
-	std::vector<unsigned char> temp = input;
-
-	// Dilation logic
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			for (int c = 0; c < channels; ++c) {
-				unsigned char maxValue = 0; // Initialize max value for the channel
-
-				// Check neighboring pixels within the dilation radius
-				for (int dy = -radius; dy <= radius; ++dy) {
-					for (int dx = -radius; dx <= radius; ++dx) {
-						int nx = std::clamp(x + dx, 0, width - 1);
-						int ny = std::clamp(y + dy, 0, height - 1);
-						maxValue = std::max(maxValue, temp[(ny * width + nx) * channels + c]);
-					}
-				}
-
-				// Set the output pixel to the maximum value in the neighborhood
-				output[(y * width + x) * channels + c] = maxValue;
-			}
-		}
-	}
-}
 
 
 
 
 
-
-
-
-
-void updateDynamicTexture(Stamp& stamp)
-{
-	for (size_t i = 0; i < stamp.textureIDs.size(); i++)
-	{
-		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty())
-		{
-			if (stamp.blackening_points.size() != 0)
-			{
-				stamp.pixelData[i] = stamp.backupData[i];
-
-				for (int y = 0; y < stamp.height; ++y)
-				{
-					for (int x = 0; x < stamp.width; ++x)
-					{
-						size_t index = (y * stamp.width + x) * 4;
-
-						stamp.blackeningData[i][index + 0] = 0;
-						stamp.blackeningData[i][index + 1] = 0;
-						stamp.blackeningData[i][index + 2] = 0;
-						stamp.blackeningData[i][index + 3] = 255;
-					}
-				}
-
-				for (set<ivec2>::const_iterator ci = stamp.blackening_points.begin(); ci != stamp.blackening_points.end(); ci++)
-				{
-					size_t index = (ci->y * stamp.width + ci->x) * 4;
-
-					stamp.blackeningData[i][index + 0] = 255;
-					stamp.blackeningData[i][index + 1] = 255;
-					stamp.blackeningData[i][index + 2] = 255;
-					stamp.blackeningData[i][index + 3] = 255;
-				}
-
-				std::vector<unsigned char> result(stamp.blackeningData[i].size(), 0);
-				dilateImageRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 5);
-				applyGaussianBlurRGBA(result, stamp.blackeningData[i], stamp.width, stamp.height, 10.0);
-
-				for (int y = 0; y < stamp.height; ++y)
-				{
-					for (int x = 0; x < stamp.width; ++x)
-					{
-						size_t index = (y * stamp.width + x) * 4;
-
-						stamp.blackeningData[i][index + 0] = 255 - stamp.blackeningData[i][index + 0];
-						stamp.blackeningData[i][index + 1] = 255 - stamp.blackeningData[i][index + 1];
-						stamp.blackeningData[i][index + 2] = 255 - stamp.blackeningData[i][index + 2];
-						stamp.blackeningData[i][index + 3] = 255;
-					}
-				}
-
-				for (int y = 0; y < stamp.height; ++y)
-				{
-					for (int x = 0; x < stamp.width; ++x)
-					{
-						size_t index = (y * stamp.width + x) * 4;
-
-						unsigned char p_red = stamp.pixelData[i][index + 0];
-						unsigned char p_green = stamp.pixelData[i][index + 1];
-						unsigned char p_blue = stamp.pixelData[i][index + 2];
-						unsigned char p_alpha = stamp.pixelData[i][index + 3];
-
-						const unsigned char b_red = stamp.blackeningData[i][index + 0];
-						const unsigned char b_green = stamp.blackeningData[i][index + 1];
-						const unsigned char b_blue = stamp.blackeningData[i][index + 2];
-
-						const float b_intensity = ((long unsigned int)b_red + (long unsigned int)b_green + (long unsigned int)b_blue) / 3.0f / 255.0f;
-
-						p_red = (unsigned char)(float(p_red) * b_intensity);
-						p_green = (unsigned char)(float(p_green) * b_intensity);
-						p_blue = (unsigned char)(float(p_blue) * b_intensity);
-
-						stamp.pixelData[i][index + 0] = p_red;
-						stamp.pixelData[i][index + 1] = p_green;
-						stamp.pixelData[i][index + 2] = p_blue;
-					}
-				}
-			}
-
-			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
-
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
-				(stamp.channels == 1) ? GL_RED :
-				(stamp.channels == 3) ? GL_RGB : GL_RGBA,
-				GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
-		}
-	}
-}
 
 
 
@@ -2867,6 +2898,155 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
 	return texture;
 }
 
+
+
+void initGPUImageProcessing() {
+	// Create shader programs
+	dilationProgram = createShaderProgram(vertexShaderSource, dilationFragmentShader);
+	gaussianBlurHorizontalProgram = createShaderProgram(vertexShaderSource, gaussianBlurHorizontalFragmentShader);
+	gaussianBlurVerticalProgram = createShaderProgram(vertexShaderSource, gaussianBlurVerticalFragmentShader);
+	blackeningProgram = createShaderProgram(vertexShaderSource, blackeningFragmentShader);
+
+	// Create framebuffer for processing
+	glGenFramebuffers(1, &processingFBO);
+
+	// Create temporary textures for processing
+	glGenTextures(1, &tempTexture1);
+	glGenTextures(1, &tempTexture2);
+}
+
+
+
+void setupProcessingTexture(GLuint textureID, int width, int height) {
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+}
+
+
+void applyDilationGPU(GLuint inputTexture, GLuint outputTexture, int width, int height, int radius) {
+	// Bind framebuffer and set output texture
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
+
+	// Viewport should match texture dimensions
+	glViewport(0, 0, width, height);
+
+	// Use dilation shader program
+	glUseProgram(dilationProgram);
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(dilationProgram, "inputTexture"), 0);
+	glUniform1i(glGetUniformLocation(dilationProgram, "radius"), radius);
+	glUniform2f(glGetUniformLocation(dilationProgram, "texelSize"), 1.0f / width, 1.0f / height);
+
+	// Bind input texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, inputTexture);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	glViewport(0, 0, WIDTH, HEIGHT);
+}
+
+// Function to apply Gaussian blur on the GPU
+void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, int height, double sigma) {
+	// First pass: horizontal blur (input -> tempTexture1)
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture1, 0);
+	glViewport(0, 0, width, height);
+
+	glUseProgram(gaussianBlurHorizontalProgram);
+	glUniform1i(glGetUniformLocation(gaussianBlurHorizontalProgram, "inputTexture"), 0);
+	glUniform1f(glGetUniformLocation(gaussianBlurHorizontalProgram, "sigma"), (float)sigma);
+	glUniform2f(glGetUniformLocation(gaussianBlurHorizontalProgram, "texelSize"), 1.0f / width, 1.0f / height);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, inputTexture);
+
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Second pass: vertical blur (tempTexture1 -> outputTexture)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
+
+	glUseProgram(gaussianBlurVerticalProgram);
+	glUniform1i(glGetUniformLocation(gaussianBlurVerticalProgram, "inputTexture"), 0);
+	glUniform1f(glGetUniformLocation(gaussianBlurVerticalProgram, "sigma"), (float)sigma);
+	glUniform2f(glGetUniformLocation(gaussianBlurVerticalProgram, "texelSize"), 1.0f / width, 1.0f / height);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tempTexture1);
+
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glViewport(0, 0, WIDTH, HEIGHT);
+}
+
+// Function to apply blackening effect
+void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint outputTexture, int width, int height) {
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
+	glViewport(0, 0, width, height);
+
+	glUseProgram(blackeningProgram);
+	glUniform1i(glGetUniformLocation(blackeningProgram, "originalTexture"), 0);
+	glUniform1i(glGetUniformLocation(blackeningProgram, "maskTexture"), 1);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, originalTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, maskTexture);
+
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glViewport(0, 0, WIDTH, HEIGHT);
+}
+
+GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
+	// Create a temporary texture to use as a mask
+	GLuint maskTexture;
+	glGenTextures(1, &maskTexture);
+	glBindTexture(GL_TEXTURE_2D, maskTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Create an empty black texture
+	std::vector<unsigned char> emptyData(stamp.width * stamp.height * 4, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+
+	// If there are blackening points, update the texture with white points
+	if (!stamp.blackening_points.empty()) {
+		// Create a temporary data array to upload to the texture
+		std::vector<unsigned char> pointData = emptyData;
+
+		// Set the blackening points to white in the mask
+		for (const auto& point : stamp.blackening_points) {
+			size_t index = (point.y * stamp.width + point.x) * 4;
+			if (index >= 0 && index < pointData.size() - 3) {
+				pointData[index] = 255;     // R
+				pointData[index + 1] = 255; // G
+				pointData[index + 2] = 255; // B
+				pointData[index + 3] = 255; // A
+			}
+		}
+
+		// Upload the temporary data to the texture
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
+	}
+
+	return maskTexture;
+}
+
+
+
 // Initialize OpenGL resources
 void initGL() {
 	// Initialize GLEW
@@ -2901,6 +3081,9 @@ void initGL() {
 	diffuseVelocityProgram = createShaderProgram(vertexShaderSource, diffuseVelocityFragmentShader);
 	stampTextureProgram = createShaderProgram(vertexShaderSource, stampTextureFragmentShader);
 	renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
+
+
+	initGPUImageProcessing();
 
 
 
@@ -3446,6 +3629,57 @@ void addMouseColor()
 
 
 
+void updateDynamicTexture(Stamp& stamp) {
+	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
+			if (stamp.blackening_points.size() != 0) {
+				// Ensure the temporary textures are ready
+				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
+				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
+
+				// Create a texture from the backup data
+				GLuint originalTexture;
+				glGenTextures(1, &originalTexture);
+				glBindTexture(GL_TEXTURE_2D, originalTexture);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.backupData[i].data());
+
+				// Create mask texture containing blackening points
+				GLuint maskTexture = createBlackeningMaskTexture(stamp, i);
+
+				// Apply dilation to the mask texture
+				applyDilationGPU(maskTexture, tempTexture1, stamp.width, stamp.height, 5);
+
+				// Apply Gaussian blur to the dilated mask
+				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
+
+				// Apply the blackening effect to the original texture using the blurred mask
+				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i], stamp.width, stamp.height);
+
+				// Clean up temporary textures
+				glDeleteTextures(1, &originalTexture);
+				glDeleteTextures(1, &maskTexture);
+
+				// Update the pixelData to match what's now in the GPU texture
+				// NOTE: This is only needed if the pixelData is used elsewhere in CPU code
+				// If possible, avoid this readback for better performance
+				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
+			}
+			else {
+				// For stamps without blackening points, just ensure the texture is updated
+				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
+				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
+					(stamp.channels == 1) ? GL_RED :
+					(stamp.channels == 3) ? GL_RGB : GL_RGBA,
+					GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
+			}
+		}
+	}
+}
 
 
 
@@ -4751,6 +4985,11 @@ void reshape(int w, int h) {
 	glDeleteProgram(diffuseVelocityProgram);
 	glDeleteProgram(stampTextureProgram);
 	glDeleteProgram(renderProgram);
+	glDeleteProgram(dilationProgram);
+	glDeleteProgram(gaussianBlurHorizontalProgram);
+	glDeleteProgram(gaussianBlurVerticalProgram);
+	glDeleteProgram(blackeningProgram);
+
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
@@ -4766,6 +5005,11 @@ void reshape(int w, int h) {
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
+	glDeleteFramebuffers(1, &processingFBO);
+	glDeleteTextures(1, &tempTexture1);
+	glDeleteTextures(1, &tempTexture2);
+
+
 
 	for (auto& stamp : allyTemplates) {
 		for (auto& textureID : stamp.textureIDs) {
