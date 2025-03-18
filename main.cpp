@@ -641,7 +641,7 @@ bool loadBulletTemplates() {
 
 
 
-const float MIN_BULLET_INTERVAL = 0.25f; // Example: 0.2 seconds
+const float MIN_BULLET_INTERVAL = 0.25f;
 
 // Add a variable to track the time of the last fired bullet
 std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::high_resolution_clock::now();
@@ -655,6 +655,10 @@ void fireBullet() {
 	if (allyShips.empty() || bulletTemplates.empty()) {
 		return;
 	}
+
+	// No more firing while dying
+	if (allyShips[0].to_be_culled)
+		return;
 
 	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
@@ -4713,60 +4717,60 @@ void keyboard(unsigned char key, int x, int y) {
 	case '0':
 	{
 
-			Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
+		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
-			vec2 start;
-			start.x = 1.05;
-			start.y = rand() / float(RAND_MAX);
+		vec2 start;
+		start.x = 1.05;
+		start.y = rand() / float(RAND_MAX);
 
-			newStamp.curve_path.push_back(start);
+		newStamp.curve_path.push_back(start);
 
-			vec2 middle;
+		vec2 middle;
 
-			middle.x = 0.75;
+		middle.x = 0.75;
 
-			if (rand() % 2 == 0)
-				middle.y = 0.75 + 0.1 * (rand() / float(RAND_MAX));
-			else
-				middle.y = 0.75 - 0.1 * (rand() / float(RAND_MAX));
+		if (rand() % 2 == 0)
+			middle.y = 0.75 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.75 - 0.1 * (rand() / float(RAND_MAX));
 
-			newStamp.curve_path.push_back(middle);
+		newStamp.curve_path.push_back(middle);
 
-			middle.x = 0.5;
+		middle.x = 0.5;
 
-			if (rand() % 2 == 0)
-				middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
-			else
-				middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
+		if (rand() % 2 == 0)
+			middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
 
-			newStamp.curve_path.push_back(middle);
+		newStamp.curve_path.push_back(middle);
 
-			middle.x = 0.25;
+		middle.x = 0.25;
 
-			if (rand() % 2 == 0)
-				middle.y = 0.25 + 0.1 * (rand() / float(RAND_MAX));
-			else
-				middle.y = 0.25 - 0.1 * (rand() / float(RAND_MAX));
+		if (rand() % 2 == 0)
+			middle.y = 0.25 + 0.1 * (rand() / float(RAND_MAX));
+		else
+			middle.y = 0.25 - 0.1 * (rand() / float(RAND_MAX));
 
-			newStamp.curve_path.push_back(middle);
-			   
+		newStamp.curve_path.push_back(middle);
 
-			vec2 end;
-			end.x = -0.05;
-			end.y = rand() / float(RAND_MAX);
-			newStamp.curve_path.push_back(end);
 
-			newStamp.posX = start.x;
-			newStamp.posY = start.y;
+		vec2 end;
+		end.x = -0.05;
+		end.y = rand() / float(RAND_MAX);
+		newStamp.curve_path.push_back(end);
 
-			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+		newStamp.posX = start.x;
+		newStamp.posY = start.y;
 
-			newStamp.birth_time = elapsed.count() / 1000.0f;
-			newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
-			enemyShips.push_back(newStamp);
-			break;
+		newStamp.birth_time = elapsed.count() / 1000.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
+
+		enemyShips.push_back(newStamp);
+		break;
 	}
 
 	case ' ': // Space bar
