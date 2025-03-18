@@ -2223,39 +2223,32 @@ void updateDynamicTexture(Stamp& stamp)
 					}
 				}
 
-
-				//applyGaussianBlurRGBA(stamp.blackeningData[i], result, stamp.width, stamp.height, 0.1);
-	//stamp.blackeningData[i] = result;
-
 				for (int y = 0; y < stamp.height; ++y)
 				{
 					for (int x = 0; x < stamp.width; ++x)
 					{
 						size_t index = (y * stamp.width + x) * 4;
 
-						const unsigned char p_red = stamp.pixelData[i][index + 0];
-						const unsigned char p_green = stamp.pixelData[i][index + 1];
-						const unsigned char p_blue = stamp.pixelData[i][index + 2];
-						const unsigned char p_alpha = stamp.pixelData[i][index + 3];
+						unsigned char p_red = stamp.pixelData[i][index + 0];
+						unsigned char p_green = stamp.pixelData[i][index + 1];
+						unsigned char p_blue = stamp.pixelData[i][index + 2];
+						unsigned char p_alpha = stamp.pixelData[i][index + 3];
 
 						const unsigned char b_red = stamp.blackeningData[i][index + 0];
 						const unsigned char b_green = stamp.blackeningData[i][index + 1];
 						const unsigned char b_blue = stamp.blackeningData[i][index + 2];
-						const unsigned char b_alpha = stamp.blackeningData[i][index + 3];
 
-						const bool is_darker = (b_red < p_red) && (b_green < p_green) && (b_blue < p_blue);
+						const float b_intensity = ((long unsigned int)b_red + (long unsigned int)b_green + (long unsigned int)b_blue) / 3.0f / 255.0f;
 
-						if (is_darker)
-						{
-							stamp.pixelData[i][index + 0] = stamp.blackeningData[i][index + 0];
-							stamp.pixelData[i][index + 1] = stamp.blackeningData[i][index + 1];
-							stamp.pixelData[i][index + 2] = stamp.blackeningData[i][index + 2];
-							stamp.pixelData[i][index + 3] = stamp.pixelData[i][index + 3];
-						}
+						p_red = (unsigned char)(float(p_red) * b_intensity);
+						p_green = (unsigned char)(float(p_green) * b_intensity);
+						p_blue = (unsigned char)(float(p_blue) * b_intensity);
+
+						stamp.pixelData[i][index + 0] = p_red;
+						stamp.pixelData[i][index + 1] = p_green;
+						stamp.pixelData[i][index + 2] = p_blue;
 					}
 				}
-			
-				//stamp.blackening_points.clear();
 			}
 
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
@@ -2266,8 +2259,6 @@ void updateDynamicTexture(Stamp& stamp)
 				GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 		}
 	}
-
-	//stamp.blackening_points.clear();
 }
 
 
@@ -2546,14 +2537,22 @@ void generateFluidStampCollisionsDamage()
 					damage = blue_count;
 
 					if (blueStampCollisions > 0)
-						allyShips[i].blackening_points = collision_pixel_locations;
+					{
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+					}
 				}
 				else
 				{
 					damage = red_count;
 
 					if (redStampCollisions > 0)
-						enemyShips[i].blackening_points = collision_pixel_locations;
+					{
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+
+					}
+
 
 				}
 
@@ -4917,4 +4916,3 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
- 
