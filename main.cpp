@@ -3950,17 +3950,12 @@ void mark_colliding_bullets(void)
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-			{
-				allyBullets[i].death_time =  elapsed.count() / 1000.0f + 0.0001f;
-				allyBullets[i].to_be_culled = true;
-			}
-
-
+				allyBullets[i].death_time = elapsed.count() / 1000.0f;// +0.0001f;
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = elapsed.count() / 1000.0f + 0.0001f;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0f;// +0.0001f;
 }
 
 void mark_old_bullets(void)
