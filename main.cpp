@@ -968,6 +968,9 @@ bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
 			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
 			float alphaB = getPixelValueFromStamp(b, b.currentVariationIndex, texBx, texBy, 3) / 255.0f;
 
+
+
+
 			if (alphaA > 0.0f && alphaB > 0.0f) {
 				return true; // Pixels overlap with sufficient alpha
 			}
@@ -1726,7 +1729,7 @@ void main() {
     vec2 eddyVel = eddyField(TexCoord, time);
     
     // Add eddy perturbation to base velocity
-    vel = vel + eddyVel * aspect_ratio *0.1;// * dt;
+    vel = vel + eddyVel * 0.025;// * dt;
     
     // Calculate backtracing position with perturbed velocity
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
@@ -3948,7 +3951,7 @@ void mark_colliding_bullets(void)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
 			{
-				allyBullets[i].death_time = allyBullets[i].birth_time;// elapsed.count() / 1000.0f + 0.0001f;
+				allyBullets[i].death_time =  elapsed.count() / 1000.0f + 0.0001f;
 				allyBullets[i].to_be_culled = true;
 			}
 
