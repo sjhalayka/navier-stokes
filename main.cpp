@@ -3787,6 +3787,9 @@ void updateObstacle() {
 			break;
 
 		case POWERUP:
+
+			// to do: determine what kind of power up it is
+
 			newStamp.velX = -0.001f;
 			newStamp.velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
