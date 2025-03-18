@@ -25,10 +25,8 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
-// claude ai prompt: how to convert updateDynamicTexture and dilateImageRGBA and applyGaussianBlurRGBA to work on the GPU instead of the CPU? please include all necessary code changes. include full code for the necessary functions. please use GLSL 330 shaders. try to work it so that the texture data is not copied from the GPU to the CPU and back again
 
-
-
+// to do: get ship-powerup collisions and determine which type of powerup it is
 
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
@@ -247,7 +245,7 @@ struct Stamp {
 
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
-	set<ivec2> blackening_points;
+	vector<ivec2> blackening_points;
 };
 
 
@@ -2575,7 +2573,7 @@ void generateFluidStampCollisionsDamage()
 					if (blueStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							allyShips[i].blackening_points.insert(collision_pixel_locations[j]);
+							allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
 					}
 				}
 				else
@@ -2585,7 +2583,7 @@ void generateFluidStampCollisionsDamage()
 					if (redStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							enemyShips[i].blackening_points.insert(collision_pixel_locations[j]);
+							enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
 
 					}
 
@@ -3032,13 +3030,29 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 		// Create a temporary data array to upload to the texture
 		std::vector<unsigned char> pointData = emptyData;
 
-		// Set the blackening points to white in the mask
+
+		for (const auto& point : stamp.blackening_points) {
+			size_t index = (point.y * stamp.width + point.x) * 4;
+
+			if (index >= 0 && index < pointData.size() - 3) {
+				pointData[index + 0] = 0; // R
+				pointData[index + 1] = 0; // G
+				pointData[index + 2] = 0; // B
+				pointData[index + 3] = 255; // A
+			}
+		}
+
 		for (const auto& point : stamp.blackening_points) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 			if (index >= 0 && index < pointData.size() - 3) {
-				pointData[index] = 255;     // R
-				pointData[index + 1] = 255; // G
-				pointData[index + 2] = 255; // B
+
+				if (pointData[index + 0] < 256 - 1)
+				{
+					pointData[index + 0] += 1; // R
+					pointData[index + 1] += 1; // G
+					pointData[index + 2] += 1; // B
+				}
+
 				pointData[index + 3] = 255; // A
 			}
 		}
@@ -3656,7 +3670,7 @@ void updateDynamicTexture(Stamp& stamp) {
 				GLuint maskTexture = createBlackeningMaskTexture(stamp, i);
 
 				// Apply dilation to the mask texture
-				applyDilationGPU(maskTexture, tempTexture1, stamp.width, stamp.height, 5);
+				applyDilationGPU(maskTexture, tempTexture1, stamp.width, stamp.height, 10);
 
 				// Apply Gaussian blur to the dilated mask
 				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
@@ -3946,16 +3960,15 @@ void mark_colliding_bullets(void)
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - app_start_time;
 
-	// If collided, then make bullet mortal for long enough to penetrate the enemy
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
-				allyBullets[i].death_time = elapsed.count() / 1000.0f;// +0.0001f;
+				allyBullets[i].death_time = elapsed.count() / 1000.0f;
 
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
-				enemyBullets[i].death_time = elapsed.count() / 1000.0f;// +0.0001f;
+				enemyBullets[i].death_time = elapsed.count() / 1000.0f;
 }
 
 void mark_old_bullets(void)
@@ -4372,6 +4385,7 @@ void mark_colliding_powerups(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
 			{
+				// to do: find out what kind of power up it is
 				allyPowerUps[i].to_be_culled = true;
 			}
 		}
