@@ -4748,7 +4748,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 5.0;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
