@@ -1886,9 +1886,16 @@ void main() {
 
     // Prevent sampling from obstacles
     float obstacleSample = texture(obstacleTexture, pos).r;
-    //if (obstacleSample > 0.0) {
-    //    result = vec4(0.0, 0.0, 0.0, 1.0);
-    //}
+    if (obstacleSample > 0.0) {
+        // If we sampled from an obstacle, reflect the velocity
+       //result = vec4(-vel, 0.0, 1.0);
+
+
+        // If we sampled from an obstacle, kill the velocity
+		// We do this to avoid generating the opposite colour as a bug
+		//result = vec4(0.0, 0.0, 0.0, 1.0);
+
+    }
 
     FragColor = result;
 }
