@@ -180,12 +180,15 @@ enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM, HOMING };
 
 enum fire_type ally_fire = STRAIGHT;
 
-bool has_sinusoidal_fire = true;
-bool has_random_fire = true;
-bool has_homing_fire = true;
 
+enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP};
+
+
+bool has_sinusoidal_fire = false;
+bool has_random_fire = false;
+bool has_homing_fire = false;
 bool x3_fire = false;
-bool x5_fire = true;
+bool x5_fire = false;
 
 
 float eddyIntensity = 1.0;
@@ -247,6 +250,8 @@ struct Stamp {
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
 	vector<ivec2> blackening_points;
+
+	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 };
 
 
@@ -277,35 +282,35 @@ enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
 TemplateType currentTemplateType = ALLY;
 
 
-
-void drawFullScreenQuad() {
-	static GLuint quadVAO = 0;
-	static GLuint quadVBO;
-
-	if (quadVAO == 0) {
-		float quadVertices[] = {
-			-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
-			 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,
-			 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,
-			-1.0f,  1.0f, 0.0f,  0.0f, 1.0f
-		};
-
-		glGenVertexArrays(1, &quadVAO);
-		glGenBuffers(1, &quadVBO);
-		glBindVertexArray(quadVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	}
-
-	glBindVertexArray(quadVAO);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	glBindVertexArray(0);
-}
+//
+//void drawFullScreenQuad() {
+//	static GLuint quadVAO = 0;
+//	static GLuint quadVBO;
+//
+//	if (quadVAO == 0) {
+//		float quadVertices[] = {
+//			-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
+//			 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,
+//			 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,
+//			-1.0f,  1.0f, 0.0f,  0.0f, 1.0f
+//		};
+//
+//		glGenVertexArrays(1, &quadVAO);
+//		glGenBuffers(1, &quadVBO);
+//		glBindVertexArray(quadVAO);
+//		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+//		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+//
+//		glEnableVertexAttribArray(0);
+//		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+//		glEnableVertexAttribArray(1);
+//		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+//	}
+//
+//	glBindVertexArray(quadVAO);
+//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+//	glBindVertexArray(0);
+//}
 
 bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
@@ -2422,182 +2427,182 @@ void main() {
 
 
 
-
-void applyVorticityConfinement() {
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-
-	// Step 1: Compute vorticity (curl)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
-	glUseProgram(curlProgram);
-	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 2: Compute vorticity confinement force
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
-	glUseProgram(vorticityForceProgram);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
-	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 3: Apply vorticity force to velocity field
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-	glUseProgram(applyForceProgram);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Swap velocity textures
-	velocityIndex = 1 - velocityIndex;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-
+//
+//void applyVorticityConfinement() {
+//	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+//
+//	// Step 1: Compute vorticity (curl)
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+//	glUseProgram(curlProgram);
+//	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+//	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 2: Compute vorticity confinement force
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+//	glUseProgram(vorticityForceProgram);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+//	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 3: Apply vorticity force to velocity field
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+//	glUseProgram(applyForceProgram);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Swap velocity textures
+//	velocityIndex = 1 - velocityIndex;
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//}
 
 
-void applyVorticityConfinementColor() {
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
 
-	// Step 1: Compute vorticity (curl)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
-	glUseProgram(curlProgram);
-	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 2: Compute vorticity confinement force
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
-	glUseProgram(vorticityForceProgram);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
-	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 3: Apply vorticity force to velocity field
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
-	glUseProgram(applyForceProgram);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	colorIndex = 1 - colorIndex;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-
-void applyVorticityConfinementFriendlyColor() {
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-
-	// Step 1: Compute vorticity (curl)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
-	glUseProgram(curlProgram);
-	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 2: Compute vorticity confinement force
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
-	glUseProgram(vorticityForceProgram);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
-	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
-	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	// Step 3: Apply vorticity force to velocity field
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
-	glUseProgram(applyForceProgram);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
-	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
-	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	drawFullScreenQuad();
-
-	friendlyColorIndex = 1 - friendlyColorIndex;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
+//
+//void applyVorticityConfinementColor() {
+//	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+//
+//	// Step 1: Compute vorticity (curl)
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+//	glUseProgram(curlProgram);
+//	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+//	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 2: Compute vorticity confinement force
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+//	glUseProgram(vorticityForceProgram);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+//	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 3: Apply vorticity force to velocity field
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+//	glUseProgram(applyForceProgram);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	colorIndex = 1 - colorIndex;
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//}
+//
+//
+//void applyVorticityConfinementFriendlyColor() {
+//	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+//
+//	// Step 1: Compute vorticity (curl)
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+//	glUseProgram(curlProgram);
+//	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+//	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 2: Compute vorticity confinement force
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+//	glUseProgram(vorticityForceProgram);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+//	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+//	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	// Step 3: Apply vorticity force to velocity field
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
+//	glUseProgram(applyForceProgram);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+//	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+//	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//
+//	drawFullScreenQuad();
+//
+//	friendlyColorIndex = 1 - friendlyColorIndex;
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//}
 
 
 
@@ -4038,6 +4043,12 @@ void updateObstacle() {
 		// Create new stamp from the current template based on type
 		Stamp newStamp;
 
+
+
+
+
+
+
 		switch (currentTemplateType) {
 		case ALLY:
 			if (allyTemplates.empty()) return;
@@ -4052,13 +4063,24 @@ void updateObstacle() {
 			newStamp = bulletTemplates[0]; // Always use the first bullet template
 			break;
 		case POWERUP:
-			if (powerUpTemplates.empty()) return;
-			newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
+		//	if (powerUpTemplates.empty()) return;
+		//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
 			break;
 		}
 
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
+
+
+
+
+
+
+
+
+
+
+
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
@@ -4109,9 +4131,22 @@ void updateObstacle() {
 			break;
 
 		case POWERUP:
+			size_t num_powerup_tempates = powerUpTemplates.size();
+			size_t index = rand() % num_powerup_tempates;
 
-			// to do: determine what kind of power up it is
+			newStamp = powerUpTemplates[SINUSOIDAL_POWERUP + index];
 
+			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
+
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed;
+			elapsed = global_time_end - app_start_time;
+
+			newStamp.posX = 1.0f;
+			newStamp.posY = rand()/float(RAND_MAX);
+
+			newStamp.birth_time = elapsed.count() / 1000.0f;
+			newStamp.death_time = -1.0f;// elapsed.count() / 1000.0f;
 			newStamp.velX = -0.001f;
 			newStamp.velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
