@@ -1886,9 +1886,9 @@ void main() {
 
     // Prevent sampling from obstacles
     float obstacleSample = texture(obstacleTexture, pos).r;
-    if (obstacleSample > 0.0) {
-        result = vec4(0.0, 0.0, 0.0, 1.0);
-    }
+    //if (obstacleSample > 0.0) {
+    //    result = vec4(0.0, 0.0, 0.0, 1.0);
+    //}
 
     FragColor = result;
 }
@@ -4837,9 +4837,9 @@ void simulationStep()
 	applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
 
-	computeDivergence();
-	//solvePressure(5);
-	subtractPressureGradient();
+	//computeDivergence();
+	//solvePressure(20);
+	//subtractPressureGradient();
 
 	detectCollisions();
 	generateFluidStampCollisionsDamage();
