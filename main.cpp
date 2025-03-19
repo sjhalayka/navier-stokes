@@ -4841,7 +4841,7 @@ void simulationStep()
 	//solvePressure(20);
 	//subtractPressureGradient();
 
-	if (frameCount % 30 == 0)
+	if (1)//frameCount % 30 == 0)
 	{
 		detectCollisions();
 		generateFluidStampCollisionsDamage();
