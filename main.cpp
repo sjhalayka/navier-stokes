@@ -1873,10 +1873,10 @@ void main() {
     vec2 vel = texture(velocityTexture, TexCoord).xy;
     
     // Calculate multi-scale eddy perturbation
- //   vec2 eddyVel = eddyField(TexCoord, time);
+    vec2 eddyVel = eddyField(TexCoord, time);
     
     // Add eddy perturbation to base velocity
-  //  vel = vel + eddyVel * 0.025;// * dt;
+    vel = vel + eddyVel * 0.025;// * dt;
     
     // Calculate backtracing position with perturbed velocity
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
@@ -4826,23 +4826,26 @@ void simulationStep()
 
 
 	advectVelocity();
-	applyVorticityConfinement();
+	//applyVorticityConfinement();
 	diffuseVelocity();
 
 	advectColor();
-	applyVorticityConfinementColor();
+	//applyVorticityConfinementColor();
 	diffuseColor();
 
 	advectFriendlyColor();
-	applyVorticityConfinementFriendlyColor();
+	//applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
 
 	//computeDivergence();
 	//solvePressure(20);
 	//subtractPressureGradient();
 
-	detectCollisions();
-	generateFluidStampCollisionsDamage();
+	if (frameCount % 30 == 0)
+	{
+		detectCollisions();
+		generateFluidStampCollisionsDamage();
+	}
 }
 
 
