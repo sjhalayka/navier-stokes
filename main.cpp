@@ -34,6 +34,7 @@ using namespace std;
 
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
+// to do: if the event ship takes a hot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
 
 class vec2
@@ -4508,49 +4509,49 @@ void simulationStep()
 
 
 
-void renderToScreen() 
+void renderToScreen()
 {
-		// Bind default framebuffer (the screen)
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// Bind default framebuffer (the screen)
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		// Clear the screen
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+	// Clear the screen
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-		// Use a render shader program
-		glUseProgram(renderProgram);
+	// Use a render shader program
+	glUseProgram(renderProgram);
 
-		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float, std::milli> elapsed;
-		elapsed = global_time_end - app_start_time;
+	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float, std::milli> elapsed;
+	elapsed = global_time_end - app_start_time;
 
-		// Set uniforms
-		glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
-		glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
-		glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
-		glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
-		glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
-		glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture2"), 6);  // Add the new texture
-		glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-		glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0f);
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
+	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+	glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
+	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
+	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
+	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture2"), 6);  // Add the new texture
+	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+	glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0f);
 
-		// Bind textures
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, collisionTexture);
-		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, backgroundTexture);
-		glActiveTexture(GL_TEXTURE6);  // Add binding for the second texture
-		glBindTexture(GL_TEXTURE_2D, backgroundTexture2);
+	// Bind textures
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, collisionTexture);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, backgroundTexture);
+	glActiveTexture(GL_TEXTURE6);  // Add binding for the second texture
+	glBindTexture(GL_TEXTURE_2D, backgroundTexture2);
 
-		// Render full-screen quad with the fluid simulation
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	// Render full-screen quad with the fluid simulation
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
