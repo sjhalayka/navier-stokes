@@ -26,15 +26,13 @@ using namespace std;
 
 
 
-// to do: get ship-powerup collisions and determine which type of powerup it is
-
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
-// to do: if the event ship takes a hot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
+// to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
 
 class vec2
@@ -220,7 +218,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 1000.0;
+	float health = 1.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -4417,6 +4415,9 @@ void move_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
+			if (stamp.to_be_culled == true)
+				continue;
+
 			const float aspect = WIDTH / float(HEIGHT);
 
 			if (is_ally)
