@@ -2142,15 +2142,11 @@ void main() {
     vec4 bgColor1 = texture(backgroundTexture, scrolledCoord);
     vec4 bgColor2 = texture(backgroundTexture2, scrolledCoord2);
     
-    // Blend both backgrounds (you can adjust the blend factor as needed)
-    vec4 blendedBackground = bgColor1;// mix(bgColor1, bgColor2, 0.3);
+    vec4 blendedBackground = bgColor1;
 
 	blendedBackground.r += bgColor2.r*bgColor2.a;
 	blendedBackground.g += bgColor2.g*bgColor2.a;
 	blendedBackground.b += bgColor2.b*bgColor2.a;
-
-	    
-
 
     vec4 color1 = blendedBackground;
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
@@ -4705,43 +4701,43 @@ void keyboard(unsigned char key, int x, int y) {
 		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
 
 		vec2 start;
-		start.x = 1.05;
+		start.x = 1.05f;
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
 
 		vec2 middle;
 
-		middle.x = 0.75;
+		middle.x = 0.75f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.75 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.75 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.5;
+		middle.x = 0.5f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.5 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.5 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.25;
+		middle.x = 0.25f;
 
 		if (rand() % 2 == 0)
-			middle.y = 0.25 + 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
 		else
-			middle.y = 0.25 - 0.1 * (rand() / float(RAND_MAX));
+			middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
 
 		newStamp.curve_path.push_back(middle);
 
 
 		vec2 end;
-		end.x = -0.05;
+		end.x = -0.05f;
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
