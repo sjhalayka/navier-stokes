@@ -1153,7 +1153,7 @@ int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
 int friendlyColorIndex = 0;      // Index for current friendly color texture
 GLuint backgroundTexture;
-
+GLuint backgroundTexture2;  // New second background texture
 GLuint processingFBO;
 GLuint tempTexture1;
 GLuint tempTexture2;
@@ -2065,26 +2065,22 @@ void main() {
 
 
 
-
 const char* renderFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
 uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
+
 uniform sampler2D backgroundTexture;
+uniform sampler2D backgroundTexture2;  // New second background texture
+
 uniform vec2 texelSize;
 uniform float time;
-
-
 
 float WIDTH = texelSize.x;
 float HEIGHT = texelSize.y;
 float aspect_ratio = WIDTH/HEIGHT;
-
-
-
-
 
 out vec4 FragColor;
 
@@ -2101,7 +2097,6 @@ void main() {
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }
     
-
     vec2 adjustedCoord2 = TexCoord;
     
     // For non-square textures, adjust sampling to prevent stretching
@@ -2111,79 +2106,61 @@ void main() {
         adjustedCoord2.y = (adjustedCoord2.y - 0.5) / aspect_ratio + 0.5;
     }
 
+    // Create scrolled coordinates for each background
+    vec2 scrolledCoord = adjustedCoord2;
+    scrolledCoord.x += time * 0.01;
 
-	vec2 scrolledCoord = adjustedCoord2;
-	scrolledCoord.x += time * 0.01;
-
+    vec2 scrolledCoord2 = adjustedCoord2;
+    scrolledCoord2.x += time * 0.02;  // Scroll twice as fast
 
     // Check for collision at obstacle boundaries
     vec4 collision = texture(collisionTexture, adjustedCoord);
-    if (collision.a > 0.0) {
-        //if (collision.r > 0.5 && collision.b > 0.5) {
-        //    // Both red and blue collided - display as magenta
-        //    FragColor = vec4(1.0, 0.0, 1.0, 1.0);
-        //} else if (collision.r > 0.5) {
-        //    // Only red collided - display as orange (original color)
-        //    FragColor = vec4(1.0, 0.6, 0.0, 1.0);
-        //} else if (collision.b > 0.5) {
-        //    // Only blue collided - display as cyan
-        //    FragColor = vec4(0.0, 0.8, 1.0, 1.0);
-        //} else {
-        //    // Generic collision (shouldn't happen with your logic)
-        //    FragColor = vec4(0.7, 0.7, 0.7, 1.0); // Gray
-        //}
-
-		//FragColor =  texture(backgroundTexture, scrolledCoord);
-       // return;
-    }
     
-
-
-
-
-    
-    // Get density and colors at adjusted position
-	float redIntensity = texture(colorTexture, adjustedCoord).r;
-	float blueIntensity = texture(friendlyColorTexture, adjustedCoord).r;
-
-	float density = redIntensity + blueIntensity;
-
-	// Create color vectors based on intensity
-	vec4 redFluidColor = vec4(redIntensity, 0.0, 0.0, redIntensity);
-	vec4 blueFluidColor = vec4(0.0, 0.0, blueIntensity, blueIntensity);
-
-	// Combine both colors
-	vec4 combinedColor = redFluidColor + blueFluidColor;
-    
-
-
-
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
 
-    if (obstacle > 0.0) 
-	{
-		//FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-		//return;
-
-        // Render obstacles as background coloured
-		FragColor = texture(backgroundTexture, adjustedCoord2);//vec4(0,0,0,1);//texture(backgroundTexture, TexCoord);
-		return;
+    if (obstacle > 0.0) {
+        // Render obstacles as background colored
+        FragColor = texture(backgroundTexture, adjustedCoord2);
+        return;
     }
 
+    // Get density and colors at adjusted position
+    float redIntensity = texture(colorTexture, adjustedCoord).r;
+    float blueIntensity = texture(friendlyColorTexture, adjustedCoord).r;
 
-	vec4 color1 = texture(backgroundTexture, scrolledCoord);
+    float density = redIntensity + blueIntensity;
+
+    // Create color vectors based on intensity
+    vec4 redFluidColor = vec4(redIntensity, 0.0, 0.0, redIntensity);
+    vec4 blueFluidColor = vec4(0.0, 0.0, blueIntensity, blueIntensity);
+
+    // Combine both colors
+    vec4 combinedColor = redFluidColor + blueFluidColor;
+    
+    // Sample both background textures
+    vec4 bgColor1 = texture(backgroundTexture, scrolledCoord);
+    vec4 bgColor2 = texture(backgroundTexture2, scrolledCoord2);
+    
+    // Blend both backgrounds (you can adjust the blend factor as needed)
+    vec4 blendedBackground = bgColor1;// mix(bgColor1, bgColor2, 0.3);
+
+	blendedBackground.r += bgColor2.r*bgColor2.a;
+	blendedBackground.g += bgColor2.g*bgColor2.a;
+	blendedBackground.b += bgColor2.b*bgColor2.a;
+
+	    
+
+
+    vec4 color1 = blendedBackground;
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
     vec4 color3 = combinedColor;
     vec4 color4 = vec4(0.0, 0.0, 0.0, 1.0);
 
-	if(length(redFluidColor.r) > 0.5)
-		color4 = vec4(0.0, 0.0, 0.0, 0.0);
+    if(length(redFluidColor.r) > 0.5)
+        color4 = vec4(0.0, 0.0, 0.0, 0.0);
     else
-		color4 = vec4(1.0, 1.0, 1.0, 0.0);
-
-
-///	FragColor = color3;
+        color4 = vec4(1.0, 1.0, 1.0, 0.0);
 
     if (density < 0.25) {
         FragColor = mix(color1, color2, density * 4.0);
@@ -2196,6 +2173,7 @@ void main() {
     }
 }
 )";
+
 
 
 
@@ -3130,6 +3108,9 @@ void initGL() {
 	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false);
 	backgroundTexture = loadTexture("grid_wide.png");
+	backgroundTexture2 = loadTexture("grid_wide2.png");
+
+
 
 	// Create framebuffer object
 	glGenFramebuffers(1, &fbo);
@@ -4533,45 +4514,49 @@ void simulationStep()
 
 
 
-void renderToScreen() {
-	// Bind default framebuffer (the screen)
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+void renderToScreen() 
+{
+		// Bind default framebuffer (the screen)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	// Clear the screen
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+		// Clear the screen
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-	// Use a render shader program
-	glUseProgram(renderProgram);
+		// Use a render shader program
+		glUseProgram(renderProgram);
 
-	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float, std::milli> elapsed;
-	elapsed = global_time_end - app_start_time;
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed;
+		elapsed = global_time_end - app_start_time;
 
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
-	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
-	glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
-	glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
-	glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
-	glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
-	glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0f);
+		// Set uniforms
+		glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
+		glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
+		glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
+		glUniform1i(glGetUniformLocation(renderProgram, "friendlyColorTexture"), 4);
+		glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture"), 5);
+		glUniform1i(glGetUniformLocation(renderProgram, "backgroundTexture2"), 6);  // Add the new texture
+		glUniform2f(glGetUniformLocation(renderProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+		glUniform1f(glGetUniformLocation(renderProgram, "time"), elapsed.count() / 1000.0f);
 
-	// Bind textures
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, collisionTexture);
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, backgroundTexture);
+		// Bind textures
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, collisionTexture);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, backgroundTexture);
+		glActiveTexture(GL_TEXTURE6);  // Add binding for the second texture
+		glBindTexture(GL_TEXTURE_2D, backgroundTexture2);
 
-	// Render full-screen quad with the fluid simulation
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		// Render full-screen quad with the fluid simulation
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
@@ -5032,6 +5017,7 @@ void reshape(int w, int h) {
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
+	glDeleteTextures(1, &backgroundTexture2);
 	glDeleteFramebuffers(1, &processingFBO);
 	glDeleteTextures(1, &tempTexture1);
 	glDeleteTextures(1, &tempTexture2);
