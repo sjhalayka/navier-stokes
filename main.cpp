@@ -148,7 +148,7 @@ vec2 get_curve_point(vector<vec2> points, float t)
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -1398,7 +1398,7 @@ uniform vec2 texelSize;
 uniform float viscosity;
 uniform float dt;
 out vec4 FragColor;
-const float fake_dispersion = 0.99;
+const float fake_dispersion = 1.0;//0.99;
 
 in vec2 TexCoord;
 
@@ -3860,7 +3860,6 @@ void move_and_fork_bullets(void)
 			}
 			else
 			{
-
 				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - app_start_time;
@@ -3912,6 +3911,8 @@ void move_and_fork_bullets(void)
 
 				float r = rand() / float(RAND_MAX);
 
+				// Split the lightning
+				// to do: make the forked lightning smaller
 				if (r < stamp.random_forking)
 				{
 					Stamp newBullet = stamp;
