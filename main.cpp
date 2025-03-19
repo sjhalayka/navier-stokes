@@ -4746,8 +4746,31 @@ void mark_colliding_powerups(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
 			{
-				// to do: find out what kind of power up it is
 				allyPowerUps[i].to_be_culled = true;
+
+				if (allyPowerUps[j].powerup == SINUSOIDAL_POWERUP)
+				{
+					has_sinusoidal_fire = true;
+					ally_fire = SINUSOIDAL;
+				}
+				else if (allyPowerUps[j].powerup == RANDOM_POWERUP)
+				{
+					has_random_fire = true;
+					ally_fire = RANDOM;
+				}
+				else if (allyPowerUps[j].powerup == HOMING_POWERUP)
+				{
+					has_homing_fire = true;
+					ally_fire = HOMING;
+				}
+				else if (allyPowerUps[j].powerup == X3_POWERUP)
+				{
+					x3_fire = true;
+				}
+				else if (allyPowerUps[j].powerup == X5_POWERUP)
+				{
+					x5_fire = true;
+				}
 			}
 		}
 	}
