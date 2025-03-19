@@ -148,7 +148,7 @@ vec2 get_curve_point(vector<vec2> points, float t)
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -278,7 +278,34 @@ TemplateType currentTemplateType = ALLY;
 
 
 
+void drawFullScreenQuad() {
+	static GLuint quadVAO = 0;
+	static GLuint quadVBO;
 
+	if (quadVAO == 0) {
+		float quadVertices[] = {
+			-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
+			 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,
+			 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,
+			-1.0f,  1.0f, 0.0f,  0.0f, 1.0f
+		};
+
+		glGenVertexArrays(1, &quadVAO);
+		glGenBuffers(1, &quadVBO);
+		glBindVertexArray(quadVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	}
+
+	glBindVertexArray(quadVAO);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glBindVertexArray(0);
+}
 
 bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
@@ -827,6 +854,7 @@ bool spacePressed = false;
 
 
 
+
 void calculateBoundingBox(const Stamp& stamp, float& minX, float& minY, float& maxX, float& maxY) {
 	// Calculate aspect ratio
 	float aspect = WIDTH / static_cast<float>(HEIGHT);
@@ -1159,6 +1187,10 @@ GLuint processingFBO;
 GLuint tempTexture1;
 GLuint tempTexture2;
 
+GLuint vorticityTexture;
+GLuint vorticityForceTexture;
+
+
 
 
 GLuint advectProgram;
@@ -1177,7 +1209,9 @@ GLuint dilationProgram;
 GLuint gaussianBlurHorizontalProgram;
 GLuint gaussianBlurVerticalProgram;
 GLuint blackeningProgram;
-
+GLuint curlProgram;
+GLuint vorticityForceProgram;
+GLuint applyForceProgram;
 
 
 GLuint vao, vbo;
@@ -1276,6 +1310,116 @@ GLuint loadTexture(const char* filename) {
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
 //std::vector<std::pair<int, int>> collisionLocations;
+
+
+
+
+const char* curlFragmentShader = R"(
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+
+out float FragColor; // Output vorticity (scalar)
+
+in vec2 TexCoord;
+
+void main() {
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = 0.0;
+        return;
+    }
+
+    // Compute velocity components
+    vec2 left = texture(velocityTexture, TexCoord - vec2(texelSize.x, 0.0)).xy;
+    vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
+    vec2 bottom = texture(velocityTexture, TexCoord - vec2(0.0, texelSize.y)).xy;
+    vec2 top = texture(velocityTexture, TexCoord + vec2(0.0, texelSize.y)).xy;
+
+    // Compute curl (vorticity component in 2D)
+    float curl = (top.x - bottom.x) - (right.y - left.y);
+
+    FragColor = curl;
+}
+
+)";
+
+const char* vorticityForceFragmentShader = R"(
+
+#version 330 core
+uniform sampler2D vorticityTexture;
+uniform sampler2D velocityTexture;
+uniform sampler2D obstacleTexture;
+uniform vec2 texelSize;
+uniform float epsilon; // Vorticity confinement strength
+
+out vec4 FragColor; // Output force
+
+in vec2 TexCoord;
+
+void main() {
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0);
+        return;
+    }
+
+    // Compute vorticity gradient
+    float left = texture(vorticityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+    float right = texture(vorticityTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+    float bottom = texture(vorticityTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+    float top = texture(vorticityTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+
+    vec2 grad = vec2(abs(right) - abs(left), abs(top) - abs(bottom));
+    float mag = length(grad) + 1e-5; // Prevent division by zero
+
+    // Normalize vorticity gradient
+    vec2 N = grad / mag;
+
+    // Compute vorticity at the current pixel
+    float curl = texture(vorticityTexture, TexCoord).r;
+
+    vec2 force = epsilon * vec2(-N.y, N.x) * curl;
+
+    FragColor = vec4(force, 0.0, 1.0);
+}
+
+
+)";
+
+const char* applyForceFragmentShader = R"(
+
+#version 330 core
+uniform sampler2D velocityTexture;
+uniform sampler2D forceTexture;
+uniform sampler2D obstacleTexture;
+uniform float dt;
+out vec4 FragColor;
+
+in vec2 TexCoord;
+
+void main() {
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    if (obstacle > 0.0) {
+        FragColor = vec4(0.0);
+        return;
+    }
+
+    // Get current velocity and vorticity confinement force
+    vec2 velocity = texture(velocityTexture, TexCoord).xy;
+    vec2 force = texture(forceTexture, TexCoord).xy;
+
+    // Apply force
+    velocity += dt * force;
+
+    FragColor = vec4(velocity, 0.0, 1.0);
+}
+
+)";
+
+
+
 
 
 
@@ -1634,8 +1778,8 @@ uniform float dt;
 uniform float gridScale;
 uniform vec2 texelSize;
 uniform float time;
-uniform float eddyIntensity = 100.0;  // Controls overall intensity of eddies
-uniform float eddyDensity = 1;    // Controls how many eddies appear
+uniform float eddyIntensity;  // Controls overall intensity of eddies
+uniform float eddyDensity;    // Controls how many eddies appear
 uniform float fbm_amplitude = 100.0;
 uniform float fbm_frequency = 10.0;
 
@@ -1729,10 +1873,10 @@ void main() {
     vec2 vel = texture(velocityTexture, TexCoord).xy;
     
     // Calculate multi-scale eddy perturbation
-    vec2 eddyVel = eddyField(TexCoord, time);
+ //   vec2 eddyVel = eddyField(TexCoord, time);
     
     // Add eddy perturbation to base velocity
-    vel = vel + eddyVel * 0.025;// * dt;
+  //  vel = vel + eddyVel * 0.025;// * dt;
     
     // Calculate backtracing position with perturbed velocity
     vec2 pos = TexCoord - dt * vec2(vel.x * aspect_ratio, vel.y) * texelSize;
@@ -2269,6 +2413,66 @@ void main() {
 
 
 
+
+
+
+void applyVorticityConfinement() {
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+
+	// Step 1: Compute vorticity (curl)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+	glUseProgram(curlProgram);
+	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 2: Compute vorticity confinement force
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+	glUseProgram(vorticityForceProgram);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 3: Apply vorticity force to velocity field
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+	glUseProgram(applyForceProgram);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Swap velocity textures
+	velocityIndex = 1 - velocityIndex;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 
 
@@ -3078,6 +3282,21 @@ void initGL() {
 	stampTextureProgram = createShaderProgram(vertexShaderSource, stampTextureFragmentShader);
 	renderProgram = createShaderProgram(vertexShaderSource, renderFragmentShader);
 
+	curlProgram = createShaderProgram(vertexShaderSource, curlFragmentShader);
+	vorticityForceProgram = createShaderProgram(vertexShaderSource, vorticityForceFragmentShader);
+	applyForceProgram = createShaderProgram(vertexShaderSource, applyForceFragmentShader);
+
+	glGenTextures(1, &vorticityTexture);
+	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, WIDTH, HEIGHT, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glGenTextures(1, &vorticityForceTexture);
+	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, WIDTH, HEIGHT, 0, GL_RG, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	initGPUImageProcessing();
 
@@ -4491,6 +4710,9 @@ void simulationStep()
 
 
 	advectVelocity();
+
+	applyVorticityConfinement();
+
 	diffuseVelocity();
 	advectColor();
 	advectFriendlyColor();
@@ -4997,6 +5219,9 @@ void reshape(int w, int h) {
 	glDeleteProgram(gaussianBlurHorizontalProgram);
 	glDeleteProgram(gaussianBlurVerticalProgram);
 	glDeleteProgram(blackeningProgram);
+	glDeleteProgram(curlProgram);
+	glDeleteProgram(vorticityForceProgram);
+	glDeleteProgram(applyForceProgram);
 
 
 	// Delete OpenGL resources
@@ -5017,7 +5242,8 @@ void reshape(int w, int h) {
 	glDeleteFramebuffers(1, &processingFBO);
 	glDeleteTextures(1, &tempTexture1);
 	glDeleteTextures(1, &tempTexture2);
-
+	glDeleteTextures(1, &vorticityTexture);
+	glDeleteTextures(1, &vorticityForceTexture);
 
 
 	for (auto& stamp : allyTemplates) {
