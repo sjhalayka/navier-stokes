@@ -1326,10 +1326,10 @@ in vec2 TexCoord;
 
 void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Compute velocity components
     vec2 left = texture(velocityTexture, TexCoord - vec2(texelSize.x, 0.0)).xy;
@@ -1360,10 +1360,10 @@ in vec2 TexCoord;
 
 void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0);
+    //    return;
+    //}
 
     // Compute vorticity gradient
     float left = texture(vorticityTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
@@ -1401,10 +1401,10 @@ in vec2 TexCoord;
 
 void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0);
+    //    return;
+    //}
 
     // Get current velocity and vorticity confinement force
     vec2 velocity = texture(velocityTexture, TexCoord).xy;
@@ -1549,10 +1549,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Simple diffusion using 5-point stencil
     vec2 center = texture(velocityTexture, TexCoord).xy;
@@ -1709,10 +1709,10 @@ const float fake_dispersion = 0.9;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
 
 
@@ -1864,10 +1864,10 @@ vec2 eddyField(vec2 p, float t) {
 
 void main() {
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Get base velocity
     vec2 vel = texture(velocityTexture, TexCoord).xy;
@@ -1908,10 +1908,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Calculate divergence using central differences
     vec2 right = texture(velocityTexture, TexCoord + vec2(texelSize.x, 0.0)).xy;
@@ -1951,10 +1951,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = 0.0;
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = 0.0;
+    //    return;
+    //}
 
     // Get pressure at neighboring cells
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -1997,10 +1997,10 @@ in vec2 TexCoord;
 void main() {
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, TexCoord).r;
-    if (obstacle > 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Compute pressure gradient
     float pRight = texture(pressureTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
@@ -2475,6 +2475,122 @@ void applyVorticityConfinement() {
 }
 
 
+
+
+void applyVorticityConfinementColor() {
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+
+	// Step 1: Compute vorticity (curl)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+	glUseProgram(curlProgram);
+	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 2: Compute vorticity confinement force
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+	glUseProgram(vorticityForceProgram);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 3: Apply vorticity force to velocity field
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture[1 - colorIndex], 0);
+	glUseProgram(applyForceProgram);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	colorIndex = 1 - colorIndex;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void applyVorticityConfinementFriendlyColor() {
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+
+	// Step 1: Compute vorticity (curl)
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityTexture, 0);
+	glUseProgram(curlProgram);
+	glUniform1i(glGetUniformLocation(curlProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(curlProgram, "obstacleTexture"), 1);
+	glUniform2f(glGetUniformLocation(curlProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 2: Compute vorticity confinement force
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vorticityForceTexture, 0);
+	glUseProgram(vorticityForceProgram);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "vorticityTexture"), 0);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "velocityTexture"), 1);
+	glUniform1i(glGetUniformLocation(vorticityForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(vorticityForceProgram, "epsilon"), 1.0f); // Adjust intensity
+	glUniform2f(glGetUniformLocation(vorticityForceProgram, "texelSize"), 1.0f / WIDTH, 1.0f / HEIGHT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	// Step 3: Apply vorticity force to velocity field
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
+	glUseProgram(applyForceProgram);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "velocityTexture"), 0);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "forceTexture"), 1);
+	glUniform1i(glGetUniformLocation(applyForceProgram, "obstacleTexture"), 2);
+	glUniform1f(glGetUniformLocation(applyForceProgram, "dt"), DT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, vorticityForceTexture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	drawFullScreenQuad();
+
+	friendlyColorIndex = 1 - friendlyColorIndex;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 
 
@@ -4710,16 +4826,19 @@ void simulationStep()
 
 
 	advectVelocity();
-
 	applyVorticityConfinement();
-
 	diffuseVelocity();
+
 	advectColor();
-	advectFriendlyColor();
+	applyVorticityConfinementColor();
 	diffuseColor();
+
+	advectFriendlyColor();
+	applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
+
 	computeDivergence();
-	solvePressure(20);
+	//solvePressure(5);
 	subtractPressureGradient();
 
 	detectCollisions();
