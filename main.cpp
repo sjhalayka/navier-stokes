@@ -2142,11 +2142,9 @@ void main() {
     vec4 bgColor1 = texture(backgroundTexture, scrolledCoord);
     vec4 bgColor2 = texture(backgroundTexture2, scrolledCoord2);
     
-    vec4 blendedBackground = bgColor1;
-
-	blendedBackground.r += bgColor2.r*bgColor2.a;
-	blendedBackground.g += bgColor2.g*bgColor2.a;
-	blendedBackground.b += bgColor2.b*bgColor2.a;
+    vec4 blendedBackground = vec4(0.0, 0.0, 0.0, 0.0);
+	blendedBackground.rgb = mix(bgColor1.rgb, bgColor2.rgb, bgColor2.a);
+	blendedBackground.a = 1.0;
 
     vec4 color1 = blendedBackground;
     vec4 color2 = vec4(0.0, 0.125, 0.25, 1.0);
