@@ -6,6 +6,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
+#include <glm/glm.hpp> // Core GLM functionality, including vec3, mat4, etc.
+#include <glm/gtc/matrix_transform.hpp> // For matrix transformations like glm::ortho and glm::translate
+#include <glm/gtc/type_ptr.hpp>
+
+
+
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -145,6 +152,10 @@ vec2 get_curve_point(vector<vec2> points, float t)
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
+
+glm::mat4 orthoMatrix;
+
+
 
 const float FPS = 30;
 const float DT = 1.0f / FPS;
@@ -1755,7 +1766,25 @@ void main() {
 
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
+
+
 #version 330 core
+
+layout(location = 0) in vec3 aPos; // Vertex position
+layout(location = 1) in vec2 aTexCoord; // Texture coordinates
+
+//uniform mat4 projection;
+
+out vec2 TexCoord;
+
+void main() {
+    gl_Position = /*projection * */ vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
+}
+
+
+
+/*#version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
 
@@ -1765,6 +1794,9 @@ void main() {
     gl_Position = vec4(aPos, 1.0);
     TexCoord = aTexCoord;
 }
+*/
+
+
 )";
 
 
@@ -2634,6 +2666,10 @@ void reapplyAllStamps() {
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
 
+
+			GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+			glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 			glActiveTexture(GL_TEXTURE1);
@@ -2655,6 +2691,11 @@ void reapplyAllStamps() {
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+
+
+	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
@@ -2926,6 +2967,10 @@ void applyBitmapObstacle() {
 
 	glUseProgram(stampObstacleProgram);
 
+	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 
@@ -2975,6 +3020,10 @@ void applyBitmapObstacle() {
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
+	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 	glActiveTexture(GL_TEXTURE1);
@@ -2995,6 +3044,10 @@ void diffuseVelocity() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
 	glUseProgram(diffuseVelocityProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(diffuseVelocityProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseVelocityProgram, "velocityTexture"), 0);
@@ -3025,6 +3078,9 @@ void diffuseColor() {
 
 	glUseProgram(diffuseColorProgram);
 
+	GLuint projectionLocation = glGetUniformLocation(diffuseColorProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
 	glUniform1i(glGetUniformLocation(diffuseColorProgram, "obstacleTexture"), 1);
@@ -3052,6 +3108,10 @@ void diffuseFriendlyColor() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
 
 	glUseProgram(diffuseColorProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(diffuseColorProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
@@ -3084,6 +3144,10 @@ void detectCollisions()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
 	glUseProgram(detectCollisionProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
@@ -3248,6 +3312,10 @@ void applyDilationGPU(GLuint inputTexture, GLuint outputTexture, int width, int 
 	glUniform1i(glGetUniformLocation(dilationProgram, "radius"), radius);
 	glUniform2f(glGetUniformLocation(dilationProgram, "texelSize"), 1.0f / width, 1.0f / height);
 
+
+	GLuint projectionLocation = glGetUniformLocation(dilationProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Bind input texture
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, inputTexture);
@@ -3271,6 +3339,9 @@ void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, 
 	glUniform1f(glGetUniformLocation(gaussianBlurHorizontalProgram, "sigma"), (float)sigma);
 	glUniform2f(glGetUniformLocation(gaussianBlurHorizontalProgram, "texelSize"), 1.0f / width, 1.0f / height);
 
+	GLuint projectionLocation = glGetUniformLocation(gaussianBlurHorizontalProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, inputTexture);
 
@@ -3284,6 +3355,9 @@ void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, 
 	glUniform1i(glGetUniformLocation(gaussianBlurVerticalProgram, "inputTexture"), 0);
 	glUniform1f(glGetUniformLocation(gaussianBlurVerticalProgram, "sigma"), (float)sigma);
 	glUniform2f(glGetUniformLocation(gaussianBlurVerticalProgram, "texelSize"), 1.0f / width, 1.0f / height);
+
+	projectionLocation = glGetUniformLocation(gaussianBlurVerticalProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tempTexture1);
@@ -3302,6 +3376,9 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glUseProgram(blackeningProgram);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "originalTexture"), 0);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "maskTexture"), 1);
+
+	GLuint projectionLocation = glGetUniformLocation(blackeningProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, originalTexture);
@@ -3446,6 +3523,21 @@ void initGL() {
 	backgroundTexture2 = loadTexture("grid_wide2.png");
 
 
+	orthoMatrix = glm::ortho(0.0f, (float)WIDTH, 0.0f, (float)HEIGHT, -1.0f, 1.0f);
+
+	glm::vec3 pos = glm::vec3(0.0, 0.0, 1.0);
+	glm::vec3 target = glm::vec3(0.0, 0.0, -1.0);
+	glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
+
+	glm::mat4 view = glm::lookAt(
+		pos, // Camera position
+		target,   // Look-at point
+		up        // Up vector
+	);
+
+	orthoMatrix = orthoMatrix * view;
+
+
 
 	// Create framebuffer object
 	glGenFramebuffers(1, &fbo);
@@ -3512,6 +3604,10 @@ void advectColor() {
 
 	glUseProgram(advectProgram);
 
+
+	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Set uniforms for the shader
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(advectProgram, "sourceTexture"), 1);
@@ -3523,6 +3619,9 @@ void advectColor() {
 	// Eddy parameters - same as in advectVelocity
 	glUniform1f(glGetUniformLocation(advectProgram, "eddyIntensity"), eddyIntensity);
 	glUniform1f(glGetUniformLocation(advectProgram, "eddyDensity"), eddyDensity);
+
+	projectionLocation = glGetUniformLocation(advectProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
@@ -3551,6 +3650,9 @@ void advectFriendlyColor() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, friendlyColorTexture[1 - friendlyColorIndex], 0);
 
 	glUseProgram(advectProgram);
+
+	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms for the shader
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
@@ -3596,6 +3698,9 @@ void advectVelocity() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
 	glUseProgram(advectProgram);
+
+	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
@@ -3643,6 +3748,9 @@ void computeDivergence() {
 
 	glUseProgram(divergenceProgram);
 
+	GLuint projectionLocation = glGetUniformLocation(divergenceProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(divergenceProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(divergenceProgram, "obstacleTexture"), 1);
@@ -3677,6 +3785,10 @@ void solvePressure(int iterations) {
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pressureTexture[1 - pressureIndex], 0);
 
 		glUseProgram(pressureProgram);
+
+
+		GLuint projectionLocation = glGetUniformLocation(pressureProgram, "projection");
+		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 		// Set uniforms
 		float alpha = -1.0f;  // Central coefficient
@@ -3713,6 +3825,9 @@ void subtractPressureGradient() {
 
 	glUseProgram(gradientSubtractProgram);
 
+	GLuint projectionLocation = glGetUniformLocation(gradientSubtractProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "pressureTexture"), 0);
 	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "velocityTexture"), 1);
@@ -3745,6 +3860,10 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
 	glUseProgram(addForceProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	//float x_shift = 0.01 * rand() / float(RAND_MAX);
 	//float y_shift = 0.01 * rand() / float(RAND_MAX);
@@ -3790,6 +3909,11 @@ void addMouseForce() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
 
 	glUseProgram(addForceProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 
 	float aspect = HEIGHT / float(WIDTH);
 
@@ -3859,6 +3983,10 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	float mousePosX = posX;// +x_shift;
 	float mousePosY = posY;// +y_shift;
 
+
+	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
 	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
@@ -3919,6 +4047,10 @@ void addMouseColor()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
 
 	glUseProgram(addColorProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	float aspect = HEIGHT / float(WIDTH);
 
@@ -4742,7 +4874,7 @@ void mark_colliding_powerups(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
 			{
-				allyPowerUps[i].to_be_culled = true;
+				allyPowerUps[j].to_be_culled = true;
 
 				if (allyPowerUps[j].powerup == SINUSOIDAL_POWERUP)
 				{
@@ -4965,6 +5097,10 @@ void renderToScreen()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glUseProgram(stampTextureProgram);
+
+	GLuint projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
@@ -5397,6 +5533,9 @@ void reshape(int w, int h) {
 	glViewport(0, 0, w, h);
 	WIDTH = w;
 	HEIGHT = h;
+
+
+
 
 	// Delete existing shader programs
 	glDeleteProgram(advectProgram);
