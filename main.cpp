@@ -2058,34 +2058,27 @@ out float FragColor;
 
 in vec2 TexCoord;
 
-void main() 
-{
-    // Check if we're in an obstacle
-    float obstacle = texture(obstacleTexture, TexCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = 0.0;
-    //    return;
-    //}
 
-    // Get current color intensity
-    float currentValue = texture(colorTexture, TexCoord).r;
-    
-    // Calculate distance to application point
-    float distance = length(TexCoord - point);
-    
-    // Apply color based on radius
-    if (distance < radius) {
-        // Apply with smooth falloff
-        float falloff = 1.0 - (distance / radius);
-        falloff = falloff * falloff;
-        
-        // Add intensity with falloff
-        float newValue = falloff;
-        FragColor = currentValue + newValue;
-    } else {
-        FragColor = currentValue;
-    }
+void main()
+{
+	float distance = length(TexCoord - point);
+
+	float color = texture(colorTexture, TexCoord).r;
+
+	if(distance >= radius)
+	{
+		FragColor = color;
+		return;
+	}
+
+	float falloff = 1.0 - (distance / radius);
+	falloff = falloff * falloff;
+	color += falloff;
+    FragColor = color;
 }
+
+
+
 )";
 
 const char* addForceFragmentShader = R"(
