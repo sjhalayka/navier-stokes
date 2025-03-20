@@ -2062,9 +2062,9 @@ in vec2 TexCoord;
 void main()
 {
 	float distance = length(TexCoord - point);
-
 	float color = texture(colorTexture, TexCoord).r;
 
+	// Abort early
 	if(distance >= radius)
 	{
 		FragColor = color;
@@ -2100,6 +2100,7 @@ void main()
 {
 	float distance = length(TexCoord - point);
 
+	// Abort early
 	if(distance >= radius)
 		discard;
 
