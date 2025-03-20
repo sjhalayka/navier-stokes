@@ -2283,11 +2283,11 @@ void main() {
     // Check for obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
 
-    if (obstacle > 0.0) {
-        // Render obstacles as transparent
-        FragColor = vec4(0, 0, 0, 0);
-        return;
-    }
+    //if (obstacle > 0.0) {
+    //    // Render obstacles as orange for debugging
+    //    FragColor = vec4(1.0, 0.5, 0, 0);
+    //    return;
+    //}
 
     // Get density and colors at adjusted position
     float redIntensity = texture(colorTexture, adjustedCoord).r;
@@ -4974,7 +4974,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -4982,7 +4982,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
+		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
