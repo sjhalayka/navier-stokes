@@ -773,8 +773,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01f * cos(angle);
-			newBullet.velY = 0.01f * sin(angle);
+			newBullet.velX = 0.02f * cos(angle);
+			newBullet.velY = 0.02f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = elapsed.count() / 1000.0f;
@@ -1773,7 +1773,7 @@ const char* vertexShaderSource = R"(
 layout(location = 0) in vec3 aPos; // Vertex position
 layout(location = 1) in vec2 aTexCoord; // Texture coordinates
 
-//uniform mat4 projection;
+uniform mat4 projection;
 
 out vec2 TexCoord;
 
@@ -1781,21 +1781,6 @@ void main() {
     gl_Position = /*projection * */ vec4(aPos, 1.0);
     TexCoord = aTexCoord;
 }
-
-
-
-/*#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec2 aTexCoord;
-
-out vec2 TexCoord;
-
-void main() {
-    gl_Position = vec4(aPos, 1.0);
-    TexCoord = aTexCoord;
-}
-*/
-
 
 )";
 
@@ -5059,6 +5044,11 @@ void renderToScreen()
 	// Use a render shader program
 	glUseProgram(renderProgram);
 
+
+	GLuint projectionLocation = glGetUniformLocation(renderProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+
 	std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float, std::milli> elapsed;
 	elapsed = global_time_end - app_start_time;
@@ -5098,7 +5088,7 @@ void renderToScreen()
 
 	glUseProgram(stampTextureProgram);
 
-	GLuint projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
+	projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 
