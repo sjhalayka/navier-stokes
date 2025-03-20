@@ -1766,8 +1766,6 @@ void main() {
 
 // Inline GLSL shaders
 const char* vertexShaderSource = R"(
-
-
 #version 330 core
 
 layout(location = 0) in vec3 aPos; // Vertex position
@@ -1778,10 +1776,9 @@ uniform mat4 projection;
 out vec2 TexCoord;
 
 void main() {
-    gl_Position = /*projection * */ vec4(aPos, 1.0);
+    gl_Position = projection * vec4(aPos, 1.0);
     TexCoord = aTexCoord;
 }
-
 )";
 
 
@@ -2287,8 +2284,8 @@ void main() {
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
 
     if (obstacle > 0.0) {
-        // Render obstacles as background colored
-        FragColor = texture(backgroundTexture, adjustedCoord2);
+        // Render obstacles as transparent
+        FragColor = vec4(0, 0, 0, 0);
         return;
     }
 
@@ -3508,7 +3505,8 @@ void initGL() {
 	backgroundTexture2 = loadTexture("grid_wide2.png");
 
 
-	orthoMatrix = glm::ortho(0.0f, (float)WIDTH, 0.0f, (float)HEIGHT, -1.0f, 1.0f);
+
+	orthoMatrix = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -10.0f, 10.0f);
 
 	glm::vec3 pos = glm::vec3(0.0, 0.0, 1.0);
 	glm::vec3 target = glm::vec3(0.0, 0.0, -1.0);
