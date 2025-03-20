@@ -33,6 +33,8 @@ using namespace std;
 
 // to do: add in cannon locations and type for each enemy ship type
 
+// to do: add pauses to enemy movement with duplicate points
+
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
@@ -229,7 +231,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 1.0;
+	float health = 10.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -261,6 +263,8 @@ struct Stamp {
 	vector<ivec2> blackening_points;
 
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
+
+	bool under_fire = false;
 };
 
 
@@ -1606,6 +1610,8 @@ uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize;
 uniform float stamp_opacity;
+uniform int under_fire;
+uniform float time;
 in vec2 TexCoord;
 out vec4 FragColor;
 
@@ -1636,6 +1642,17 @@ void main()
 	{
         // Sample stamp texture (use all channels for RGBA output)
         vec4 stampColor = texture(stampTexture, stampCoord);
+
+		// Do alternating colour / white blinking when under fire
+		if(under_fire == 1)
+		{
+			const float timeslice = 0.25;
+			float m = mod(time, timeslice);
+		
+			if(m < timeslice/2.0)
+			stampColor.rgb = vec3(1.0, 1.0, 1.0);
+		}
+
 
 		stampColor.a *= stamp_opacity;      
         FragColor = stampColor;
@@ -1718,7 +1735,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.9;
+const float fake_dispersion = 0.75;
 
 void main() {
     // Check if we're in an obstacle
@@ -2832,6 +2849,8 @@ void generateFluidStampCollisionsDamage()
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
+			stamps[i].under_fire = true;
+
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
@@ -2874,6 +2893,8 @@ void generateFluidStampCollisionsDamage()
 				}
 			}
 
+			stamps[i].under_fire = false;
+
 			// Report collisions for this stamp
 			if (stampCollisions > 0)
 			{
@@ -2898,7 +2919,9 @@ void generateFluidStampCollisionsDamage()
 					if (blueStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+					
+
 					}
 				}
 				else
@@ -2908,12 +2931,15 @@ void generateFluidStampCollisionsDamage()
 					if (redStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 
 					}
-
-
 				}
+
+				// This is matter of personal taste
+				if(damage > 1)
+					stamps[i].under_fire = true;
+
 
 				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 
@@ -5118,6 +5144,19 @@ void renderToScreen()
 
 			// added in opacity as a uniform, so that the stamp can fade away over time upon death
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
+
+			glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
+
+
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed;
+			elapsed = global_time_end - app_start_time;
+
+			glUniform1f(glGetUniformLocation(stampTextureProgram, "time"), elapsed.count() / 1000.0f);
+
+
+			//uniform int under_fire;
+			//uniform float time;
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
