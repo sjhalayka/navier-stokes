@@ -24,7 +24,7 @@ using namespace std;
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
 
-
+// to do: add in cannon locations and type for each enemy ship type
 
 // to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
 
@@ -146,7 +146,7 @@ vec2 get_curve_point(vector<vec2> points, float t)
 int WIDTH = 960;
 int HEIGHT = 540;
 
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -5029,10 +5029,6 @@ void display() {
 	// Increment frame counter
 	frameCount++;
 
-	// Check if it's time to report collisions
-	//if (frameCount % FLUID_STAMP_COLLISION_REPORT_INTERVAL == 0)
-	//	reportCollisions = true;
-
 	// Render to screen
 	renderToScreen();
 
@@ -5048,7 +5044,24 @@ void display() {
 // GLUT idle callback
 void idle()
 {
-	//global_time += DT;
+
+
+		//auto currentTime = std::chrono::high_resolution_clock::now();
+		//static auto previousTime = currentTime;
+		//std::chrono::duration<float, std::milli> deltaTime = currentTime - previousTime;
+		//previousTime = currentTime;
+
+		//static float accumulator = 0.0f;
+		//accumulator += deltaTime.count() / 1000.0f;
+
+		//while (accumulator >= DT) {
+			//simulationStep();
+			//accumulator -= DT;
+//		}
+
+
+
+
 	simulationStep();
 
 	if (spacePressed)
