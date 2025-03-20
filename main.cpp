@@ -2105,6 +2105,11 @@ in vec2 TexCoord;
 
 void main()
 {
+	float distance = length(TexCoord - point);
+
+	if(distance >= radius)
+		discard;
+
 	float aspect_ratio = WIDTH/HEIGHT;
 
     vec2 adjustedCoord = TexCoord;
@@ -2115,8 +2120,6 @@ void main()
     } else if (aspect_ratio < 1.0) {
         adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     }
-
-
 
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
@@ -2129,17 +2132,15 @@ void main()
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
     
     // Calculate distance to force application point
-    float distance = length(TexCoord - point);
+    
     
     // Apply force based on radius
-    if (distance < radius) {
-        // Apply force with smooth falloff
-        float falloff = 1.0 - (distance / radius);
+
+     float falloff = 1.0 - (distance / radius);
         falloff = falloff * falloff;
         
         // Add force to velocity
         velocity += direction * strength * falloff;
-    }
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
