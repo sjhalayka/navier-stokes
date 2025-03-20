@@ -31,6 +31,9 @@ using namespace std;
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
 
+
+
+
 // to do: add in cannon locations and type for each enemy ship type
 
 // to do: add pauses to enemy movement with duplicate points
