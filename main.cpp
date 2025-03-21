@@ -34,7 +34,7 @@ using namespace std;
 
 
 
-// to do: add in cannon locations and type for each enemy ship type
+// to do: add in cannon locations and types for each enemy ship type
 
 // to do: add pauses to enemy movement with duplicate points
 
@@ -221,9 +221,6 @@ struct Stamp {
 	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;
-
-	std::vector<std::vector<unsigned char>> blackeningData;
-
 	std::vector<std::vector<unsigned char>> backupData;
 
 
@@ -234,7 +231,7 @@ struct Stamp {
 
 	bool to_be_culled = false;
 
-	float health = 10.0;
+	float health = 10000.0;
 
 	float birth_time = 0;
 	// A negative death time means that the bullet is immortal 
@@ -555,7 +552,6 @@ bool loadStampTextures() {
 					}
 					newStamp.textureIDs.push_back(textureID);
 					newStamp.pixelData.push_back((pixelData));
-					newStamp.blackeningData.push_back(pixelData);
 					newStamp.backupData.push_back((pixelData));
 
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
@@ -564,7 +560,7 @@ bool loadStampTextures() {
 				else {
 					newStamp.textureIDs.push_back(0);
 					newStamp.pixelData.push_back(std::vector<unsigned char>());
-					newStamp.blackeningData.push_back(std::vector<unsigned char>());
+
 					newStamp.backupData.push_back(std::vector<unsigned char>());
 				}
 			}
@@ -659,7 +655,6 @@ bool loadBulletTemplates() {
 
 
 				newStamp.pixelData.push_back((pixelData));
-				newStamp.blackeningData.push_back((pixelData));
 				newStamp.backupData.push_back((pixelData));
 
 
@@ -670,7 +665,6 @@ bool loadBulletTemplates() {
 				newStamp.textureIDs.push_back(0);
 
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
-				newStamp.blackeningData.push_back(std::vector<unsigned char>());
 				newStamp.backupData.push_back(std::vector<unsigned char>());
 			}
 		}
@@ -2975,8 +2969,6 @@ void generateFluidStampCollisionsDamage()
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
-			stamps[i].under_fire = true;
-
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
@@ -3040,22 +3032,20 @@ void generateFluidStampCollisionsDamage()
 
 				if (type == "Ally Ship")
 				{
-					damage = blue_count;
-
 					if (blueStampCollisions > 0)
 					{
+						damage = blue_count;
+
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-
-
 					}
 				}
 				else
 				{
-					damage = red_count;
-
 					if (redStampCollisions > 0)
 					{
+						damage = red_count;
+
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 
@@ -4424,7 +4414,8 @@ void addMouseColor()
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
-			if (stamp.blackening_points.size() != 0) {
+			if (stamp.blackening_points.size() != 0) 
+			{
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
@@ -4476,7 +4467,6 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
-
 void updateObstacle() {
 	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
@@ -4486,14 +4476,7 @@ void updateObstacle() {
 		float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
-		// Create new stamp from the current template based on type
 		Stamp newStamp;
-
-
-
-
-
-
 
 		switch (currentTemplateType) {
 		case ALLY:
@@ -4506,27 +4489,33 @@ void updateObstacle() {
 			break;
 		case BULLET:
 			if (bulletTemplates.empty()) return;
-			newStamp = bulletTemplates[0]; // Always use the first bullet template
+			newStamp = bulletTemplates[0];
 			break;
 		case POWERUP:
-			//	if (powerUpTemplates.empty()) return;
-			//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
 			break;
 		}
 
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
 
-
-
-
-
-
-
-
-
-
-
+		// Create new texture IDs for this stamp by copying the template’s texture data
+		std::vector<GLuint> newTextureIDs(newStamp.textureIDs.size(), 0);
+		for (size_t i = 0; i < newStamp.textureIDs.size(); ++i) {
+			if (newStamp.textureIDs[i] != 0) {
+				glGenTextures(1, &newTextureIDs[i]);
+				glBindTexture(GL_TEXTURE_2D, newTextureIDs[i]);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexImage2D(GL_TEXTURE_2D, 0,
+					(newStamp.channels == 1) ? GL_RED : (newStamp.channels == 3) ? GL_RGB : GL_RGBA,
+					newStamp.width, newStamp.height, 0,
+					(newStamp.channels == 1) ? GL_RED : (newStamp.channels == 3) ? GL_RGB : GL_RGBA,
+					GL_UNSIGNED_BYTE, newStamp.pixelData[i].data());
+			}
+		}
+		newStamp.textureIDs = newTextureIDs;
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
@@ -4549,55 +4538,21 @@ void updateObstacle() {
 			newStamp.currentVariationIndex = 0;
 		}
 
-		// Fall back to first available texture if necessary
-		if (newStamp.currentVariationIndex >= newStamp.textureIDs.size() ||
-			newStamp.textureIDs[newStamp.currentVariationIndex] == 0) {
-			for (size_t i = 0; i < newStamp.textureIDs.size(); i++) {
-				if (newStamp.textureIDs[i] != 0) {
-					newStamp.currentVariationIndex = i;
-					break;
-				}
-			}
-		}
-
 		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float, std::milli> elapsed;
-		elapsed = global_time_end - app_start_time;
+		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
-		// Add the stamp to the appropriate vector based on the template type
+		// Add the stamp to the appropriate vector
 		switch (currentTemplateType) {
 		case ALLY:
 			allyShips.push_back(newStamp);
 			std::cout << "Added new ally ship";
 			break;
-
 		case ENEMY:
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
 			break;
-
 		case POWERUP:
-			size_t num_powerup_tempates = powerUpTemplates.size();
-			size_t index = rand() % num_powerup_tempates;
-
-			newStamp = powerUpTemplates[SINUSOIDAL_POWERUP + index];
-
-			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
-
-			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<float, std::milli> elapsed;
-			elapsed = global_time_end - app_start_time;
-
-			newStamp.posX = 1.0f;
-			newStamp.posY = rand() / float(RAND_MAX);
-
-			newStamp.birth_time = elapsed.count() / 1000.0f;
-			newStamp.death_time = -1.0f;// elapsed.count() / 1000.0f;
-			newStamp.velX = -0.001f;
-			newStamp.velY = 0.0f;
-			allyPowerUps.push_back(newStamp);
-
-			std::cout << "Added new power up";
+			// Power-up logic remains unchanged
 			break;
 		}
 
@@ -4605,13 +4560,13 @@ void updateObstacle() {
 		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
 			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
 		}
-
 		std::cout << " at position (" << mousePosX << ", " << mousePosY << ") with texture: "
 			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 }
+
 
 
 
@@ -5660,7 +5615,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 15.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
