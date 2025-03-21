@@ -33,6 +33,7 @@ using namespace std;
 
 
 
+// to do: power up textures
 
 // to do: add in cannon locations and type for each enemy ship type
 
@@ -5654,7 +5655,6 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 	case '0':
 	{
-
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 
 		vec2 start;
