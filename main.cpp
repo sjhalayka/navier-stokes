@@ -195,7 +195,7 @@ enum fire_type { STRAIGHT, SINUSOIDAL, RANDOM, HOMING };
 enum fire_type ally_fire = STRAIGHT;
 
 
-enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP};
+enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
 
 bool has_sinusoidal_fire = false;
@@ -345,7 +345,7 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 	std::memcpy(pixelData.data(), data, dataSize);
 
 	// Now set flip for OpenGL texture loading
-	stbi_set_flip_vertically_on_load(true);
+	stbi_set_flip_vertically_on_load(false);
 	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!glData) {
@@ -1269,6 +1269,7 @@ GLuint loadTexture(const char* filename) {
 
 	// Load image using stb_image
 	int width, height, channels;
+	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!data) {
@@ -2357,6 +2358,128 @@ void main() {
 
 
 
+
+struct FontAtlas {
+	GLuint textureID;
+	int charWidth;      // Width of each character (16)
+	int charHeight;     // Height of each character (16)
+	int atlasWidth;     // Atlas width (256)
+	int atlasHeight;    // Atlas height (256)
+	int charsPerRow;    // Characters per row in the atlas (16)
+};
+
+
+GLuint loadFontTexture(const char* filename) {
+	GLuint textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+
+	// Set texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Load image using stb_image (you're already using this)
+	int width, height, channels;
+	stbi_set_flip_vertically_on_load(false);
+
+	
+	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
+
+	if (!data) {
+		std::cerr << "Failed to load font texture: " << filename << std::endl;
+		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+		return 0;
+	}
+
+	// Determine format based on channels
+	GLenum format;
+	switch (channels) {
+	case 1: format = GL_RED; break;
+	case 3: format = GL_RGB; break;
+	case 4: format = GL_RGBA; break;
+	default:
+		format = GL_RGB;
+		std::cerr << "Unsupported number of channels: " << channels << std::endl;
+	}
+
+	// Load texture data to GPU
+	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+	// Free image data
+	stbi_image_free(data);
+
+	return textureID;
+}
+
+FontAtlas initFontAtlas(const char* filename) {
+	FontAtlas atlas;
+	atlas.textureID = loadFontTexture(filename);
+	atlas.charWidth = 16;
+	atlas.charHeight = 16;
+	atlas.atlasWidth = 256;
+	atlas.atlasHeight = 256;
+	atlas.charsPerRow = atlas.atlasWidth / atlas.charWidth; // 16
+
+	return atlas;
+}
+
+
+const char* textVertexShaderSource = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTexCoord;
+layout(location = 2) in vec4 aColor;
+
+uniform mat4 projection;
+uniform mat4 model;
+
+out vec2 TexCoord;
+out vec4 Color;
+
+void main() {
+    gl_Position = projection * model * vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
+    Color = aColor;
+}
+)";
+
+const char* textFragmentShaderSource = R"(
+#version 330 core
+in vec2 TexCoord;
+in vec4 Color;
+
+uniform sampler2D fontTexture;
+uniform bool useColor;
+
+out vec4 FragColor;
+
+void main() {
+    vec4 texColor = texture(fontTexture, TexCoord);
+    
+    // Handle different font texture formats
+    if (useColor) {
+        // For colored font atlas, just blend with the vertex color
+        FragColor = texColor * Color;
+    } else {
+        // For grayscale/alpha font atlas, use the alpha/red channel
+        // with the vertex color
+        float alpha = texColor.r; // or texColor.a depending on your font texture
+        FragColor = vec4(Color.rgb, Color.a * alpha);
+    }
+}
+)";
+
+
+
+
+
+
+
+
+
+
 //
 //
 //
@@ -2923,7 +3046,7 @@ void generateFluidStampCollisionsDamage()
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-					
+
 
 					}
 				}
@@ -2940,7 +3063,7 @@ void generateFluidStampCollisionsDamage()
 				}
 
 				// This is matter of personal taste
-				if(damage > 1)
+				if (damage > 1)
 					stamps[i].under_fire = true;
 
 
@@ -3307,6 +3430,190 @@ void setupProcessingTexture(GLuint textureID, int width, int height) {
 }
 
 
+
+
+
+
+
+class TextRenderer {
+private:
+	FontAtlas atlas;
+	GLuint VAO, VBO, EBO;
+	GLuint shaderProgram;
+	glm::mat4 projection;
+
+	struct Vertex {
+		glm::vec3 position;
+		glm::vec2 texCoord;
+		glm::vec4 color;
+	};
+
+public:
+	TextRenderer(const char* fontAtlasFile, int windowWidth, int windowHeight) {
+		// Initialize font atlas
+		atlas = initFontAtlas(fontAtlasFile);
+
+		// Create shader program
+		GLuint vertexShader = compileShader(GL_VERTEX_SHADER, textVertexShaderSource);
+		GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, textFragmentShaderSource);
+
+		shaderProgram = glCreateProgram();
+		glAttachShader(shaderProgram, vertexShader);
+		glAttachShader(shaderProgram, fragmentShader);
+		glLinkProgram(shaderProgram);
+
+		// Check for linking errors
+		GLint success;
+		glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+		if (!success) {
+			GLchar infoLog[512];
+			glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+			std::cerr << "Shader program linking error: " << infoLog << std::endl;
+		}
+
+		glDeleteShader(vertexShader);
+		glDeleteShader(fragmentShader);
+
+		// Create VAO, VBO, EBO for text rendering
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glGenBuffers(1, &EBO);
+
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+		// Set up vertex attributes
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+		glEnableVertexAttribArray(0);
+
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3)));
+		glEnableVertexAttribArray(1);
+
+		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3) + sizeof(glm::vec2)));
+		glEnableVertexAttribArray(2);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+
+		// Set up projection matrix
+		setProjection(windowWidth, windowHeight);
+	}
+
+	~TextRenderer() {
+		glDeleteBuffers(1, &VBO);
+		glDeleteBuffers(1, &EBO);
+		glDeleteVertexArrays(1, &VAO);
+		glDeleteProgram(shaderProgram);
+		glDeleteTextures(1, &atlas.textureID);
+	}
+
+	void setProjection(int windowWidth, int windowHeight) {
+		projection = glm::ortho(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
+	}
+
+
+
+	void renderText(const std::string& text, float x, float y, float scale, glm::vec4 color, bool centered = false) {
+		glUseProgram(shaderProgram);
+
+		// Set uniforms
+		GLuint projLoc = glGetUniformLocation(shaderProgram, "projection");
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		GLuint fontTexLoc = glGetUniformLocation(shaderProgram, "fontTexture");
+		glUniform1i(fontTexLoc, 0);
+
+		GLuint useColorLoc = glGetUniformLocation(shaderProgram, "useColor");
+		glUniform1i(useColorLoc, 0); // Set to 1 if your font atlas is colored
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, atlas.textureID);
+
+		glBindVertexArray(VAO);
+
+		// If text should be centered, calculate the starting position
+		if (centered) {
+			float textWidth = text.length() * atlas.charWidth * scale;
+			x -= textWidth / 2.0f;
+		}
+
+		// For each character, create a quad with appropriate texture coordinates
+		std::vector<Vertex> vertices;
+		std::vector<GLuint> indices;
+
+		float xpos = x;
+		float ypos = y;
+		GLuint indexOffset = 0;
+
+		for (char c : text) {
+			// Get ASCII value of the character
+			unsigned char charValue = static_cast<unsigned char>(c);
+
+			// Calculate position in the atlas using ASCII value
+			int atlasX = (charValue % atlas.charsPerRow) * atlas.charWidth;
+			int atlasY = (charValue / atlas.charsPerRow) * atlas.charHeight;
+
+			// Calculate texture coordinates
+			float texLeft = atlasX / (float)atlas.atlasWidth;
+			float texRight = (atlasX + atlas.charWidth) / (float)atlas.atlasWidth;
+			float texTop = atlasY / (float)atlas.atlasHeight;
+			float texBottom = (atlasY + atlas.charHeight) / (float)atlas.atlasHeight;
+
+			// Calculate quad vertices
+			float quadLeft = xpos;
+			float quadRight = xpos + atlas.charWidth * scale;
+			float quadTop = ypos;
+			float quadBottom = ypos + atlas.charHeight * scale;
+
+			// Add vertices
+			vertices.push_back({ {quadLeft, quadTop, 0.0f}, {texLeft, texTop}, color });
+			vertices.push_back({ {quadRight, quadTop, 0.0f}, {texRight, texTop}, color });
+			vertices.push_back({ {quadRight, quadBottom, 0.0f}, {texRight, texBottom}, color });
+			vertices.push_back({ {quadLeft, quadBottom, 0.0f}, {texLeft, texBottom}, color });
+
+			// Add indices
+			indices.push_back(indexOffset + 0);
+			indices.push_back(indexOffset + 1);
+			indices.push_back(indexOffset + 2);
+			indices.push_back(indexOffset + 0);
+			indices.push_back(indexOffset + 2);
+			indices.push_back(indexOffset + 3);
+
+			indexOffset += 4;
+
+			// Advance cursor
+			xpos += atlas.charWidth * scale;
+		}
+
+		// Upload vertex and index data
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_DYNAMIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_DYNAMIC_DRAW);
+
+		// Draw text
+		glm::mat4 model = glm::mat4(1.0f);
+		GLuint modelLoc = glGetUniformLocation(shaderProgram, "model");
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+		// Enable blending for transparent font
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+
+		// Reset state
+		glDisable(GL_BLEND);
+		glBindVertexArray(0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+};
+
+
+
+TextRenderer* textRenderer = nullptr;
+
+
 void applyDilationGPU(GLuint inputTexture, GLuint outputTexture, int width, int height, int radius) {
 	// Bind framebuffer and set output texture
 	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
@@ -3508,6 +3815,8 @@ void initGL() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	initGPUImageProcessing();
+
+	textRenderer = new TextRenderer("font.png", WIDTH, HEIGHT);
 
 
 
@@ -4200,8 +4509,8 @@ void updateObstacle() {
 			newStamp = bulletTemplates[0]; // Always use the first bullet template
 			break;
 		case POWERUP:
-		//	if (powerUpTemplates.empty()) return;
-		//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
+			//	if (powerUpTemplates.empty()) return;
+			//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
 			break;
 		}
 
@@ -4280,7 +4589,7 @@ void updateObstacle() {
 			elapsed = global_time_end - app_start_time;
 
 			newStamp.posX = 1.0f;
-			newStamp.posY = rand()/float(RAND_MAX);
+			newStamp.posY = rand() / float(RAND_MAX);
 
 			newStamp.birth_time = elapsed.count() / 1000.0f;
 			newStamp.death_time = -1.0f;// elapsed.count() / 1000.0f;
@@ -5182,7 +5491,24 @@ void renderToScreen()
 
 
 
+void displayFPS() {
+	static int frameCount = 0;
+	static float lastTime = 0.0f;
+	static float fps = 0.0f;
 
+	frameCount++;
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	float deltaTime = currentTime - lastTime;
+
+	if (deltaTime >= 1.0f) {
+		fps = frameCount / deltaTime;
+		frameCount = 0;
+		lastTime = currentTime;
+	}
+
+	std::string fpsText = "FPS: " + std::to_string(static_cast<int>(fps));
+	textRenderer->renderText(fpsText, 0.0, 0.0, 1.0f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+}
 
 
 // GLUT display callback
@@ -5192,6 +5518,8 @@ void display() {
 
 	// Render to screen
 	renderToScreen();
+
+	displayFPS();
 
 	// Swap buffers
 	glutSwapBuffers();
@@ -5207,17 +5535,17 @@ void idle()
 {
 
 
-		//auto currentTime = std::chrono::high_resolution_clock::now();
-		//static auto previousTime = currentTime;
-		//std::chrono::duration<float, std::milli> deltaTime = currentTime - previousTime;
-		//previousTime = currentTime;
+	//auto currentTime = std::chrono::high_resolution_clock::now();
+	//static auto previousTime = currentTime;
+	//std::chrono::duration<float, std::milli> deltaTime = currentTime - previousTime;
+	//previousTime = currentTime;
 
-		//static float accumulator = 0.0f;
-		//accumulator += deltaTime.count() / 1000.0f;
+	//static float accumulator = 0.0f;
+	//accumulator += deltaTime.count() / 1000.0f;
 
-		//while (accumulator >= DT) {
-			//simulationStep();
-			//accumulator -= DT;
+	//while (accumulator >= DT) {
+		//simulationStep();
+		//accumulator -= DT;
 //		}
 
 
@@ -5688,6 +6016,12 @@ void reshape(int w, int h) {
 			}
 		}
 	}
+
+
+
+
+	if (textRenderer)
+		delete textRenderer;
 
 	// Reinitialize OpenGL
 	initGL();
