@@ -220,13 +220,11 @@ float eddyDensity = 10;
 class Stamp {
 
 public:
-
-	Stamp()
+	Stamp(void)
 	{
 
 	}
 
-	// Add this to your Stamp class definition
 	~Stamp() {
 		// Clean up textures
 		for (GLuint textureID : textureIDs) {
@@ -234,6 +232,7 @@ public:
 				glDeleteTextures(1, &textureID);
 			}
 		}
+
 		textureIDs.clear();
 		pixelData.clear();
 		backupData.clear();
