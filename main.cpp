@@ -36,6 +36,8 @@ using namespace std;
 
 // to do: power up textures
 
+// to do: Enemy cannon type can be straight ahead, random single , circular spread
+
 // to do: add in cannon locations and type for each enemy ship type
 
 // to do: add pauses to enemy movement with duplicate points
