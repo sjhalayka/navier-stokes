@@ -3581,7 +3581,7 @@ public:
 			indexOffset += 4;
 
 			// Advance cursor
-			xpos += atlas.charWidth * scale;
+			xpos += 0.75*atlas.charWidth * scale;
 		}
 
 		// Upload vertex and index data
