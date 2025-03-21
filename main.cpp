@@ -3608,7 +3608,7 @@ public:
 			indexOffset += 4;
 
 			// Advance cursor
-			xpos += 0.75f * atlas.charWidth * scale;
+			xpos += 0.5f * atlas.charWidth * scale;
 		}
 
 		// Upload vertex and index data
@@ -4865,6 +4865,12 @@ void cull_marked_bullets(void)
 		{
 			if (stamps[i].to_be_culled)
 			{
+				for (auto& textureID : stamps[i].textureIDs) {
+					if (textureID != 0) {
+						glDeleteTextures(1, &textureID);
+					}
+				}
+
 				cout << "culling " << type << " bullet" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
@@ -5129,6 +5135,12 @@ void cull_marked_ships(void)
 		{
 			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
 			{
+				for (auto& textureID : stamps[i].textureIDs) {
+					if (textureID != 0) {
+						glDeleteTextures(1, &textureID);
+					}
+				}
+
 				cout << "culling " << type << " ship" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
@@ -5285,6 +5297,12 @@ void cull_marked_powerups(void)
 		{
 			if (stamps[i].to_be_culled)
 			{
+				for (auto& textureID : stamps[i].textureIDs) {
+					if (textureID != 0) {
+						glDeleteTextures(1, &textureID);
+					}
+				}
+
 				cout << "culling marked powerup" << endl;
 				stamps.erase(stamps.begin() + i);
 				i = 0;
