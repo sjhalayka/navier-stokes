@@ -33,6 +33,7 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+// to do: always remember to add new stamp member variables to stamp operators () and = 
 
 // to do: power up textures
 
@@ -217,7 +218,16 @@ float eddyDensity = 10;
 
 
 
+enum cannon_type { SIDEWAYS_CANNON, FORWARD_CANNON, RANDOM_CANNON, CIRCULAR_CANNON };
 
+
+class Cannon
+{
+public:
+	enum cannon_type t;
+	size_t x;
+	size_t y;
+};
 
 
 class Stamp {
@@ -228,7 +238,8 @@ public:
 
 	}
 
-	~Stamp() {
+	~Stamp() 
+	{
 		// Clean up textures
 		for (GLuint textureID : textureIDs) {
 			if (textureID != 0) {
@@ -242,7 +253,8 @@ public:
 	}
 
 	// Make the copy constructor and assignment operator for proper resource management
-	Stamp(const Stamp& other) {
+	Stamp(const Stamp& other) 
+	{
 		// Copy basic properties
 		width = other.width;
 		height = other.height;
@@ -272,6 +284,8 @@ public:
 		blackening_points = other.blackening_points;
 		powerup = other.powerup;
 		under_fire = other.under_fire;
+		cannons = other.cannons;
+
 
 		// Deep copy pixel data
 		pixelData = other.pixelData;
@@ -295,7 +309,8 @@ public:
 	}
 
 	// Assignment operator
-	Stamp& operator=(const Stamp& other) {
+	Stamp& operator=(const Stamp& other) 
+	{
 		if (this != &other) {
 			// Clean up existing resources
 			for (GLuint textureID : textureIDs) {
@@ -336,6 +351,8 @@ public:
 			blackening_points = other.blackening_points;
 			powerup = other.powerup;
 			under_fire = other.under_fire;
+			cannons = other.cannons;
+
 
 			// Deep copy pixel data
 			pixelData = other.pixelData;
@@ -414,6 +431,8 @@ public:
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
 	bool under_fire = false;
+
+	vector<Cannon> cannons;
 };
 
 
@@ -1412,6 +1431,7 @@ struct CollisionPoint {
 GLuint loadTexture(const char* filename) {
 	GLuint textureID;
 	glGenTextures(1, &textureID);
+
 
 	// Load image using stb_image
 	int width, height, channels;
@@ -2523,8 +2543,8 @@ GLuint loadFontTexture(const char* filename) {
 	// Set texture parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	// Load image using stb_image (you're already using this)
 	int width, height, channels;
@@ -3763,7 +3783,7 @@ public:
 			float textWidth = 0;
 			for (char c : text) {
 				// Use the calculated width for each character
-				float charWidth = charWidths.count(c) ? charWidths[c] : atlas.charWidth / 2;
+				float charWidth = static_cast<float>(charWidths[c]);// charWidths.count(c) ? charWidths[c] : atlas.charWidth / 2;
 				textWidth += (8 + charWidth) * scale;
 			}
 			x = WIDTH / 2.0f - textWidth / 2.0f;
@@ -3792,7 +3812,7 @@ public:
 			float texBottom = (atlasY + atlas.charHeight) / (float)atlas.atlasHeight;
 
 			// Get the character's calculated width
-			float charWidth = charWidths.count(charValue) ? charWidths[charValue] : atlas.charWidth / 2;
+			float charWidth = static_cast<float>(charWidths[charValue]);// charWidths.count(charValue) ? charWidths[charValue] : atlas.charWidth / 2;
 
 			// Calculate quad vertices
 			float quadLeft = xpos;
