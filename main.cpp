@@ -4536,8 +4536,8 @@ void updateObstacle() {
 			newStamp = deepCopyStamp(bulletTemplates[0]); // Always use the first bullet template
 			break;
 		case POWERUP:
-				if (powerUpTemplates.empty()) return;
-				newStamp = deepCopyStamp(powerUpTemplates[currentPowerUpTemplateIndex]);
+			if (powerUpTemplates.empty()) return;
+			newStamp = deepCopyStamp(powerUpTemplates[currentPowerUpTemplateIndex]);
 			break;
 		}
 
@@ -6003,46 +6003,6 @@ void reshape(int w, int h) {
 	bulletTemplates.clear();
 	powerUpTemplates.clear();
 
-	// Delete stamp textures from active stamps
-	for (auto& stamp : allyShips) {
-		for (auto& textureID : stamp.textureIDs) {
-			if (textureID != 0) {
-				glDeleteTextures(1, &textureID);
-			}
-		}
-	}
-
-	for (auto& stamp : enemyShips) {
-		for (auto& textureID : stamp.textureIDs) {
-			if (textureID != 0) {
-				glDeleteTextures(1, &textureID);
-			}
-		}
-	}
-
-	for (auto& stamp : allyBullets) {
-		for (auto& textureID : stamp.textureIDs) {
-			if (textureID != 0) {
-				glDeleteTextures(1, &textureID);
-			}
-		}
-	}
-
-	for (auto& stamp : enemyBullets) {
-		for (auto& textureID : stamp.textureIDs) {
-			if (textureID != 0) {
-				glDeleteTextures(1, &textureID);
-			}
-		}
-	}
-
-	for (auto& stamp : allyPowerUps) {
-		for (auto& textureID : stamp.textureIDs) {
-			if (textureID != 0) {
-				glDeleteTextures(1, &textureID);
-			}
-		}
-	}
 
 
 
