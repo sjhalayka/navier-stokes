@@ -3653,15 +3653,7 @@ public:
 		projection = glm::ortho(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
 	}
 
-	size_t get_sentence_width(const string s, const float scale)
-	{
-		size_t sentence_width = 0;
 
-		for (size_t i = 0; i < s.size(); i++)
-			sentence_width += (atlas.charWidth + 2) * scale;
-
-		return sentence_width;
-	}
 
 	void renderText(const std::string& text, float x, float y, float scale, glm::vec4 color, bool centered = false) {
 		glUseProgram(shaderProgram);
@@ -3682,7 +3674,15 @@ public:
 		glBindVertexArray(VAO);
 
 		// If text should be centered, calculate the starting position
-		if (centered) {
+		if (centered) 
+		{
+			//float textWidth = 0;
+
+			//for (char c : text)
+			//	textWidth += atlas.charWidth * scale;
+
+			//x = WIDTH / 2.0f - textWidth / 2.0f;
+
 			float textWidth = text.length() * atlas.charWidth * scale;
 
 			x = WIDTH / 2.0f - textWidth / 2.0f;
@@ -5663,7 +5663,7 @@ void displayFPS() {
 	}
 
 	std::string fpsText = "FPS: " + std::to_string(static_cast<int>(fps));
-	textRenderer->renderText(fpsText, 0.0, 0.0, 1.0f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), true);
+	textRenderer->renderText(fpsText, 0.0, 10, 0.5f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), true);
 }
 
 
