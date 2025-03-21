@@ -34,7 +34,7 @@ using namespace std;
 
 
 
-// to do: add in cannon locations and types for each enemy ship type
+// to do: add in cannon locations and type for each enemy ship type
 
 // to do: add pauses to enemy movement with duplicate points
 
@@ -154,6 +154,9 @@ vec2 get_curve_point(vector<vec2> points, float t)
 
 
 
+
+
+
 // Simulation parameters
 int WIDTH = 960;
 int HEIGHT = 540;
@@ -221,6 +224,9 @@ struct Stamp {
 	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;
+
+	std::vector<std::vector<unsigned char>> blackeningData;
+
 	std::vector<std::vector<unsigned char>> backupData;
 
 
@@ -552,6 +558,7 @@ bool loadStampTextures() {
 					}
 					newStamp.textureIDs.push_back(textureID);
 					newStamp.pixelData.push_back((pixelData));
+					newStamp.blackeningData.push_back(pixelData);
 					newStamp.backupData.push_back((pixelData));
 
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
@@ -560,7 +567,7 @@ bool loadStampTextures() {
 				else {
 					newStamp.textureIDs.push_back(0);
 					newStamp.pixelData.push_back(std::vector<unsigned char>());
-
+					newStamp.blackeningData.push_back(std::vector<unsigned char>());
 					newStamp.backupData.push_back(std::vector<unsigned char>());
 				}
 			}
@@ -599,6 +606,39 @@ bool loadStampTextures() {
 
 
 
+Stamp deepCopyStamp(const Stamp& source)
+{
+	Stamp newStamp = source; // Shallow copy initially
+
+	// Deep copy pixel data vectors
+	newStamp.pixelData.clear();
+	newStamp.blackeningData.clear();
+	newStamp.backupData.clear();
+	newStamp.textureIDs.clear();
+
+	for (size_t i = 0; i < source.pixelData.size(); i++) {
+		newStamp.pixelData.push_back(source.pixelData[i]);
+		newStamp.blackeningData.push_back(source.blackeningData[i]);
+		newStamp.backupData.push_back(source.backupData[i]);
+
+		// Generate a new texture ID for this variation
+		GLuint newTextureID = 0;
+		if (!source.pixelData[i].empty()) {
+			glGenTextures(1, &newTextureID);
+			glBindTexture(GL_TEXTURE_2D, newTextureID);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+			GLenum format = (source.channels == 1) ? GL_RED : (source.channels == 3) ? GL_RGB : GL_RGBA;
+			glTexImage2D(GL_TEXTURE_2D, 0, format, source.width, source.height, 0, format, GL_UNSIGNED_BYTE, source.pixelData[i].data());
+		}
+		newStamp.textureIDs.push_back(newTextureID);
+	}
+
+	return newStamp;
+}
 
 
 void RandomUnitVector(float& x_out, float& y_out)
@@ -655,6 +695,7 @@ bool loadBulletTemplates() {
 
 
 				newStamp.pixelData.push_back((pixelData));
+				newStamp.blackeningData.push_back((pixelData));
 				newStamp.backupData.push_back((pixelData));
 
 
@@ -665,6 +706,7 @@ bool loadBulletTemplates() {
 				newStamp.textureIDs.push_back(0);
 
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
+				newStamp.blackeningData.push_back(std::vector<unsigned char>());
 				newStamp.backupData.push_back(std::vector<unsigned char>());
 			}
 		}
@@ -2969,6 +3011,8 @@ void generateFluidStampCollisionsDamage()
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
+			stamps[i].under_fire = true;
+
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
@@ -3032,20 +3076,22 @@ void generateFluidStampCollisionsDamage()
 
 				if (type == "Ally Ship")
 				{
+					damage = blue_count;
+
 					if (blueStampCollisions > 0)
 					{
-						damage = blue_count;
-
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+
+
 					}
 				}
 				else
 				{
+					damage = red_count;
+
 					if (redStampCollisions > 0)
 					{
-						damage = red_count;
-
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 
@@ -3571,7 +3617,7 @@ public:
 			indexOffset += 4;
 
 			// Advance cursor
-			xpos += 0.75*atlas.charWidth * scale;
+			xpos += 0.75 * atlas.charWidth * scale;
 		}
 
 		// Upload vertex and index data
@@ -3733,11 +3779,11 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 			if (index >= 0 && index < pointData.size() - 3) {
 
-				if (pointData[index + 0] < 256 - 1)
+				if (pointData[index + 0] < 256 - 32)
 				{
-					pointData[index + 0] += 1; // R
-					pointData[index + 1] += 1; // G
-					pointData[index + 2] += 1; // B
+					pointData[index + 0] += 32; // R
+					pointData[index + 1] += 32; // G
+					pointData[index + 2] += 32; // B
 				}
 
 				pointData[index + 3] = 255; // A
@@ -4414,8 +4460,7 @@ void addMouseColor()
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
-			if (stamp.blackening_points.size() != 0) 
-			{
+			if (stamp.blackening_points.size() != 0) {
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
@@ -4467,6 +4512,7 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
+
 void updateObstacle() {
 	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
@@ -4476,46 +4522,47 @@ void updateObstacle() {
 		float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
 		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
+		// Create new stamp from the current template based on type
 		Stamp newStamp;
+
+
+
+
+
+
 
 		switch (currentTemplateType) {
 		case ALLY:
 			if (allyTemplates.empty()) return;
-			newStamp = allyTemplates[currentAllyTemplateIndex];
+			newStamp = deepCopyStamp(allyTemplates[currentAllyTemplateIndex]);
 			break;
 		case ENEMY:
 			if (enemyTemplates.empty()) return;
-			newStamp = enemyTemplates[currentEnemyTemplateIndex];
+			newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 			break;
 		case BULLET:
 			if (bulletTemplates.empty()) return;
-			newStamp = bulletTemplates[0];
+			newStamp = deepCopyStamp(bulletTemplates[0]); // Always use the first bullet template
 			break;
 		case POWERUP:
+			//	if (powerUpTemplates.empty()) return;
+			//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
 			break;
 		}
 
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
 
-		// Create new texture IDs for this stamp by copying the template’s texture data
-		std::vector<GLuint> newTextureIDs(newStamp.textureIDs.size(), 0);
-		for (size_t i = 0; i < newStamp.textureIDs.size(); ++i) {
-			if (newStamp.textureIDs[i] != 0) {
-				glGenTextures(1, &newTextureIDs[i]);
-				glBindTexture(GL_TEXTURE_2D, newTextureIDs[i]);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexImage2D(GL_TEXTURE_2D, 0,
-					(newStamp.channels == 1) ? GL_RED : (newStamp.channels == 3) ? GL_RGB : GL_RGBA,
-					newStamp.width, newStamp.height, 0,
-					(newStamp.channels == 1) ? GL_RED : (newStamp.channels == 3) ? GL_RGB : GL_RGBA,
-					GL_UNSIGNED_BYTE, newStamp.pixelData[i].data());
-			}
-		}
-		newStamp.textureIDs = newTextureIDs;
+
+
+
+
+
+
+
+
+
+
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
@@ -4538,21 +4585,55 @@ void updateObstacle() {
 			newStamp.currentVariationIndex = 0;
 		}
 
-		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+		// Fall back to first available texture if necessary
+		if (newStamp.currentVariationIndex >= newStamp.textureIDs.size() ||
+			newStamp.textureIDs[newStamp.currentVariationIndex] == 0) {
+			for (size_t i = 0; i < newStamp.textureIDs.size(); i++) {
+				if (newStamp.textureIDs[i] != 0) {
+					newStamp.currentVariationIndex = i;
+					break;
+				}
+			}
+		}
 
-		// Add the stamp to the appropriate vector
+		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<float, std::milli> elapsed;
+		elapsed = global_time_end - app_start_time;
+
+		// Add the stamp to the appropriate vector based on the template type
 		switch (currentTemplateType) {
 		case ALLY:
 			allyShips.push_back(newStamp);
 			std::cout << "Added new ally ship";
 			break;
+
 		case ENEMY:
 			enemyShips.push_back(newStamp);
 			std::cout << "Added new enemy ship";
 			break;
+
 		case POWERUP:
-			// Power-up logic remains unchanged
+			size_t num_powerup_tempates = powerUpTemplates.size();
+			size_t index = rand() % num_powerup_tempates;
+
+			newStamp = powerUpTemplates[SINUSOIDAL_POWERUP + index];
+
+			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
+
+			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<float, std::milli> elapsed;
+			elapsed = global_time_end - app_start_time;
+
+			newStamp.posX = 1.0f;
+			newStamp.posY = rand() / float(RAND_MAX);
+
+			newStamp.birth_time = elapsed.count() / 1000.0f;
+			newStamp.death_time = -1.0f;// elapsed.count() / 1000.0f;
+			newStamp.velX = -0.001f;
+			newStamp.velY = 0.0f;
+			allyPowerUps.push_back(newStamp);
+
+			std::cout << "Added new power up";
 			break;
 		}
 
@@ -4560,13 +4641,13 @@ void updateObstacle() {
 		if (newStamp.currentVariationIndex < newStamp.textureNames.size()) {
 			variationName = newStamp.textureNames[newStamp.currentVariationIndex];
 		}
+
 		std::cout << " at position (" << mousePosX << ", " << mousePosY << ") with texture: "
 			<< newStamp.baseFilename << " (variation: " << variationName << ")" << std::endl;
 	}
 
 	lastRightMouseDown = rightMouseDown;
 }
-
 
 
 
@@ -5539,7 +5620,7 @@ void mouseButton(int button, int state, int x, int y) {
 // GLUT mouse motion callback
 void mouseMotion(int x, int y) {
 	mouseX = x;
-	mouseY = y;
+	mouseY = y;	
 }
 
 
@@ -5565,7 +5646,7 @@ void keyboard(unsigned char key, int x, int y) {
 	case '0':
 	{
 
-		Stamp newStamp = enemyTemplates[currentEnemyTemplateIndex];
+		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 
 		vec2 start;
 		start.x = 1.05f;
@@ -5615,7 +5696,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 15.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 25.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
