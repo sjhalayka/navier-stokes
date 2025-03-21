@@ -224,9 +224,6 @@ struct Stamp {
 	std::string baseFilename;               // Base filename without suf fix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;
-
-	std::vector<std::vector<unsigned char>> blackeningData;
-
 	std::vector<std::vector<unsigned char>> backupData;
 
 
@@ -558,7 +555,6 @@ bool loadStampTextures() {
 					}
 					newStamp.textureIDs.push_back(textureID);
 					newStamp.pixelData.push_back((pixelData));
-					newStamp.blackeningData.push_back(pixelData);
 					newStamp.backupData.push_back((pixelData));
 
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
@@ -567,7 +563,6 @@ bool loadStampTextures() {
 				else {
 					newStamp.textureIDs.push_back(0);
 					newStamp.pixelData.push_back(std::vector<unsigned char>());
-					newStamp.blackeningData.push_back(std::vector<unsigned char>());
 					newStamp.backupData.push_back(std::vector<unsigned char>());
 				}
 			}
@@ -612,13 +607,11 @@ Stamp deepCopyStamp(const Stamp& source)
 
 	// Deep copy pixel data vectors
 	newStamp.pixelData.clear();
-	newStamp.blackeningData.clear();
 	newStamp.backupData.clear();
 	newStamp.textureIDs.clear();
 
 	for (size_t i = 0; i < source.pixelData.size(); i++) {
 		newStamp.pixelData.push_back(source.pixelData[i]);
-		newStamp.blackeningData.push_back(source.blackeningData[i]);
 		newStamp.backupData.push_back(source.backupData[i]);
 
 		// Generate a new texture ID for this variation
@@ -695,7 +688,6 @@ bool loadBulletTemplates() {
 
 
 				newStamp.pixelData.push_back((pixelData));
-				newStamp.blackeningData.push_back((pixelData));
 				newStamp.backupData.push_back((pixelData));
 
 
@@ -706,7 +698,6 @@ bool loadBulletTemplates() {
 				newStamp.textureIDs.push_back(0);
 
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
-				newStamp.blackeningData.push_back(std::vector<unsigned char>());
 				newStamp.backupData.push_back(std::vector<unsigned char>());
 			}
 		}
