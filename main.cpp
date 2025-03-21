@@ -4536,8 +4536,8 @@ void updateObstacle() {
 			newStamp = deepCopyStamp(bulletTemplates[0]); // Always use the first bullet template
 			break;
 		case POWERUP:
-			//	if (powerUpTemplates.empty()) return;
-			//	newStamp = powerUpTemplates[currentPowerUpTemplateIndex];
+				if (powerUpTemplates.empty()) return;
+				newStamp = deepCopyStamp(powerUpTemplates[currentPowerUpTemplateIndex]);
 			break;
 		}
 
