@@ -2416,10 +2416,10 @@ GLuint loadFontTexture(const char* filename) {
 FontAtlas initFontAtlas(const char* filename) {
 	FontAtlas atlas;
 	atlas.textureID = loadFontTexture(filename);
-	atlas.charWidth = 16;
-	atlas.charHeight = 16;
-	atlas.atlasWidth = 256;
-	atlas.atlasHeight = 256;
+	atlas.charWidth = 64;
+	atlas.charHeight = 64;
+	atlas.atlasWidth = 1024;
+	atlas.atlasHeight = 1024;
 	atlas.charsPerRow = atlas.atlasWidth / atlas.charWidth; // 16
 
 	return atlas;
