@@ -26,6 +26,7 @@
 #include <sstream>
 #include <chrono>
 #include <set>
+#include <unordered_map>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -3592,6 +3593,81 @@ private:
 	};
 
 public:
+
+	std::unordered_map<char, int> charWidths; // Map to store actual widths
+
+	// Add this method to calculate character widths
+	void calculateCharacterWidths() {
+		// Read back the font texture data from GPU
+		int dataSize = atlas.atlasWidth * atlas.atlasHeight * 4; // RGBA format
+		std::vector<unsigned char> textureData(dataSize);
+
+		glBindTexture(GL_TEXTURE_2D, atlas.textureID);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData.data());
+
+		// Analyze each character
+		for (unsigned short c_ = 0; c_ < 256; c_++)
+		{ 
+			unsigned char c = static_cast<unsigned char>(c_);
+			
+			// ASCII range
+			int atlasX = (c % atlas.charsPerRow) * atlas.charWidth;
+			int atlasY = (c / atlas.charsPerRow) * atlas.charHeight;
+
+			// Find leftmost non-empty column
+			int leftEdge = atlas.charWidth - 1; // Start from rightmost position
+
+			// Find rightmost non-empty column
+			int rightEdge = 0; // Start from leftmost position
+
+			// Scan all columns for this character
+			for (int x = 0; x < atlas.charWidth; x++) {
+				bool columnHasPixels = false;
+
+				// Check if any pixel in this column is non-transparent
+				for (int y = 0; y < atlas.charHeight; y++) {
+					int pixelIndex = ((atlasY + y) * atlas.atlasWidth + (atlasX + x)) * 4;
+					if (pixelIndex >= 0 && pixelIndex < dataSize - 3) {
+						// Check alpha value (using red channel for grayscale font)
+						if (textureData[pixelIndex] > 20) { // Non-transparent threshold
+							columnHasPixels = true;
+							break;
+						}
+					}
+				}
+
+				if (columnHasPixels) {
+					// Update left edge (minimum value)
+					leftEdge = std::min(leftEdge, x);
+					// Update right edge (maximum value)
+					rightEdge = std::max(rightEdge, x);
+				}
+			}
+
+			// If no pixels were found (space or empty character)
+			if (rightEdge < leftEdge) {
+				// Default width for space character
+				if (c == ' ') {
+					charWidths[c] = atlas.charWidth / 3; // Make space 1/3 of cell width
+				}
+				else {
+					charWidths[c] = atlas.charWidth / 4; // Default minimum width
+				}
+			}
+			else {
+				// Calculate width based on the actual character bounds
+				int actualWidth = (rightEdge - leftEdge) + 1;
+
+				// Add some padding
+				int paddedWidth = actualWidth + 4; // 2 pixels on each side
+
+				// Store this character's width (minimum width of 1/4 of the cell)
+				charWidths[c] = std::max(paddedWidth, atlas.charWidth / 4);
+			}
+		}
+	}
+
+
 	TextRenderer(const char* fontAtlasFile, int windowWidth, int windowHeight) {
 		// Initialize font atlas
 		atlas = initFontAtlas(fontAtlasFile);
@@ -3639,6 +3715,8 @@ public:
 
 		// Set up projection matrix
 		setProjection(windowWidth, windowHeight);
+
+		calculateCharacterWidths();
 	}
 
 	~TextRenderer() {
@@ -3652,7 +3730,6 @@ public:
 	void setProjection(int windowWidth, int windowHeight) {
 		projection = glm::ortho(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
 	}
-
 
 
 	void renderText(const std::string& text, float x, float y, float scale, glm::vec4 color, bool centered = false) {
@@ -3674,17 +3751,13 @@ public:
 		glBindVertexArray(VAO);
 
 		// If text should be centered, calculate the starting position
-		if (centered) 
-		{
-			//float textWidth = 0;
-
-			//for (char c : text)
-			//	textWidth += atlas.charWidth * scale;
-
-			//x = WIDTH / 2.0f - textWidth / 2.0f;
-
-			float textWidth = text.length() * atlas.charWidth * scale;
-
+		if (centered) {
+			float textWidth = 0;
+			for (char c : text) {
+				// Use the calculated width for each character
+				float charWidth = charWidths.count(c) ? charWidths[c] : atlas.charWidth / 2;
+				textWidth += charWidth * scale;
+			}
 			x = WIDTH / 2.0f - textWidth / 2.0f;
 		}
 
@@ -3710,9 +3783,12 @@ public:
 			float texTop = atlasY / (float)atlas.atlasHeight;
 			float texBottom = (atlasY + atlas.charHeight) / (float)atlas.atlasHeight;
 
+			// Get the character's calculated width
+			float charWidth = charWidths.count(charValue) ? charWidths[charValue] : atlas.charWidth / 2;
+
 			// Calculate quad vertices
 			float quadLeft = xpos;
-			float quadRight = xpos + atlas.charWidth * scale;
+			float quadRight = xpos + atlas.charWidth * scale; // Use full cell width for texture
 			float quadTop = ypos;
 			float quadBottom = ypos + atlas.charHeight * scale;
 
@@ -3732,8 +3808,9 @@ public:
 
 			indexOffset += 4;
 
-			// Advance cursor
-			xpos += atlas.charWidth * scale;
+			// Advance cursor using the calculated width
+			// add 8 pixels of padding
+			xpos += (8 + charWidth) * scale;
 		}
 
 		// Upload vertex and index data
@@ -5662,7 +5739,7 @@ void displayFPS() {
 		lastTime = currentTime;
 	}
 
-	std::string fpsText = "FPS: " + std::to_string(static_cast<int>(fps));
+	std::string fpsText = "!!!FPS: " + std::to_string(static_cast<int>(fps));
 	textRenderer->renderText(fpsText, 0.0, 10, 0.5f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), true);
 }
 
