@@ -345,7 +345,7 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 	std::memcpy(pixelData.data(), data, dataSize);
 
 	// Now set flip for OpenGL texture loading
-	stbi_set_flip_vertically_on_load(false);
+	stbi_set_flip_vertically_on_load(true);
 	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!glData) {
@@ -2384,7 +2384,7 @@ GLuint loadFontTexture(const char* filename) {
 	int width, height, channels;
 	stbi_set_flip_vertically_on_load(false);
 
-	
+
 	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
 
 	if (!data) {
