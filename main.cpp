@@ -217,7 +217,150 @@ float eddyDensity = 10;
 
 
 
-struct Stamp {
+class Stamp {
+
+public:
+
+	Stamp()
+	{
+
+	}
+
+	// Add this to your Stamp class definition
+	~Stamp() {
+		// Clean up textures
+		for (GLuint textureID : textureIDs) {
+			if (textureID != 0) {
+				glDeleteTextures(1, &textureID);
+			}
+		}
+		textureIDs.clear();
+		pixelData.clear();
+		backupData.clear();
+	}
+
+	// Make the copy constructor and assignment operator for proper resource management
+	Stamp(const Stamp& other) {
+		// Copy basic properties
+		width = other.width;
+		height = other.height;
+		baseFilename = other.baseFilename;
+		textureNames = other.textureNames;
+		channels = other.channels;
+		to_be_culled = other.to_be_culled;
+		health = other.health;
+		birth_time = other.birth_time;
+		death_time = other.death_time;
+		stamp_opacity = other.stamp_opacity;
+		force_radius = other.force_radius;
+		colour_radius = other.colour_radius;
+		force_randomization = other.force_randomization;
+		colour_randomization = other.colour_randomization;
+		path_randomization = other.path_randomization;
+		sinusoidal_frequency = other.sinusoidal_frequency;
+		sinusoidal_amplitude = other.sinusoidal_amplitude;
+		sinusoidal_shift = other.sinusoidal_shift;
+		random_forking = other.random_forking;
+		curve_path = other.curve_path;
+		posX = other.posX;
+		posY = other.posY;
+		velX = other.velX;
+		velY = other.velY;
+		currentVariationIndex = other.currentVariationIndex;
+		blackening_points = other.blackening_points;
+		powerup = other.powerup;
+		under_fire = other.under_fire;
+
+		// Deep copy pixel data
+		pixelData = other.pixelData;
+		backupData = other.backupData;
+
+		// Create new textures
+		textureIDs.resize(other.textureIDs.size(), 0);
+		for (size_t i = 0; i < other.textureIDs.size(); i++) {
+			if (other.textureIDs[i] != 0 && i < other.pixelData.size() && !other.pixelData[i].empty()) {
+				glGenTextures(1, &textureIDs[i]);
+				glBindTexture(GL_TEXTURE_2D, textureIDs[i]);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+				GLenum format = (channels == 1) ? GL_RED : (channels == 3) ? GL_RGB : GL_RGBA;
+				glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
+			}
+		}
+	}
+
+	// Assignment operator
+	Stamp& operator=(const Stamp& other) {
+		if (this != &other) {
+			// Clean up existing resources
+			for (GLuint textureID : textureIDs) {
+				if (textureID != 0) {
+					glDeleteTextures(1, &textureID);
+				}
+			}
+			textureIDs.clear();
+			pixelData.clear();
+			backupData.clear();
+
+			// Copy basic properties (same as copy constructor)
+			width = other.width;
+			height = other.height;
+			baseFilename = other.baseFilename;
+			textureNames = other.textureNames;
+			channels = other.channels;
+			to_be_culled = other.to_be_culled;
+			health = other.health;
+			birth_time = other.birth_time;
+			death_time = other.death_time;
+			stamp_opacity = other.stamp_opacity;
+			force_radius = other.force_radius;
+			colour_radius = other.colour_radius;
+			force_randomization = other.force_randomization;
+			colour_randomization = other.colour_randomization;
+			path_randomization = other.path_randomization;
+			sinusoidal_frequency = other.sinusoidal_frequency;
+			sinusoidal_amplitude = other.sinusoidal_amplitude;
+			sinusoidal_shift = other.sinusoidal_shift;
+			random_forking = other.random_forking;
+			curve_path = other.curve_path;
+			posX = other.posX;
+			posY = other.posY;
+			velX = other.velX;
+			velY = other.velY;
+			currentVariationIndex = other.currentVariationIndex;
+			blackening_points = other.blackening_points;
+			powerup = other.powerup;
+			under_fire = other.under_fire;
+
+			// Deep copy pixel data
+			pixelData = other.pixelData;
+			backupData = other.backupData;
+
+			// Create new textures
+			textureIDs.resize(other.textureIDs.size(), 0);
+			for (size_t i = 0; i < other.textureIDs.size(); i++) {
+				if (other.textureIDs[i] != 0 && i < other.pixelData.size() && !other.pixelData[i].empty()) {
+					glGenTextures(1, &textureIDs[i]);
+					glBindTexture(GL_TEXTURE_2D, textureIDs[i]);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+					GLenum format = (channels == 1) ? GL_RED : (channels == 3) ? GL_RGB : GL_RGBA;
+					glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
+				}
+			}
+		}
+		return *this;
+	}
+
+
+
+
 	// StampTexture properties
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
 	int width = 0; // pixels
@@ -601,37 +744,10 @@ bool loadStampTextures() {
 
 
 
-
 Stamp deepCopyStamp(const Stamp& source)
 {
-	Stamp newStamp = source; // Shallow copy initially
-
-	// Deep copy pixel data vectors
-	newStamp.pixelData.clear();
-	newStamp.backupData.clear();
-	newStamp.textureIDs.clear();
-
-	for (size_t i = 0; i < source.pixelData.size(); i++) {
-		newStamp.pixelData.push_back(source.pixelData[i]);
-		newStamp.backupData.push_back(source.backupData[i]);
-
-		// Generate a new texture ID for this variation
-		GLuint newTextureID = 0;
-		if (!source.pixelData[i].empty()) {
-			glGenTextures(1, &newTextureID);
-			glBindTexture(GL_TEXTURE_2D, newTextureID);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-			GLenum format = (source.channels == 1) ? GL_RED : (source.channels == 3) ? GL_RGB : GL_RGBA;
-			glTexImage2D(GL_TEXTURE_2D, 0, format, source.width, source.height, 0, format, GL_UNSIGNED_BYTE, source.pixelData[i].data());
-		}
-		newStamp.textureIDs.push_back(newTextureID);
-	}
-
-	return newStamp;
+	// Use the copy constructor which now handles texture creation properly
+	return Stamp(source);
 }
 
 
@@ -4857,24 +4973,20 @@ void mark_offscreen_bullets(void)
 	update_bullets(enemyBullets);
 }
 
-
 void cull_marked_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
 	{
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
-			if (stamps[i].to_be_culled)
-			{
-				for (auto& textureID : stamps[i].textureIDs) {
-					if (textureID != 0) {
-						glDeleteTextures(1, &textureID);
-					}
-				}
-
+		// Use iterator-based erase to safely remove elements
+		auto it = stamps.begin();
+		while (it != stamps.end()) {
+			if (it->to_be_culled) {
+				// Stamp destructor will handle texture cleanup
 				cout << "culling " << type << " bullet" << endl;
-				stamps.erase(stamps.begin() + i);
-				i = 0;
+				it = stamps.erase(it);
+			}
+			else {
+				++it;
 			}
 		}
 	};
@@ -4882,6 +4994,7 @@ void cull_marked_bullets(void)
 	update_bullets(allyBullets, "Ally");
 	update_bullets(enemyBullets, "Enemy");
 }
+
 
 
 
@@ -5132,19 +5245,14 @@ void cull_marked_ships(void)
 {
 	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
 	{
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
-			if (stamps[i].to_be_culled && stamps[i].stamp_opacity <= 0)
-			{
-				for (auto& textureID : stamps[i].textureIDs) {
-					if (textureID != 0) {
-						glDeleteTextures(1, &textureID);
-					}
-				}
-
+		auto it = stamps.begin();
+		while (it != stamps.end()) {
+			if (it->to_be_culled && it->stamp_opacity <= 0) {
 				cout << "culling " << type << " ship" << endl;
-				stamps.erase(stamps.begin() + i);
-				i = 0;
+				it = stamps.erase(it);
+			}
+			else {
+				++it;
 			}
 		}
 	};
@@ -5289,24 +5397,18 @@ void mark_offscreen_powerups(void)
 }
 
 
-
 void cull_marked_powerups(void)
 {
 	auto update_powerups = [&](std::vector<Stamp>& stamps)
 	{
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
-			if (stamps[i].to_be_culled)
-			{
-				for (auto& textureID : stamps[i].textureIDs) {
-					if (textureID != 0) {
-						glDeleteTextures(1, &textureID);
-					}
-				}
-
+		auto it = stamps.begin();
+		while (it != stamps.end()) {
+			if (it->to_be_culled) {
 				cout << "culling marked powerup" << endl;
-				stamps.erase(stamps.begin() + i);
-				i = 0;
+				it = stamps.erase(it);
+			}
+			else {
+				++it;
 			}
 		}
 	};
@@ -5630,7 +5732,7 @@ void mouseButton(int button, int state, int x, int y) {
 // GLUT mouse motion callback
 void mouseMotion(int x, int y) {
 	mouseX = x;
-	mouseY = y;	
+	mouseY = y;
 }
 
 
