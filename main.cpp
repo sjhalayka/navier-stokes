@@ -3809,7 +3809,7 @@ public:
 			indexOffset += 4;
 
 			// Advance cursor using the calculated width
-			// add 8 pixels of padding
+			// add 8 pixels of padding between characters
 			xpos += (8 + charWidth) * scale;
 		}
 
