@@ -3605,7 +3605,13 @@ public:
 		std::vector<unsigned char> textureData(dataSize);
 
 		glBindTexture(GL_TEXTURE_2D, atlas.textureID);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData.data());
+
+
+
+
 
 		// Analyze each character
 		for (unsigned short c_ = 0; c_ < 256; c_++)
@@ -3758,7 +3764,7 @@ public:
 			for (char c : text) {
 				// Use the calculated width for each character
 				float charWidth = charWidths.count(c) ? charWidths[c] : atlas.charWidth / 2;
-				textWidth += charWidth * scale;
+				textWidth += (8 + charWidth) * scale;
 			}
 			x = WIDTH / 2.0f - textWidth / 2.0f;
 		}
@@ -5741,7 +5747,7 @@ void displayFPS() {
 		lastTime = currentTime;
 	}
 
-	std::string fpsText = "!!!FPS: " + std::to_string(static_cast<int>(fps));
+	std::string fpsText = "FPS: " + std::to_string(static_cast<int>(fps));
 	textRenderer->renderText(fpsText, 0.0, 10, 0.5f, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), true);
 }
 
