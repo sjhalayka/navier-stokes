@@ -3608,7 +3608,7 @@ public:
 			indexOffset += 4;
 
 			// Advance cursor
-			xpos += 0.75 * atlas.charWidth * scale;
+			xpos += 0.75f * atlas.charWidth * scale;
 		}
 
 		// Upload vertex and index data
@@ -3627,7 +3627,7 @@ public:
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-		glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
 
 		// Reset state
 		glDisable(GL_BLEND);
@@ -6002,10 +6002,6 @@ void reshape(int w, int h) {
 	enemyTemplates.clear();
 	bulletTemplates.clear();
 	powerUpTemplates.clear();
-
-
-
-
 
 	if (textRenderer)
 		delete textRenderer;
