@@ -33,6 +33,14 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+
+
+// to do: Cull enemy ships only if right side of stamp is offscreen, not whether the middle of the stamp is Less than x = 1.5. Do this for all stamp types.
+
+// to do: Kill ship if last pos is still colliding. That way if the ship gets squished between the obstacle and the left hand side of the screen
+
+
+
 // to do: always remember to add new stamp member variables to stamp operators () and = 
 
 // to do: power up textures
@@ -5033,6 +5041,9 @@ void mark_colliding_bullets(void)
 		for (size_t j = 0; j < allyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = elapsed.count() / 1000.0f;
+
+	// To do: add in enemyship enemy bullet collisioin, so that it culls the bullet
+	// to do: this is for when i use background obstacles
 }
 
 void mark_old_bullets(void)
