@@ -294,10 +294,10 @@ public:
 		powerup = other.powerup;
 		under_fire = other.under_fire;
 		cannons = other.cannons;
-		is_foreground = other.is_foreground;
+		//is_foreground = other.is_foreground;
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
-
+	
 		// Deep copy pixel data
 		pixelData = other.pixelData;
 		backupData = other.backupData;
@@ -363,7 +363,7 @@ public:
 			powerup = other.powerup;
 			under_fire = other.under_fire;
 			cannons = other.cannons;
-			is_foreground = other.is_foreground;
+			//is_foreground = other.is_foreground;
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
 
@@ -448,7 +448,7 @@ public:
 
 	vector<Cannon> cannons;
 
-	bool is_foreground = false;
+//	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
 };
 
