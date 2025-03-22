@@ -5042,8 +5042,11 @@ void mark_colliding_bullets(void)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = elapsed.count() / 1000.0f;
 
-	// To do: add in enemyship enemy bullet collisioin, so that it culls the bullet
-	// to do: this is for when i use background obstacles
+	// to do: get rid of enemy bullets that hit enemy ships (background obstacles)
+	for (size_t i = 0; i < enemyBullets.size(); ++i)
+		for (size_t j = 0; j < enemyShips.size(); ++j)
+			if (isPixelPerfectCollision(enemyBullets[i], enemyShips[j]))
+				enemyBullets[i].death_time = elapsed.count() / 1000.0f;
 }
 
 void mark_old_bullets(void)
@@ -6094,7 +6097,7 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 0.025 * (WIDTH / 1920.0f);
+			allyShips[0].velX *= 0.025f * (WIDTH / 1920.0f);
 			allyShips[0].velY *= 0.025f * (HEIGHT / 1080.0f);
 		}
 	}
