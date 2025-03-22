@@ -5378,6 +5378,9 @@ void mark_colliding_ships(void)
 			}
 		}
 	}
+
+	mark_unfixable_colliding_foreground_allies();
+	mark_unfixable_colliding_foreground_enemies();
 }
 
 void mark_offscreen_ships(void)
