@@ -463,12 +463,13 @@ std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
 std::vector<Stamp> enemyBullets;
 std::vector<Stamp> allyPowerUps;
-
+std::vector<Stamp> enemyForegrounds;
 
 std::vector<Stamp> allyTemplates;
 std::vector<Stamp> enemyTemplates;
 std::vector<Stamp> bulletTemplates;
 std::vector<Stamp> powerUpTemplates;
+std::vector<Stamp> foregroundTemplates;
 
 
 int currentAllyTemplateIndex = 0;    // Index for selecting ally template stamps
@@ -5314,6 +5315,51 @@ void mark_dying_ships(void)
 		{
 			make_dying_bullets(enemyShips[i], true);
 			enemyShips[i].to_be_culled = true;
+		}
+	}
+}
+
+
+void mark_unfixable_colliding_foreground_allies(void)
+{
+	for (size_t i = 0; i < allyShips.size(); ++i)
+	{
+		for (size_t j = 0; j < enemyForegrounds.size(); ++j)
+		{
+			if (isPixelPerfectCollision(allyShips[i], enemyForegrounds[j]))
+			{
+				allyShips[i].posX = allyShips[i].prevPosX;
+				allyShips[i].posY = allyShips[i].prevPosY;
+
+				if (isPixelPerfectCollision(allyShips[i], enemyForegrounds[j]))
+				{
+					make_dying_bullets(allyShips[i], false);
+					allyShips[i].health = 0;
+					allyShips[i].to_be_culled = true;
+				}
+			}
+		}
+	}
+}
+
+void mark_unfixable_colliding_foreground_enemies(void)
+{
+	for (size_t i = 0; i < enemyShips.size(); ++i)
+	{
+		for (size_t j = 0; j < enemyForegrounds.size(); ++j)
+		{
+			if (isPixelPerfectCollision(enemyShips[i], enemyForegrounds[j]))
+			{
+				enemyShips[i].posX = enemyShips[i].prevPosX;
+				enemyShips[i].posY = enemyShips[i].prevPosY;
+
+				if (isPixelPerfectCollision(enemyShips[i], enemyForegrounds[j]))
+				{
+					make_dying_bullets(enemyShips[i], false);
+					enemyShips[i].health = 0;
+					enemyShips[i].to_be_culled = true;
+				}
+			}
 		}
 	}
 }
