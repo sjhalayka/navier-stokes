@@ -33,25 +33,26 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+// actually, do the foreground like thexder for the obstacles, just patterns of squares of different types
 
+// to do: calculate enemy path starting x location by using the normalized stamp width method done in the code that processes '0' key strokes
+
+// to do: if ship colliding with foreground 'enemy', move ship back one step in time. if it's still colliding, then kill it. this goes for enemy and ally ships. this way the foregorund is generally not dangerous to the touch
 
 // to do: Cull enemy ships only if right side of stamp is offscreen, not whether the middle of the stamp is Less than x = 1.5. Do this for all stamp types.
 
 // to do: Kill ship if last pos is still colliding. That way if the ship gets squished between the obstacle and the left hand side of the screen
 
-
-
 // to do: always remember to add new stamp member variables to stamp operators () and = 
 
-// to do: power up textures
-
-// to do: Enemy cannon type can be straight ahead, random single , circular spread
+// to do: Enemy cannon type can be straight ahead, sideways, random single, circular spread
 
 // to do: add in cannon locations and type for each enemy ship type
 
 // to do: add pauses to enemy movement with duplicate points
 
-// to do: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
+// to do: Actually, this is no longer valid: At the beginning of level, generate all enemies and powerups for that level, using a particular seed. That way the users can share seed numbers.
+// to do: instead, use a file format
 
 // to do: Give the player the option to use a shield for 30 seconds, for say, 1 unit of health.
 
@@ -5897,7 +5898,7 @@ void keyboard(unsigned char key, int x, int y) {
 		float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
 		vec2 start;
-		start.x = 1.0f + normalized_stamp_width / 2.0;
+		start.x = 1.0f + normalized_stamp_width / 2.0; // just off the edge of the screen
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
@@ -5933,7 +5934,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 
 		vec2 end;
-		end.x = 0.0 - normalized_stamp_width / 2.0f;
+		end.x = -normalized_stamp_width / 2.0f;
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
