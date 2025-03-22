@@ -5042,7 +5042,7 @@ void mark_colliding_bullets(void)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = elapsed.count() / 1000.0f;
 
-	// to do: get rid of enemy bullets that hit enemy ships (background obstacles)
+	// get rid of enemy bullets that hit enemy ships too (especially background obstacles)
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(enemyBullets[i], enemyShips[j]))
@@ -5088,8 +5088,9 @@ void mark_offscreen_bullets(void)
 			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			// Check if the stamp is outside the visible area
-			if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
-				adjustedPosY < -0.5 || adjustedPosY > 1.5)
+			// The bullet stamp is 1x1 pixels, so this is an easy calculation
+			if (stamp.posX < 0 || stamp.posX > 1 ||
+				adjustedPosY < 0 || adjustedPosY > 1)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -5335,12 +5336,26 @@ void mark_offscreen_ships(void)
 			// Calculate adjusted Y coordinate that accounts for aspect ratio
 			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
-			// Check if the stamp is outside the visible area
-			if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
-				adjustedPosY < -0.5 || adjustedPosY > 1.5)
+
+			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
+			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
+			
+			// get rid of enemy ships that completely cross the left edge of the screen
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
+				//stamp.posX > -stamp_width_in_normalized_units / 2.0f ||
+				//adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				//adjustedPosY > -stamp_height_in_normalized_units / 2.0f)
 			{
 				stamp.to_be_culled = true;
 			}
+
+
+			// Check if the stamp is outside the visible area
+			//if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
+			//	adjustedPosY < -0.5 || adjustedPosY > 1.5)
+			//{
+			//	stamp.to_be_culled = true;
+			//}
 		}
 	};
 
@@ -5506,17 +5521,10 @@ void mark_offscreen_powerups(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			float aspect = WIDTH / float(HEIGHT);
+			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 
-			// Calculate adjusted Y coordinate that accounts for aspect ratio
-			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-			// Check if the stamp is outside the visible area
-			if (stamp.posX < -0.1 || stamp.posX > 1.1 ||
-				adjustedPosY < -0.1 || adjustedPosY > 1.1)
-			{
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)
 				stamp.to_be_culled = true;
-			}
 		}
 	};
 
@@ -5886,8 +5894,9 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 
+
 		vec2 start;
-		start.x = 1.05f;
+		start.x = 1.5f;
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
@@ -5923,7 +5932,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 
 		vec2 end;
-		end.x = -0.05f;
+		end.x = -0.5f;
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
