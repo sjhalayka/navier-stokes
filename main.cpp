@@ -294,7 +294,9 @@ public:
 		powerup = other.powerup;
 		under_fire = other.under_fire;
 		cannons = other.cannons;
-
+		is_foreground = other.is_foreground;
+		prevPosX = other.prevPosX;
+		prevPosY = other.prevPosY;
 
 		// Deep copy pixel data
 		pixelData = other.pixelData;
@@ -361,6 +363,9 @@ public:
 			powerup = other.powerup;
 			under_fire = other.under_fire;
 			cannons = other.cannons;
+			is_foreground = other.is_foreground;
+			prevPosX = other.prevPosX;
+			prevPosY = other.prevPosY;
 
 
 			// Deep copy pixel data
@@ -442,6 +447,9 @@ public:
 	bool under_fire = false;
 
 	vector<Cannon> cannons;
+
+	bool is_foreground = false;
+	float prevPosX = 0, prevPosY = 0;
 };
 
 
@@ -5146,6 +5154,9 @@ void move_ships(void)
 
 			if (is_ally)
 			{
+				stamp.prevPosX = stamp.posX;
+				stamp.prevPosY = stamp.posY;
+
 				stamp.posX += stamp.velX / aspect;
 				stamp.posY += stamp.velY;
 
@@ -5166,8 +5177,6 @@ void move_ships(void)
 			}
 			else
 			{
-				stamp.currentVariationIndex = 0;
-
 				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - app_start_time;
@@ -5181,16 +5190,15 @@ void move_ships(void)
 				vd.x = lerp(vd.x, vd2.x, 0.15f);
 				vd.y = lerp(vd.y, vd2.y, 0.15f);
 
-
-
-
-
-				const float prevPosY = stamp.posY;
+				stamp.prevPosX = stamp.posX;
+				stamp.prevPosY = stamp.posY;
 
 				stamp.posX = vd.x;
 				stamp.posY = vd.y;
 
-				const float vel_y = stamp.posY - prevPosY;
+				const float vel_y = stamp.posY - stamp.prevPosY;
+
+				stamp.currentVariationIndex = 0;
 
 				if (vel_y > 0.001)
 					stamp.currentVariationIndex = 1;
