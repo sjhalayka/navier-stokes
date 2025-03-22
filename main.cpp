@@ -933,8 +933,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01f * cos(angle);
-			newBullet.velY = 0.01f * sin(angle);
+			newBullet.velX = 0.025f * cos(angle);
+			newBullet.velY = 0.025f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = elapsed.count() / 1000.0f;
 			newBullet.death_time = -1;
