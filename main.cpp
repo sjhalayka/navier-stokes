@@ -5331,20 +5331,19 @@ void mark_offscreen_ships(void)
 	{
 		for (auto& stamp : stamps)
 		{
-			float aspect = WIDTH / float(HEIGHT);
+			const float aspect = WIDTH / float(HEIGHT);
 
 			// Calculate adjusted Y coordinate that accounts for aspect ratio
-			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
+			const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
-			
+
 			// get rid of enemy ships that completely cross the left edge of the screen
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
-				//stamp.posX > -stamp_width_in_normalized_units / 2.0f ||
-				//adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
-				//adjustedPosY > -stamp_height_in_normalized_units / 2.0f)
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
+				//stamp.posX > 1 + stamp_width_in_normalized_units / 2.0f ||
+				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -5894,45 +5893,47 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 
+		float normalized_stamp_width = newStamp.width / float(WIDTH);
+		float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
 		vec2 start;
-		start.x = 1.5f;
+		start.x = 1.0f + normalized_stamp_width / 2.0;
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
 
-		vec2 middle;
+		//vec2 middle;
 
-		middle.x = 0.75f;
+		//middle.x = 0.75f;
 
-		if (rand() % 2 == 0)
-			middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
 
-		newStamp.curve_path.push_back(middle);
+		//newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.5f;
+		//middle.x = 0.5f;
 
-		if (rand() % 2 == 0)
-			middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
 
-		newStamp.curve_path.push_back(middle);
+		//newStamp.curve_path.push_back(middle);
 
-		middle.x = 0.25f;
+		//middle.x = 0.25f;
 
-		if (rand() % 2 == 0)
-			middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
-		else
-			middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
 
-		newStamp.curve_path.push_back(middle);
+		//newStamp.curve_path.push_back(middle);
 
 
 		vec2 end;
-		end.x = -0.5f;
+		end.x = 0.0 - normalized_stamp_width / 2.0f;
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
@@ -5943,7 +5944,7 @@ void keyboard(unsigned char key, int x, int y) {
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 25.0f;
+		newStamp.death_time = elapsed.count() / 1000.0f + 5.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
