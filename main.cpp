@@ -3564,6 +3564,138 @@ void diffuseFriendlyColor() {
 }
 
 
+void detectCollisionsAndGenerateDamage() {
+	// Part 1: Detect collisions (from previous detectCollisions function)
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+	// Clear the collision texture
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// Use the GPU collision detection shader
+	glUseProgram(gpuCollisionDetectionProgram);
+
+	GLuint projectionLocation = glGetUniformLocation(gpuCollisionDetectionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(gpuCollisionDetectionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+	// Render full-screen quad to detect collisions
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Read back collision data
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+
+	// Clear previous collision locations
+	collisionPoints.clear();
+
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+
+			// If we have a valid collision point
+			if (collisionData[index + 3] > 0.0f) {
+				float r = collisionData[index + 2] * (collisionData[index + 3] > 0.5f ? 1.0f : 0.0f); // Red if type is 1.0
+				float b = collisionData[index + 2] * (collisionData[index + 3] <= 0.5f ? 1.0f : 0.0f); // Blue if type is 0.0
+
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+			}
+		}
+	}
+
+	// Part 2: Generate damage (from previous generateFluidStampCollisionsDamage function)
+	if (collisionPoints.empty())
+		return;
+
+	// Process ally ships and enemy ships with a shared function
+	auto processShipCollisions = [&](std::vector<Stamp>& ships, const std::string& shipType) {
+		for (size_t i = 0; i < ships.size(); i++) {
+			ships[i].under_fire = false;
+
+			float minX, minY, maxX, maxY;
+			calculateBoundingBox(ships[i], minX, minY, maxX, maxY);
+
+			int stampCollisions = 0;
+			int redStampCollisions = 0;
+			int blueStampCollisions = 0;
+
+			float red_count = 0;
+			float blue_count = 0;
+
+			vector<ivec2> collision_pixel_locations;
+			float damage = 0;
+
+			// Test each collision point against this stamp
+			for (const auto& point : collisionPoints) {
+				// Perform the actual collision check
+				bool collides = isCollisionInStamp(point, ships[i], i, shipType, collision_pixel_locations);
+
+				if (collides) {
+					stampCollisions++;
+
+					if (point.r > 0) {
+						red_count += point.r;
+						redStampCollisions++;
+					}
+
+					if (point.b > 0) {
+						blue_count += point.b;
+						blueStampCollisions++;
+					}
+				}
+			}
+
+			// Set under_fire flag and apply damage for the appropriate ship type
+			if (stampCollisions > 0) {
+				// Ally ships take damage from enemy (blue) fire
+				// Enemy ships take damage from ally (red) fire
+				if (shipType == "Ally Ship") {
+					damage = blue_count;
+
+					if (blueStampCollisions > 0) {
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							ships[i].blackening_points.insert(collision_pixel_locations[j]);
+					}
+				}
+				else {
+					damage = red_count;
+
+					if (redStampCollisions > 0) {
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							ships[i].blackening_points.insert(collision_pixel_locations[j]);
+					}
+				}
+
+				// Set under_fire flag if damage is significant
+				if (damage > 1)
+					ships[i].under_fire = true;
+
+				ships[i].health -= damage * DT;
+				cout << ships[i].health << endl;
+			}
+		}
+	};
+
+	// Process both ship types with the shared function
+	processShipCollisions(allyShips, "Ally Ship");
+	processShipCollisions(enemyShips, "Enemy Ship");
+}
 
 
 void detectCollisions() {
@@ -5776,7 +5908,6 @@ void cull_marked_powerups(void)
 }
 
 
-
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -5864,12 +5995,10 @@ void simulationStep()
 
 	if (1)//frameCount % 30 == 0)
 	{
-		detectCollisions();
-		generateFluidStampCollisionsDamage();
+		detectCollisionsAndGenerateDamage();  // Call the combined function
 	}
-
-
 }
+
 
 
 
