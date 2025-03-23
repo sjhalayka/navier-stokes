@@ -33,6 +33,9 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 
+
+// to do: When checking enemy ship - enemy ship collision, make sure to skip where i == j
+
 // actually, do the foreground like thexder for the obstacles, just patterns of squares of different types
 
 // to do: calculate enemy path starting x location by using the normalized stamp width method done in the code that processes '0' key strokes
@@ -3243,8 +3246,8 @@ void generateFluidStampCollisionsDamage()
 
 					if (blueStampCollisions > 0)
 					{
-						//for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-						//	stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 
 
 					}
@@ -3255,8 +3258,8 @@ void generateFluidStampCollisionsDamage()
 
 					if (redStampCollisions > 0)
 					{
-						//for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-						//	stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 					}
 				}
 
