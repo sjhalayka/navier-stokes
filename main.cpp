@@ -5855,19 +5855,17 @@ void display() {
 void idle()
 {
 
-
-	//auto currentTime = std::chrono::high_resolution_clock::now();
-	//static auto previousTime = currentTime;
-	//std::chrono::duration<float, std::milli> deltaTime = currentTime - previousTime;
-	//previousTime = currentTime;
-
+	//static float previousTime = GLOBAL_TIME;
+	//float deltaTime = GLOBAL_TIME - previousTime;
+	//previousTime = GLOBAL_TIME;
+	//
 	//static float accumulator = 0.0f;
-	//accumulator += deltaTime.count() / 1000.0f;
+	//accumulator += deltaTime;
 
 	//while (accumulator >= DT) {
-		//simulationStep();
-		//accumulator -= DT;
-//		}
+	//	simulationStep();
+	//	accumulator -= DT;	
+	//}
 
 
 
