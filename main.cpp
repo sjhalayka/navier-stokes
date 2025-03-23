@@ -3276,7 +3276,7 @@ void generateFluidStampCollisionsDamage()
 				//std::chrono::duration<float, std::milli> elapsed;
 				//elapsed = global_time_end - last_did_damage_at;
 
-				stamps[i].health -= damage * (GLOBAL_TIME);// *fps_coeff;
+				stamps[i].health -= damage * DT;// *fps_coeff;
 				cout << stamps[i].health << endl;
 
 				last_did_damage_at = GLOBAL_TIME;// global_time_end;
