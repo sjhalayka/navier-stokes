@@ -443,7 +443,7 @@ public:
 
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
-	vector<ivec2> blackening_points;
+	set<ivec2> blackening_points;
 
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
@@ -3247,9 +3247,7 @@ void generateFluidStampCollisionsDamage()
 					if (blueStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-
-
+							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
 					}
 				}
 				else
@@ -3259,7 +3257,7 @@ void generateFluidStampCollisionsDamage()
 					if (redStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
 					}
 				}
 
@@ -4037,11 +4035,11 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 			if (index >= 0 && index < pointData.size() - 3) {
 
-				if (pointData[index + 0] < 256 - 32)
+				if (1)//pointData[index + 0] < 256 - 256)
 				{
-					pointData[index + 0] += 32; // R
-					pointData[index + 1] += 32; // G
-					pointData[index + 2] += 32; // B
+					pointData[index + 0] += 255; // R
+					pointData[index + 1] += 255; // G
+					pointData[index + 2] += 255; // B
 				}
 
 				pointData[index + 3] = 255; // A
