@@ -5946,6 +5946,7 @@ void keyboard(unsigned char key, int x, int y) {
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
 		newStamp.is_foreground = true;
+		newStamp.health = 1000000.0f; // practically infinite
 
 		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
