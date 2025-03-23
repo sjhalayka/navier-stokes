@@ -3285,103 +3285,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 
 
 
-void generateFluidStampCollisionsDamage() {
-	if (collisionPoints.empty())
-		return;
-
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
-		int stampHitCount = 0;
-
-		for (size_t i = 0; i < stamps.size(); i++) {
-			stamps[i].under_fire = false;
-
-			float minX, minY, maxX, maxY;
-			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
-
-			int stampCollisions = 0;
-			int redStampCollisions = 0;
-			int blueStampCollisions = 0;
-
-			float red_count = 0;
-			float blue_count = 0;
-
-			vector<ivec2> collision_pixel_locations;
-
-
-
-			float damage = 0;
-
-
-			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints) {
-				// Perform the actual collision check
-				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
-
-
-				if (collides) {
-
-
-
-					stampCollisions++;
-
-					if (point.r > 0)
-					{
-						red_count += point.r;
-						redStampCollisions++;
-					}
-
-					if (point.b > 0) {
-						blue_count += point.b;
-						blueStampCollisions++;
-					}
-				}
-			}
-
-			// Set under_fire flag
-			if (damage > 1)
-				stamps[i].under_fire = true;
-
-			// Report collisions for this stamp
-			if (stampCollisions > 0) {
-				stampHitCount++;
-
-				float damage = 0.0f;
-
-				if (type == "Ally Ship") {
-					damage = blue_count;
-
-					if (blueStampCollisions > 0) {
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
-					}
-				}
-				else {
-					damage = red_count;
-
-					if (redStampCollisions > 0) {
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
-					}
-				}
-
-				// This is matter of personal taste
-				if (damage > 1)
-					stamps[i].under_fire = true;
-
-				static float last_did_damage_at = GLOBAL_TIME;
-
-				stamps[i].health -= damage * DT;
-				cout << stamps[i].health << endl;
-
-				last_did_damage_at = GLOBAL_TIME;
-			}
-		}
-	};
-
-	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
-	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
-}
-
 
 
 
@@ -3697,68 +3600,6 @@ void detectCollisionsAndGenerateDamage() {
 	processShipCollisions(enemyShips, "Enemy Ship");
 }
 
-
-void detectCollisions() {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-
-	// Clear the collision texture
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	// Use the GPU collision detection shader
-	glUseProgram(gpuCollisionDetectionProgram);
-
-	GLuint projectionLocation = glGetUniformLocation(gpuCollisionDetectionProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(gpuCollisionDetectionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-
-	// Render full-screen quad to detect collisions
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Now read back only the collision points that are non-zero
-	// This is much more efficient than reading all pixels
-
-	// Use a transform feedback to capture non-zero collision points
-	// This requires setting up a shader program with transform feedback
-
-	// For now, we'll use a simplified approach:
-	// Read the collision texture and find non-zero pixels
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
-	collisionPoints.clear();
-
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-
-			// If we have a valid collision point
-			if (collisionData[index + 3] > 0.0f) {
-				float r = collisionData[index + 2] * (collisionData[index + 3] > 0.5f ? 1.0f : 0.0f); // Red if type is 1.0
-				float b = collisionData[index + 2] * (collisionData[index + 3] <= 0.5f ? 1.0f : 0.0f); // Blue if type is 0.0
-
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
-}
 
 
 
@@ -5998,7 +5839,6 @@ void simulationStep()
 		detectCollisionsAndGenerateDamage();  // Call the combined function
 	}
 }
-
 
 
 
