@@ -5678,7 +5678,7 @@ void simulationStep()
 		generateFluidStampCollisionsDamage();
 	}
 
-	GLOBAL_TIME += DT;
+
 }
 
 
@@ -5868,6 +5868,8 @@ void idle()
 	//}
 
 
+
+	GLOBAL_TIME += DT;
 
 
 	simulationStep();
