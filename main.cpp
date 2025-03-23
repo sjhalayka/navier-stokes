@@ -3268,16 +3268,18 @@ void generateFluidStampCollisionsDamage()
 					stamps[i].under_fire = true;
 
 
-				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
+				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
+				static float last_did_damage_at = GLOBAL_TIME;
 
-				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<float, std::milli> elapsed;
-				elapsed = global_time_end - last_did_damage_at;
+
+				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				//std::chrono::duration<float, std::milli> elapsed;
+				//elapsed = global_time_end - last_did_damage_at;
 
 				stamps[i].health -= damage * (GLOBAL_TIME);// *fps_coeff;
 				cout << stamps[i].health << endl;
 
-				last_did_damage_at = global_time_end;
+				last_did_damage_at = GLOBAL_TIME;// global_time_end;
 
 			}
 		}
