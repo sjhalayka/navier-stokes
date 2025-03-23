@@ -3269,11 +3269,6 @@ void generateFluidStampCollisionsDamage()
 				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 				static float last_did_damage_at = GLOBAL_TIME;
 
-
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - last_did_damage_at;
-
 				stamps[i].health -= damage * DT;// *fps_coeff;
 				cout << stamps[i].health << endl;
 
@@ -4766,7 +4761,160 @@ void updateDynamicTexture(Stamp& stamp) {
 }
 
 
+void detectCollisionsAndApplyDamage() {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
+	glUseProgram(detectCollisionProgram);
+
+	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+
+	// Clear previous collision locations
+	collisionPoints.clear();
+
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
+
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+			}
+		}
+	}
+
+	// ---- Now apply damage to ships directly (previously in generateFluidStampCollisionsDamage) ----
+	if (collisionPoints.empty())
+		return;
+
+	// Process ally ships
+	for (size_t i = 0; i < allyShips.size(); i++) {
+		allyShips[i].under_fire = false;
+
+		float minX, minY, maxX, maxY;
+		calculateBoundingBox(allyShips[i], minX, minY, maxX, maxY);
+
+		int stampCollisions = 0;
+		int blueStampCollisions = 0;
+		float blue_count = 0;
+		vector<ivec2> collision_pixel_locations;
+
+		// Test each collision point against this ship
+		for (const auto& point : collisionPoints) {
+			float normX = point.x / float(WIDTH);
+			float normY = point.y / float(HEIGHT);
+
+			// Perform the actual collision check
+			bool collides = isCollisionInStamp(point, allyShips[i], i, "Ally Ship", collision_pixel_locations);
+
+			if (collides) {
+				stampCollisions++;
+
+				if (point.b > 0) {
+					blue_count += point.b;
+					blueStampCollisions++;
+				}
+			}
+		}
+
+		// Process collisions for this ship
+		if (stampCollisions > 0) {
+			float damage = blue_count;
+
+			if (blueStampCollisions > 0) {
+				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+					allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+			}
+
+			// Mark ship as under fire if damage is significant
+			if (damage > 1)
+				allyShips[i].under_fire = true;
+
+			static float last_did_damage_at = GLOBAL_TIME;
+			allyShips[i].health -= damage * DT;
+			cout << allyShips[i].health << endl;
+			last_did_damage_at = GLOBAL_TIME;
+		}
+	}
+
+	// Process enemy ships
+	for (size_t i = 0; i < enemyShips.size(); i++) {
+		enemyShips[i].under_fire = false;
+
+		float minX, minY, maxX, maxY;
+		calculateBoundingBox(enemyShips[i], minX, minY, maxX, maxY);
+
+		int stampCollisions = 0;
+		int redStampCollisions = 0;
+		float red_count = 0;
+		vector<ivec2> collision_pixel_locations;
+
+		// Test each collision point against this ship
+		for (const auto& point : collisionPoints) {
+			float normX = point.x / float(WIDTH);
+			float normY = point.y / float(HEIGHT);
+
+			// Perform the actual collision check
+			bool collides = isCollisionInStamp(point, enemyShips[i], i, "Enemy Ship", collision_pixel_locations);
+
+			if (collides) {
+				stampCollisions++;
+
+				if (point.r > 0) {
+					red_count += point.r;
+					redStampCollisions++;
+				}
+			}
+		}
+
+		// Process collisions for this ship
+		if (stampCollisions > 0) {
+			float damage = red_count;
+
+			if (redStampCollisions > 0) {
+				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+					enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
+			}
+
+			// Mark ship as under fire if damage is significant
+			if (damage > 1)
+				enemyShips[i].under_fire = true;
+
+			static float last_did_damage_at = GLOBAL_TIME;
+			enemyShips[i].health -= damage * DT;
+			cout << enemyShips[i].health << endl;
+			last_did_damage_at = GLOBAL_TIME;
+		}
+	}
+}
 
 
 void updateObstacle() {
@@ -5584,7 +5732,6 @@ void cull_marked_powerups(void)
 }
 
 
-
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -5620,14 +5767,12 @@ void simulationStep()
 	cull_marked_ships();
 
 
-
 	bool old_red_mode = red_mode;
 
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -5635,7 +5780,6 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -5646,38 +5790,28 @@ void simulationStep()
 	addMouseColor();
 
 
-
 	clearObstacleTexture();
 	reapplyAllStamps();
 
 	updateObstacle();
 
 
-
 	advectVelocity();
-	//applyVorticityConfinement();
 	diffuseVelocity();
 
 	advectColor();
-	//applyVorticityConfinementColor();
 	diffuseColor();
 
 	advectFriendlyColor();
-	//applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
 
-	//computeDivergence();
-	//solvePressure(20);
-	//subtractPressureGradient();
+	// Run collision detection and damage generation every frame for more responsive gameplay
+	//detectCollisions();
+	//generateFluidStampCollisionsDamage();
 
-	if (1)//frameCount % 30 == 0)
-	{
-		detectCollisions();
-		generateFluidStampCollisionsDamage();
-	}
-
-
+	detectCollisionsAndApplyDamage();
 }
+
 
 
 
