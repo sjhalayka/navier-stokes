@@ -1438,6 +1438,15 @@ GLuint applyForceProgram;
 GLuint blackeningMaskGeneratorProgram;
 
 
+// Replace the existing CollisionPoint structure
+struct GPUCollisionData {
+	float posX;
+	float posY;
+	float intensity;
+	float isEnemy; // 0.0 for ally fire, 1.0 for enemy fire
+};
+
+
 
 
 GLuint vao, vbo;
@@ -1538,6 +1547,77 @@ GLuint loadTexture(const char* filename) {
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
 //std::vector<std::pair<int, int>> collisionLocations;
+
+
+// Add these declarations at the beginning of the file where other GL variables are declared
+GLuint collisionDataBuffer;
+GLuint collisionDataTexture;
+GLuint gpuCollisionDetectionProgram;
+const int MAX_COLLISIONS = 1024; // Maximum number of collisions to track
+
+const char* gpuCollisionDetectionShader = R"(
+#version 330 core
+uniform sampler2D obstacleTexture;
+uniform sampler2D colorTexture;
+uniform sampler2D friendlyColorTexture;
+uniform float colorThreshold;
+
+layout(location = 0) out vec4 collisionData;
+
+in vec2 TexCoord;
+
+void main() {
+    // Get current obstacle value
+    float obstacle = texture(obstacleTexture, TexCoord).r;
+    
+    // Initialize with no collision
+    collisionData = vec4(0.0, 0.0, 0.0, 0.0);
+    
+    if (obstacle > 0.0) {
+        // Sample neighboring cells for color values
+        vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
+        
+        // Check neighboring cells for color values
+        float leftRed = texture(colorTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightRed = texture(colorTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomRed = texture(colorTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topRed = texture(colorTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        float leftBlue = texture(friendlyColorTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightBlue = texture(friendlyColorTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomBlue = texture(friendlyColorTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topBlue = texture(friendlyColorTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        // Check for obstacles in neighboring cells
+        float leftObstacle = texture(obstacleTexture, TexCoord - vec2(texelSize.x, 0.0)).r;
+        float rightObstacle = texture(obstacleTexture, TexCoord + vec2(texelSize.x, 0.0)).r;
+        float bottomObstacle = texture(obstacleTexture, TexCoord - vec2(0.0, texelSize.y)).r;
+        float topObstacle = texture(obstacleTexture, TexCoord + vec2(0.0, texelSize.y)).r;
+        
+        // Only consider colors from non-obstacle cells
+        if(leftObstacle > 0.0) { leftRed = 0.0; leftBlue = 0.0; }
+        if(rightObstacle > 0.0) { rightRed = 0.0; rightBlue = 0.0; }
+        if(bottomObstacle > 0.0) { bottomRed = 0.0; bottomBlue = 0.0; }
+        if(topObstacle > 0.0) { topRed = 0.0; topBlue = 0.0; }
+        
+        // Check if any neighboring cell has significant color
+        float maxRed = max(max(leftRed, rightRed), max(bottomRed, topRed));
+        float maxBlue = max(max(leftBlue, rightBlue), max(bottomBlue, topBlue));
+        
+        bool redCollision = (maxRed > colorThreshold);
+        bool blueCollision = (maxBlue > colorThreshold);
+        
+        // If we have a collision, output the data
+        if (redCollision || blueCollision) {
+            // Format: x, y, intensity, fire type
+            collisionData.x = TexCoord.x;
+            collisionData.y = TexCoord.y;
+            collisionData.z = redCollision ? maxRed : maxBlue;
+            collisionData.w = redCollision ? 1.0 : 0.0; // 1.0 for enemy fire, 0.0 for ally fire
+        }
+    }
+}
+)";
 
 
 
@@ -3203,18 +3283,17 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 }
 
 
-void generateFluidStampCollisionsDamage()
-{
+
+
+void generateFluidStampCollisionsDamage() {
 	if (collisionPoints.empty())
 		return;
 
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
-	{
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
 
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
-			stamps[i].under_fire = true;
+		for (size_t i = 0; i < stamps.size(); i++) {
+			stamps[i].under_fire = false;
 
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
@@ -3222,27 +3301,31 @@ void generateFluidStampCollisionsDamage()
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
 			int blueStampCollisions = 0;
-			int bothStampCollisions = 0;
 
 			float red_count = 0;
 			float blue_count = 0;
 
 			vector<ivec2> collision_pixel_locations;
 
-			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints)
-			{
-				float normX = point.x / float(WIDTH);
-				float normY = point.y / float(HEIGHT);
 
+
+			float damage = 0;
+
+
+			// Test each collision point against this stamp
+			for (const auto& point : collisionPoints) {
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
 
-				if (collides)
-				{
+
+				if (collides) {
+
+
+
 					stampCollisions++;
 
-					if (point.r > 0) {
+					if (point.r > 0) 
+					{
 						red_count += point.r;
 						redStampCollisions++;
 					}
@@ -3251,48 +3334,31 @@ void generateFluidStampCollisionsDamage()
 						blue_count += point.b;
 						blueStampCollisions++;
 					}
-
-					if (point.r > 0 && point.b > 0) {
-						bothStampCollisions++;
-					}
 				}
 			}
 
-			stamps[i].under_fire = false;
+			// Set under_fire flag
+			if (damage > 1)
+				stamps[i].under_fire = true;
 
 			// Report collisions for this stamp
-			if (stampCollisions > 0)
-			{
+			if (stampCollisions > 0) {
 				stampHitCount++;
-
-
-
-
-
-				std::string textureName = stamps[i].baseFilename;
-				std::string variationName = "unknown";
-
-				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
-					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
 
 				float damage = 0.0f;
 
-				if (type == "Ally Ship")
-				{
+				if (type == "Ally Ship") {
 					damage = blue_count;
 
-					if (blueStampCollisions > 0)
-					{
+					if (blueStampCollisions > 0) {
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
 					}
 				}
-				else
-				{
+				else {
 					damage = red_count;
 
-					if (redStampCollisions > 0)
-					{
+					if (redStampCollisions > 0) {
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
 					}
@@ -3302,20 +3368,12 @@ void generateFluidStampCollisionsDamage()
 				if (damage > 1)
 					stamps[i].under_fire = true;
 
-
-				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 				static float last_did_damage_at = GLOBAL_TIME;
 
-
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - last_did_damage_at;
-
-				stamps[i].health -= damage * DT;// *fps_coeff;
+				stamps[i].health -= damage * DT;
 				cout << stamps[i].health << endl;
 
-				last_did_damage_at = GLOBAL_TIME;// global_time_end;
-
+				last_did_damage_at = GLOBAL_TIME;
 			}
 		}
 	};
@@ -3323,7 +3381,6 @@ void generateFluidStampCollisionsDamage()
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
-
 
 
 
@@ -3509,23 +3566,25 @@ void diffuseFriendlyColor() {
 
 
 
-
-void detectCollisions()
-{
+void detectCollisions() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-	glUseProgram(detectCollisionProgram);
+	// Clear the collision texture
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
+	// Use the GPU collision detection shader
+	glUseProgram(gpuCollisionDetectionProgram);
 
-	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	GLuint projectionLocation = glGetUniformLocation(gpuCollisionDetectionProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	// Set uniforms
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(gpuCollisionDetectionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(gpuCollisionDetectionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -3535,14 +3594,19 @@ void detectCollisions()
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 
-	// Render full-screen quad
+	// Render full-screen quad to detect collisions
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+	// Now read back only the collision points that are non-zero
+	// This is much more efficient than reading all pixels
 
-	// Read back collision texture data from GPU
+	// Use a transform feedback to capture non-zero collision points
+	// This requires setting up a shader program with transform feedback
+
+	// For now, we'll use a simplified approach:
+	// Read the collision texture and find non-zero pixels
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
 
 	// Clear previous collision locations
@@ -3552,16 +3616,20 @@ void detectCollisions()
 	for (int y = 0; y < HEIGHT; ++y) {
 		for (int x = 0; x < WIDTH; ++x) {
 			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-			float a = collisionData[index + 3];
 
-			if (a > 0.0) {
+			// If we have a valid collision point
+			if (collisionData[index + 3] > 0.0f) {
+				float r = collisionData[index + 2] * (collisionData[index + 3] > 0.5f ? 1.0f : 0.0f); // Red if type is 1.0
+				float b = collisionData[index + 2] * (collisionData[index + 3] <= 0.5f ? 1.0f : 0.0f); // Blue if type is 0.0
+
 				collisionPoints.push_back(CollisionPoint(x, y, r, b));
 			}
 		}
 	}
 }
+
+
+
 
 
 
@@ -4201,6 +4269,21 @@ void initGL() {
 	curlProgram = createShaderProgram(vertexShaderSource, curlFragmentShader);
 	vorticityForceProgram = createShaderProgram(vertexShaderSource, vorticityForceFragmentShader);
 	applyForceProgram = createShaderProgram(vertexShaderSource, applyForceFragmentShader);
+
+
+
+	gpuCollisionDetectionProgram = createShaderProgram(vertexShaderSource, gpuCollisionDetectionShader);
+
+	// Create buffer for collision data
+	glGenBuffers(1, &collisionDataBuffer);
+	glBindBuffer(GL_TEXTURE_BUFFER, collisionDataBuffer);
+	glBufferData(GL_TEXTURE_BUFFER, MAX_COLLISIONS * sizeof(GPUCollisionData), NULL, GL_DYNAMIC_COPY);
+
+	// Create texture to access the buffer
+	glGenTextures(1, &collisionDataTexture);
+	glBindTexture(GL_TEXTURE_BUFFER, collisionDataTexture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, collisionDataBuffer);
+
 
 	glGenTextures(1, &vorticityTexture);
 	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
@@ -6392,6 +6475,12 @@ void reshape(int w, int h) {
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
 	glDeleteProgram(blackeningMaskGeneratorProgram);
+
+
+	glDeleteProgram(gpuCollisionDetectionProgram);
+	glDeleteBuffers(1, &collisionDataBuffer);
+	glDeleteTextures(1, &collisionDataTexture);
+
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
