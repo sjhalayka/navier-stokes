@@ -294,7 +294,7 @@ public:
 		powerup = other.powerup;
 		under_fire = other.under_fire;
 		cannons = other.cannons;
-		//is_foreground = other.is_foreground;
+		is_foreground = other.is_foreground;
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
 
@@ -363,7 +363,7 @@ public:
 			powerup = other.powerup;
 			under_fire = other.under_fire;
 			cannons = other.cannons;
-			//is_foreground = other.is_foreground;
+			is_foreground = other.is_foreground;
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
 
@@ -440,7 +440,7 @@ public:
 
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
-	vector<ivec2> blackening_points;
+	set<ivec2> blackening_points;
 
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
@@ -448,7 +448,7 @@ public:
 
 	vector<Cannon> cannons;
 
-	//	bool is_foreground = false;
+	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
 };
 
@@ -463,7 +463,7 @@ std::vector<Stamp> enemyShips;
 std::vector<Stamp> allyBullets;
 std::vector<Stamp> enemyBullets;
 std::vector<Stamp> allyPowerUps;
-std::vector<Stamp> enemyForegrounds;
+
 
 std::vector<Stamp> allyTemplates;
 std::vector<Stamp> enemyTemplates;
@@ -472,14 +472,13 @@ std::vector<Stamp> powerUpTemplates;
 std::vector<Stamp> foregroundTemplates;
 
 
+
+
 int currentAllyTemplateIndex = 0;    // Index for selecting ally template stamps
 int currentEnemyTemplateIndex = 0;   // Index for selecting enemy template stamps
 int currentPowerUpTemplateIndex = 0;
-int currentForegroundTemplateIndex = 0;
 
-
-
-enum TemplateType { ALLY, ENEMY, BULLET, POWERUP, FOREGROUND };
+enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
 
 TemplateType currentTemplateType = ALLY;
 
@@ -773,6 +772,7 @@ bool loadStampTextures() {
 					powerUpTemplates.push_back(std::move(newStamp));
 				}
 				else if (prefix == "foreground") {
+					newStamp.is_foreground = true;
 					foregroundTemplates.push_back(std::move(newStamp));
 				}
 				loadedAny = true;
@@ -792,7 +792,6 @@ bool loadStampTextures() {
 
 	return loadedAny;
 }
-
 
 
 
@@ -1740,7 +1739,7 @@ in vec2 TexCoord;
 void main() {
     vec4 original = texture(originalTexture, TexCoord);
     vec4 mask = texture(maskTexture, TexCoord);
-
+    
     // Since the mask texture is white where blackening should occur,
     // we need to invert it to get the right effect
     float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
@@ -2965,6 +2964,7 @@ void clearObstacleTexture() {
 
 
 
+
 void reapplyAllStamps() {
 	auto processStamps = [&](const std::vector<Stamp>& stamps) {
 		for (const auto& stamp : stamps) {
@@ -3004,7 +3004,7 @@ void reapplyAllStamps() {
 		}
 	};
 
-	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty() && allyPowerUps.empty() && enemyForegrounds.empty()) return;
+	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty() && allyPowerUps.empty()) return;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
@@ -3024,15 +3024,11 @@ void reapplyAllStamps() {
 	processStamps(allyShips);
 	processStamps(enemyShips);
 	processStamps(allyPowerUps);  // Add this line to process power-ups
-	processStamps(enemyForegrounds); // Add this line to process foregrounds
 
 	// Don't treat bullets as obstacles
 	//processStamps(allyBullets);
 	//processStamps(enemyBullets);
 }
-
-
-
 
 
 
@@ -3166,6 +3162,7 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	return is_opaque_enough;
 }
 
+
 void generateFluidStampCollisionsDamage()
 {
 	if (collisionPoints.empty())
@@ -3177,7 +3174,7 @@ void generateFluidStampCollisionsDamage()
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
-			stamps[i].under_fire = false;
+			stamps[i].under_fire = true;
 
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
@@ -3221,10 +3218,16 @@ void generateFluidStampCollisionsDamage()
 				}
 			}
 
+			stamps[i].under_fire = false;
+
 			// Report collisions for this stamp
 			if (stampCollisions > 0)
 			{
 				stampHitCount++;
+
+
+
+
 
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
@@ -3234,7 +3237,6 @@ void generateFluidStampCollisionsDamage()
 
 				float damage = 0.0f;
 
-				// Apply damage based on stamp type
 				if (type == "Ally Ship")
 				{
 					damage = blue_count;
@@ -3242,17 +3244,20 @@ void generateFluidStampCollisionsDamage()
 					if (blueStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
+
+
 					}
 				}
-				else // Enemy Ship, Enemy Foreground
+				else
 				{
 					damage = red_count;
 
 					if (redStampCollisions > 0)
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
+
 					}
 				}
 
@@ -3260,23 +3265,24 @@ void generateFluidStampCollisionsDamage()
 				if (damage > 1)
 					stamps[i].under_fire = true;
 
+
 				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 
 				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - last_did_damage_at;
 
-				stamps[i].health -= damage * (elapsed.count() / 1000.0f);
+				stamps[i].health -= damage * (elapsed.count() / 1000.0f);// *fps_coeff;
 				cout << stamps[i].health << endl;
 
 				last_did_damage_at = global_time_end;
+
 			}
 		}
 	};
 
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
-	generateFluidCollisionsForStamps(enemyForegrounds, "Enemy Foreground"); // Add foregrounds to collision check
 }
 
 
@@ -4011,10 +4017,8 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 		// Create a temporary data array to upload to the texture
 		std::vector<unsigned char> pointData = emptyData;
 
-		cout << "Blackening" << endl;
 
-		for (const auto& point : stamp.blackening_points)
-		{
+		for (const auto& point : stamp.blackening_points) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 
 			if (index >= 0 && index < pointData.size() - 3) {
@@ -4029,18 +4033,16 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 			if (index >= 0 && index < pointData.size() - 3) {
 
-				if (pointData[index + 0] < 256 - 32)
+				if (1)//pointData[index + 0] < 256 - 64)
 				{
-					pointData[index + 0] += 32; // R
-					pointData[index + 1] += 32; // G
-					pointData[index + 2] += 32; // B
+					pointData[index + 0] += 255; // R
+					pointData[index + 1] += 255; // G
+					pointData[index + 2] += 255; // B
 				}
 
 				pointData[index + 3] = 255; // A
 			}
 		}
-
-		cout << "Blackening done" << endl;
 
 		// Upload the temporary data to the texture
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
@@ -4764,8 +4766,9 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
+
 void updateObstacle() {
-	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty() && foregroundTemplates.empty())) return;
+	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
 	if (rightMouseDown && !lastRightMouseDown) {
 		float aspect = HEIGHT / float(WIDTH);
@@ -4775,6 +4778,12 @@ void updateObstacle() {
 
 		// Create new stamp from the current template based on type
 		Stamp newStamp;
+
+
+
+
+
+
 
 		switch (currentTemplateType) {
 		case ALLY:
@@ -4793,14 +4802,21 @@ void updateObstacle() {
 			if (powerUpTemplates.empty()) return;
 			newStamp = deepCopyStamp(powerUpTemplates[currentPowerUpTemplateIndex]);
 			break;
-		case FOREGROUND:
-			if (foregroundTemplates.empty()) return;
-			newStamp = deepCopyStamp(foregroundTemplates[currentForegroundTemplateIndex]);
-			break;
 		}
 
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
+
+
+
+
+
+
+
+
+
+
+
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
@@ -4850,11 +4866,6 @@ void updateObstacle() {
 			std::cout << "Added new enemy ship";
 			break;
 
-		case FOREGROUND:
-			enemyForegrounds.push_back(newStamp);
-			std::cout << "Added new foreground element";
-			break;
-
 		case POWERUP:
 			size_t num_powerup_tempates = powerUpTemplates.size();
 			size_t index = rand() % num_powerup_tempates;
@@ -4891,6 +4902,7 @@ void updateObstacle() {
 
 	lastRightMouseDown = rightMouseDown;
 }
+
 
 
 
@@ -5161,11 +5173,11 @@ void move_ships(void)
 				stamp.prevPosX = stamp.posX;
 				stamp.prevPosY = stamp.posY;
 
-				stamp.posX += stamp.velX;// / aspect;
+				stamp.posX += stamp.velX / aspect;
 				stamp.posY += stamp.velY;
 
 				// Calculate adjusted Y coordinate that accounts for aspect ratio
-				float adjustedPosY = stamp.posY;// (stamp.posY - 0.5f)* aspect + 0.5f;
+				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 				// Constrain X position
 				if (stamp.posX < 0)
@@ -5322,89 +5334,6 @@ void mark_dying_ships(void)
 	}
 }
 
-
-void resolve_or_mark_colliding_foreground_allies(void)
-{
-	for (size_t i = 0; i < allyShips.size(); ++i)
-	{
-		for (size_t j = 0; j < enemyForegrounds.size(); ++j)
-		{
-			if (isPixelPerfectCollision(allyShips[i], enemyForegrounds[j]))
-			{
-				float vel_x = allyShips[i].posX - allyShips[i].prevPosX;
-				float vel_y = allyShips[i].posY - allyShips[i].prevPosY;
-
-				// to do: find out which direction is being blocked from
-				// to do: 
-
-				//if (vel_x < 0.000001 && vel_y < 0.000001)
-				//{
-				//	cout << "Stuck" << endl;
-				//	make_dying_bullets(allyShips[i], false);
-				//	allyShips[i].health = 0;
-				//	allyShips[i].to_be_culled = true;
-				//}
-
-				float curr_x = allyShips[i].posX;
-				float curr_y = allyShips[i].posY;
-
-				const float aspect = WIDTH / float(HEIGHT);
-
-				size_t max_num_steps = 10;
-				bool found_resolution = false;
-
-				for (size_t k = 0; k < max_num_steps; k++)
-				{
-					curr_x -= vel_x;
-					curr_y -= vel_y;
-
-
-					//allyShips[i].prevPosX = curr_x;
-					//allyShips[i].prevPosY = curr_y;
-					allyShips[i].posX = curr_x;
-					allyShips[i].posY = curr_y;
-
-					if (!isPixelPerfectCollision(allyShips[i], enemyForegrounds[j]))
-					{
-						found_resolution = true;
-						break;
-					}
-				}
-
-				if (false == found_resolution)
-				{
-					cout << "Stuck" << endl;
-					make_dying_bullets(allyShips[i], false);
-					allyShips[i].health = 0;
-					allyShips[i].to_be_culled = true;
-				}
-			}
-		}
-	}
-}
-
-void resolve_or_mark_colliding_foreground_enemies(void)
-{
-	for (size_t i = 0; i < enemyShips.size(); ++i)
-	{
-		for (size_t j = 0; j < enemyForegrounds.size(); ++j)
-		{
-			if (isPixelPerfectCollision(enemyShips[i], enemyForegrounds[j]))
-			{
-				enemyShips[i].posX = enemyShips[i].prevPosX;
-				enemyShips[i].posY = enemyShips[i].prevPosY;
-
-				if (isPixelPerfectCollision(enemyShips[i], enemyForegrounds[j]))
-				{
-					make_dying_bullets(enemyShips[i], false);
-					enemyShips[i].health = 0;
-					enemyShips[i].to_be_culled = true;
-				}
-			}
-		}
-	}
-}
-
 void mark_colliding_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
@@ -5456,7 +5385,6 @@ void mark_offscreen_ships(void)
 
 	//update_ships(allyShips);
 	update_ships(enemyShips);
-	update_ships(enemyForegrounds);
 }
 
 
@@ -5478,6 +5406,7 @@ void proceed_stamp_opacity(void)
 	update_ships(enemyShips, "Enemy");
 }
 
+
 void cull_marked_ships(void)
 {
 	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
@@ -5496,7 +5425,6 @@ void cull_marked_ships(void)
 
 	update_ships(allyShips, "Ally");
 	update_ships(enemyShips, "Enemy");
-	update_ships(enemyForegrounds, "Foreground");
 }
 
 
@@ -5648,6 +5576,7 @@ void cull_marked_powerups(void)
 }
 
 
+
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -5660,7 +5589,7 @@ void simulationStep()
 	updateDynamicTextures(enemyShips);
 	updateDynamicTextures(allyBullets);
 	updateDynamicTextures(enemyBullets);
-	updateDynamicTextures(enemyForegrounds); // Add this line to update foreground textures
+
 
 	move_and_fork_bullets();
 	mark_colliding_bullets();
@@ -5668,19 +5597,21 @@ void simulationStep()
 	mark_offscreen_bullets();
 	cull_marked_bullets();
 
+
 	move_powerups();
 	mark_colliding_powerups();
 	mark_offscreen_powerups();
 	cull_marked_powerups();
 
+
 	move_ships();
 	mark_colliding_ships();
 	mark_offscreen_ships();
 	mark_dying_ships();
-	resolve_or_mark_colliding_foreground_allies();
-	resolve_or_mark_colliding_foreground_enemies();
 	proceed_stamp_opacity();
 	cull_marked_ships();
+
+
 
 	bool old_red_mode = red_mode;
 
@@ -5702,13 +5633,18 @@ void simulationStep()
 
 	red_mode = old_red_mode;
 
+
 	addMouseForce();
 	addMouseColor();
+
+
 
 	clearObstacleTexture();
 	reapplyAllStamps();
 
 	updateObstacle();
+
+
 
 	advectVelocity();
 	//applyVorticityConfinement();
@@ -5828,8 +5764,10 @@ void renderToScreen()
 			// added in opacity as a uniform, so that the stamp can fade away over time upon death
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
 
-			glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
-
+			if(stamp.is_foreground)
+				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), false);
+			else
+				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
 
 			std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float, std::milli> elapsed;
@@ -5854,7 +5792,6 @@ void renderToScreen()
 	//renderStamps(allyBullets);
 	//renderStamps(enemyBullets);
 	renderStamps(allyPowerUps);
-	renderStamps(enemyForegrounds);
 
 	glDisable(GL_BLEND);
 }
@@ -5974,17 +5911,23 @@ void keyboardup(unsigned char key, int x, int y) {
 	}
 }
 
+
+// GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key)
 	{
 	case '9':
 	{
 		if (foregroundTemplates.empty()) {
-			std::cout << "No foreground templates loaded." << std::endl;
-			return;
+			std::cout << "No foreground templates loaded. Make sure foreground*.png files exist." << std::endl;
+			break;
 		}
 
-		Stamp newStamp = deepCopyStamp(foregroundTemplates[currentForegroundTemplateIndex]);
+		// Select a random foreground template
+		int foregroundIndex = rand() % foregroundTemplates.size();
+		Stamp newStamp = deepCopyStamp(foregroundTemplates[foregroundIndex]);
+
+		newStamp.is_foreground = true;
 
 		float normalized_stamp_width = newStamp.width / float(WIDTH);
 		float normalized_stamp_height = newStamp.height / float(HEIGHT);
@@ -5993,10 +5936,6 @@ void keyboard(unsigned char key, int x, int y) {
 		start.x = 1.0f + normalized_stamp_width / 2.0; // just off the edge of the screen
 		start.y = rand() / float(RAND_MAX);
 
-		newStamp.posX = start.x;
-		newStamp.posY = start.y;
-
-		// Set up path similar to enemy ships
 		newStamp.curve_path.push_back(start);
 
 		vec2 end;
@@ -6004,16 +5943,23 @@ void keyboard(unsigned char key, int x, int y) {
 		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
+		newStamp.posX = start.x;
+		newStamp.posY = start.y;
+		newStamp.is_foreground = true;
+
 		std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
 
 		newStamp.birth_time = elapsed.count() / 1000.0f;
-		newStamp.death_time = elapsed.count() / 1000.0f + 8.0f; // Slightly longer life than enemies
+		newStamp.death_time = elapsed.count() / 1000.0f + 50.0f; // Longer lifespan for foreground
 
-		enemyForegrounds.push_back(newStamp);
-		std::cout << "Added new foreground element at position (" << start.x << ", " << start.y << ")" << std::endl;
+		enemyShips.push_back(newStamp);
+
+		std::cout << "Added new foreground element at position (" << start.x << ", " << start.y
+			<< ") using template: " << newStamp.baseFilename << std::endl;
 		break;
 	}
+
 
 	case '0':
 	{
@@ -6027,6 +5973,36 @@ void keyboard(unsigned char key, int x, int y) {
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
+
+		//vec2 middle;
+
+		//middle.x = 0.75f;
+
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
+
+		//newStamp.curve_path.push_back(middle);
+
+		//middle.x = 0.5f;
+
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
+
+		//newStamp.curve_path.push_back(middle);
+
+		//middle.x = 0.25f;
+
+		//if (rand() % 2 == 0)
+		//	middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
+		//else
+		//	middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
+
+		//newStamp.curve_path.push_back(middle);
+
 
 		vec2 end;
 		end.x = -normalized_stamp_width / 2.0f;
@@ -6051,21 +6027,29 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 
 	case 'q':
+
 		ally_fire = STRAIGHT;
 		break;
 
 	case 'w':
+
 		if (has_sinusoidal_fire)
 			ally_fire = SINUSOIDAL;
+
 		break;
 	case 'e':
+
 		if (has_random_fire)
 			ally_fire = RANDOM;
+
 		break;
 	case 'r':
+
 		if (has_homing_fire)
 			ally_fire = HOMING;
+
 		break;
+
 
 	case 'b':
 	case 'B':
@@ -6093,10 +6077,6 @@ void keyboard(unsigned char key, int x, int y) {
 		else if (currentTemplateType == BULLET) {
 			currentTemplateType = POWERUP;
 			std::cout << "Switched to PowerUp templates" << std::endl;
-		}
-		else if (currentTemplateType == POWERUP) {
-			currentTemplateType = FOREGROUND;
-			std::cout << "Switched to Foreground templates" << std::endl;
 		}
 		else {
 			currentTemplateType = ALLY;
@@ -6130,13 +6110,6 @@ void keyboard(unsigned char key, int x, int y) {
 				<< powerUpTemplates[currentPowerUpTemplateIndex].baseFilename
 				<< " (" << (currentPowerUpTemplateIndex + 1) << " of "
 				<< powerUpTemplates.size() << ")" << std::endl;
-		}
-		else if (currentTemplateType == FOREGROUND && !foregroundTemplates.empty()) {
-			currentForegroundTemplateIndex = (currentForegroundTemplateIndex + 1) % foregroundTemplates.size();
-			std::cout << "Switched to foreground template: "
-				<< foregroundTemplates[currentForegroundTemplateIndex].baseFilename
-				<< " (" << (currentForegroundTemplateIndex + 1) << " of "
-				<< foregroundTemplates.size() << ")" << std::endl;
 		}
 		else {
 			std::cout << "No templates of the selected type loaded. Press 'L' to load textures." << std::endl;
@@ -6413,6 +6386,8 @@ int main(int argc, char** argv) {
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
+
+
 
 	// Initialize OpenGL
 	initGL();
