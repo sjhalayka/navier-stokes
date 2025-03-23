@@ -440,7 +440,7 @@ public:
 
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
-	set<ivec2> blackening_points;
+	vector<ivec2> blackening_points;
 
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
@@ -3243,8 +3243,8 @@ void generateFluidStampCollisionsDamage()
 
 					if (blueStampCollisions > 0)
 					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
+						//for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+						//	stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 
 
 					}
@@ -3255,9 +3255,8 @@ void generateFluidStampCollisionsDamage()
 
 					if (redStampCollisions > 0)
 					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.insert(collision_pixel_locations[j]);
-
+						//for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+						//	stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
 					}
 				}
 
@@ -4033,11 +4032,11 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 			size_t index = (point.y * stamp.width + point.x) * 4;
 			if (index >= 0 && index < pointData.size() - 3) {
 
-				if (1)//pointData[index + 0] < 256 - 64)
+				if (pointData[index + 0] < 256 - 32)
 				{
-					pointData[index + 0] += 255; // R
-					pointData[index + 1] += 255; // G
-					pointData[index + 2] += 255; // B
+					pointData[index + 0] += 32; // R
+					pointData[index + 1] += 32; // G
+					pointData[index + 2] += 32; // B
 				}
 
 				pointData[index + 3] = 255; // A
@@ -5336,6 +5335,9 @@ void mark_dying_ships(void)
 
 void mark_colliding_ships(void)
 {
+	// to do: detect if is_foreground, then step back until outside of foreground instead
+	// of dying 
+
 	for (size_t i = 0; i < allyShips.size(); ++i)
 	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
@@ -5348,6 +5350,9 @@ void mark_colliding_ships(void)
 			}
 		}
 	}
+
+	// to do: detect enemy ship - enemy ship collision too, but for foregrounds only
+
 }
 
 void mark_offscreen_ships(void)
@@ -5764,7 +5769,7 @@ void renderToScreen()
 			// added in opacity as a uniform, so that the stamp can fade away over time upon death
 			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
 
-			if(stamp.is_foreground)
+			if (stamp.is_foreground)
 				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), false);
 			else
 				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
