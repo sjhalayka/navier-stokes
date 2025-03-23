@@ -247,7 +247,7 @@ public:
 
 	}
 
-	~Stamp() 
+	~Stamp()
 	{
 		// Clean up textures
 		for (GLuint textureID : textureIDs) {
@@ -262,7 +262,7 @@ public:
 	}
 
 	// Make the copy constructor and assignment operator for proper resource management
-	Stamp(const Stamp& other) 
+	Stamp(const Stamp& other)
 	{
 		// Copy basic properties
 		width = other.width;
@@ -297,7 +297,7 @@ public:
 		//is_foreground = other.is_foreground;
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
-	
+
 		// Deep copy pixel data
 		pixelData = other.pixelData;
 		backupData = other.backupData;
@@ -320,7 +320,7 @@ public:
 	}
 
 	// Assignment operator
-	Stamp& operator=(const Stamp& other) 
+	Stamp& operator=(const Stamp& other)
 	{
 		if (this != &other) {
 			// Clean up existing resources
@@ -448,7 +448,7 @@ public:
 
 	vector<Cannon> cannons;
 
-//	bool is_foreground = false;
+	//	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
 };
 
@@ -3662,9 +3662,9 @@ public:
 
 		// Analyze each character
 		for (unsigned short c_ = 0; c_ < 256; c_++)
-		{ 
+		{
 			unsigned char c = static_cast<unsigned char>(c_);
-			
+
 			// ASCII range
 			int atlasX = (c % atlas.charsPerRow) * atlas.charWidth;
 			int atlasY = (c / atlas.charsPerRow) * atlas.charHeight;
@@ -5307,7 +5307,7 @@ void mark_dying_ships(void)
 	{
 		if (allyShips[i].health <= 0)
 		{
-			make_dying_bullets(allyShips[i], false);	
+			make_dying_bullets(allyShips[i], false);
 			allyShips[i].to_be_culled = true;
 		}
 	}
@@ -5349,7 +5349,7 @@ void resolve_or_mark_colliding_foreground_allies(void)
 				float curr_y = allyShips[i].posY;
 
 				const float aspect = WIDTH / float(HEIGHT);
-			
+
 				size_t max_num_steps = 10;
 				bool found_resolution = false;
 
@@ -6413,8 +6413,6 @@ int main(int argc, char** argv) {
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
-
-
 
 	// Initialize OpenGL
 	initGL();
