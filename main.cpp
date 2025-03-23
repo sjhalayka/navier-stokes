@@ -1740,7 +1740,7 @@ in vec2 TexCoord;
 void main() {
     vec4 original = texture(originalTexture, TexCoord);
     vec4 mask = texture(maskTexture, TexCoord);
-    
+
     // Since the mask texture is white where blackening should occur,
     // we need to invert it to get the right effect
     float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
@@ -3166,7 +3166,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	return is_opaque_enough;
 }
 
-
 void generateFluidStampCollisionsDamage()
 {
 	if (collisionPoints.empty())
@@ -3178,7 +3177,7 @@ void generateFluidStampCollisionsDamage()
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
-			stamps[i].under_fire = true;
+			stamps[i].under_fire = false;
 
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
@@ -3222,16 +3221,10 @@ void generateFluidStampCollisionsDamage()
 				}
 			}
 
-			stamps[i].under_fire = false;
-
 			// Report collisions for this stamp
 			if (stampCollisions > 0)
 			{
 				stampHitCount++;
-
-
-
-
 
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
@@ -3241,6 +3234,7 @@ void generateFluidStampCollisionsDamage()
 
 				float damage = 0.0f;
 
+				// Apply damage based on stamp type
 				if (type == "Ally Ship")
 				{
 					damage = blue_count;
@@ -3249,11 +3243,9 @@ void generateFluidStampCollisionsDamage()
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-
-
 					}
 				}
-				else
+				else // Enemy Ship, Enemy Foreground
 				{
 					damage = red_count;
 
@@ -3261,7 +3253,6 @@ void generateFluidStampCollisionsDamage()
 					{
 						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
 							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-
 					}
 				}
 
@@ -3269,24 +3260,23 @@ void generateFluidStampCollisionsDamage()
 				if (damage > 1)
 					stamps[i].under_fire = true;
 
-
 				static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 
 				std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float, std::milli> elapsed;
 				elapsed = global_time_end - last_did_damage_at;
 
-				stamps[i].health -= damage * (elapsed.count() / 1000.0f);// *fps_coeff;
+				stamps[i].health -= damage * (elapsed.count() / 1000.0f);
 				cout << stamps[i].health << endl;
 
 				last_did_damage_at = global_time_end;
-
 			}
 		}
 	};
 
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
+	generateFluidCollisionsForStamps(enemyForegrounds, "Enemy Foreground"); // Add foregrounds to collision check
 }
 
 
@@ -4021,8 +4011,10 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 		// Create a temporary data array to upload to the texture
 		std::vector<unsigned char> pointData = emptyData;
 
+		cout << "Blackening" << endl;
 
-		for (const auto& point : stamp.blackening_points) {
+		for (const auto& point : stamp.blackening_points)
+		{
 			size_t index = (point.y * stamp.width + point.x) * 4;
 
 			if (index >= 0 && index < pointData.size() - 3) {
@@ -4047,6 +4039,8 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 				pointData[index + 3] = 255; // A
 			}
 		}
+
+		cout << "Blackening done" << endl;
 
 		// Upload the temporary data to the texture
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
@@ -5654,7 +5648,6 @@ void cull_marked_powerups(void)
 }
 
 
-
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -5667,7 +5660,7 @@ void simulationStep()
 	updateDynamicTextures(enemyShips);
 	updateDynamicTextures(allyBullets);
 	updateDynamicTextures(enemyBullets);
-
+	updateDynamicTextures(enemyForegrounds); // Add this line to update foreground textures
 
 	move_and_fork_bullets();
 	mark_colliding_bullets();
@@ -5675,12 +5668,10 @@ void simulationStep()
 	mark_offscreen_bullets();
 	cull_marked_bullets();
 
-
 	move_powerups();
 	mark_colliding_powerups();
 	mark_offscreen_powerups();
 	cull_marked_powerups();
-
 
 	move_ships();
 	mark_colliding_ships();
@@ -5690,7 +5681,6 @@ void simulationStep()
 	resolve_or_mark_colliding_foreground_enemies();
 	proceed_stamp_opacity();
 	cull_marked_ships();
-
 
 	bool old_red_mode = red_mode;
 
@@ -5712,18 +5702,13 @@ void simulationStep()
 
 	red_mode = old_red_mode;
 
-
 	addMouseForce();
 	addMouseColor();
-
-
 
 	clearObstacleTexture();
 	reapplyAllStamps();
 
 	updateObstacle();
-
-
 
 	advectVelocity();
 	//applyVorticityConfinement();
