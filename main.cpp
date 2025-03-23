@@ -64,6 +64,26 @@ using namespace std;
 // to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
 
+
+
+struct GPUCollisionData {
+	float posX;
+	float posY;
+	float intensity;
+	float isEnemy; // 0.0 for ally fire, 1.0 for enemy fire
+};
+
+
+struct CollisionPoint {
+	int x, y;
+	float r;
+	float b;
+
+	CollisionPoint(int _x, int _y, float _r, float _b) : x(_x), y(_y), r(_r), b(_b) {}
+};
+
+
+
 class vec2
 {
 public:
@@ -103,6 +123,7 @@ public:
 	size_t stamp_index = 0;
 	string stamp_type = "";
 };
+
 
 
 
@@ -1438,14 +1459,6 @@ GLuint applyForceProgram;
 GLuint blackeningMaskGeneratorProgram;
 
 
-// Replace the existing CollisionPoint structure
-struct GPUCollisionData {
-	float posX;
-	float posY;
-	float intensity;
-	float isEnemy; // 0.0 for ally fire, 1.0 for enemy fire
-};
-
 
 
 
@@ -1466,15 +1479,7 @@ int pressureIndex = 0;
 int frameCount = 0;
 bool reportCollisions = true;
 
-// Define a struct for collision data
-struct CollisionPoint {
-	int x, y;
 
-	float r;
-	float b;
-
-	CollisionPoint(int _x, int _y, float _r, float _b) : x(_x), y(_y), r(_r), b(_b) {}
-};
 
 
 GLuint loadTexture(const char* filename) {
@@ -1555,6 +1560,9 @@ GLuint collisionDataTexture;
 GLuint gpuCollisionDetectionProgram;
 const int MAX_COLLISIONS = 1024; // Maximum number of collisions to track
 
+
+
+
 const char* gpuCollisionDetectionShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
@@ -1618,6 +1626,7 @@ void main() {
     }
 }
 )";
+
 
 
 
@@ -3283,8 +3292,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 }
 
 
-
-
 void generateFluidStampCollisionsDamage() {
 	if (collisionPoints.empty())
 		return;
@@ -3307,25 +3314,17 @@ void generateFluidStampCollisionsDamage() {
 
 			vector<ivec2> collision_pixel_locations;
 
-
-
 			float damage = 0;
-
 
 			// Test each collision point against this stamp
 			for (const auto& point : collisionPoints) {
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
 
-
 				if (collides) {
-
-
-
 					stampCollisions++;
 
-					if (point.r > 0) 
-					{
+					if (point.r > 0) {
 						red_count += point.r;
 						redStampCollisions++;
 					}
@@ -3381,6 +3380,9 @@ void generateFluidStampCollisionsDamage() {
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
+
+
+
 
 
 
@@ -3565,7 +3567,6 @@ void diffuseFriendlyColor() {
 
 
 
-
 void detectCollisions() {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
@@ -3598,14 +3599,7 @@ void detectCollisions() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Now read back only the collision points that are non-zero
-	// This is much more efficient than reading all pixels
-
-	// Use a transform feedback to capture non-zero collision points
-	// This requires setting up a shader program with transform feedback
-
-	// For now, we'll use a simplified approach:
-	// Read the collision texture and find non-zero pixels
+	// Read back the collision data
 	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
 
@@ -3619,15 +3613,14 @@ void detectCollisions() {
 
 			// If we have a valid collision point
 			if (collisionData[index + 3] > 0.0f) {
-				float r = collisionData[index + 2] * (collisionData[index + 3] > 0.5f ? 1.0f : 0.0f); // Red if type is 1.0
-				float b = collisionData[index + 2] * (collisionData[index + 3] <= 0.5f ? 1.0f : 0.0f); // Blue if type is 0.0
+				float r = collisionData[index + 0];
+				float b = collisionData[index + 2];
 
 				collisionPoints.push_back(CollisionPoint(x, y, r, b));
 			}
 		}
 	}
 }
-
 
 
 
@@ -4269,6 +4262,21 @@ void initGL() {
 	curlProgram = createShaderProgram(vertexShaderSource, curlFragmentShader);
 	vorticityForceProgram = createShaderProgram(vertexShaderSource, vorticityForceFragmentShader);
 	applyForceProgram = createShaderProgram(vertexShaderSource, applyForceFragmentShader);
+
+
+	// In initGL() function, add:
+	gpuCollisionDetectionProgram = createShaderProgram(vertexShaderSource, gpuCollisionDetectionShader);
+
+	// Create buffer for collision data
+	glGenBuffers(1, &collisionDataBuffer);
+	glBindBuffer(GL_TEXTURE_BUFFER, collisionDataBuffer);
+	glBufferData(GL_TEXTURE_BUFFER, MAX_COLLISIONS * sizeof(GPUCollisionData), NULL, GL_DYNAMIC_COPY);
+
+	// Create texture to access the buffer
+	glGenTextures(1, &collisionDataTexture);
+	glBindTexture(GL_TEXTURE_BUFFER, collisionDataTexture);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, collisionDataBuffer);
+
 
 
 
@@ -6475,6 +6483,13 @@ void reshape(int w, int h) {
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
 	glDeleteProgram(blackeningMaskGeneratorProgram);
+
+
+	// In reshape() function, add:
+	glDeleteProgram(gpuCollisionDetectionProgram);
+	glDeleteBuffers(1, &collisionDataBuffer);
+	glDeleteTextures(1, &collisionDataTexture);
+
 
 
 	glDeleteProgram(gpuCollisionDetectionProgram);
