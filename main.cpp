@@ -242,12 +242,16 @@ public:
 };
 
 
+
+
 class Stamp {
 
 public:
 	Stamp(void)
 	{
-
+		blackeningMaskTexture = 0;
+		mask_needs_update = true;
+		damage_intensity = 0.0f;
 	}
 
 	~Stamp()
@@ -257,6 +261,11 @@ public:
 			if (textureID != 0) {
 				glDeleteTextures(1, &textureID);
 			}
+		}
+
+		// Clean up mask texture if it exists
+		if (blackeningMaskTexture != 0) {
+			glDeleteTextures(1, &blackeningMaskTexture);
 		}
 
 		textureIDs.clear();
@@ -301,6 +310,10 @@ public:
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
 
+		// New properties for GPU blackening
+		damage_intensity = other.damage_intensity;
+		mask_needs_update = true;   // Mark for update
+
 		// Deep copy pixel data
 		pixelData = other.pixelData;
 		backupData = other.backupData;
@@ -320,6 +333,26 @@ public:
 				glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
 			}
 		}
+
+		// Initialize the blackening mask texture
+		if (!blackening_points.empty()) {
+			// Create blackening mask texture
+			glGenTextures(1, &blackeningMaskTexture);
+			glBindTexture(GL_TEXTURE_2D, blackeningMaskTexture);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+			// Create an empty black texture as a placeholder
+			std::vector<unsigned char> emptyData(width * height * 4, 0);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+
+			// Mask will be properly generated when needed based on mask_needs_update flag
+		}
+		else {
+			blackeningMaskTexture = 0;
+		}
 	}
 
 	// Assignment operator
@@ -335,6 +368,12 @@ public:
 			textureIDs.clear();
 			pixelData.clear();
 			backupData.clear();
+
+			// Clean up any existing mask texture
+			if (blackeningMaskTexture != 0) {
+				glDeleteTextures(1, &blackeningMaskTexture);
+				blackeningMaskTexture = 0;
+			}
 
 			// Copy basic properties (same as copy constructor)
 			width = other.width;
@@ -370,6 +409,9 @@ public:
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
 
+			// New properties for GPU blackening
+			damage_intensity = other.damage_intensity;
+			mask_needs_update = true;   // Mark for update
 
 			// Deep copy pixel data
 			pixelData = other.pixelData;
@@ -390,25 +432,47 @@ public:
 					glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
 				}
 			}
+
+			// Initialize the blackening mask texture
+			if (!blackening_points.empty()) {
+				// Create blackening mask texture
+				glGenTextures(1, &blackeningMaskTexture);
+				glBindTexture(GL_TEXTURE_2D, blackeningMaskTexture);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+				// Create an empty black texture as a placeholder
+				std::vector<unsigned char> emptyData(width * height * 4, 0);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+
+				// Mask will be properly generated when needed based on mask_needs_update flag
+			}
+			else {
+				blackeningMaskTexture = 0;
+			}
 		}
 		return *this;
 	}
 
-
-
+	// Add a method to clear the mask cache when needed
+	void invalidateBlackeningMask() {
+		if (blackeningMaskTexture != 0) {
+			glDeleteTextures(1, &blackeningMaskTexture);
+			blackeningMaskTexture = 0;
+		}
+		mask_needs_update = true;
+	}
 
 	// StampTexture properties
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
 	int width = 0; // pixels
 	int height = 0; // pixels
-	std::string baseFilename;               // Base filename without suf fix
+	std::string baseFilename;               // Base filename without suffix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;
 	std::vector<std::vector<unsigned char>> backupData;
-
-
-
-
 
 	int channels = 0;                         // Store the number of channels
 
@@ -453,9 +517,12 @@ public:
 
 	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
+
+	// New properties for GPU-based blackening system
+	float damage_intensity;        // Current damage intensity for shader
+	GLuint blackeningMaskTexture;  // Cached mask texture
+	bool mask_needs_update;        // Flag to know when to regenerate the mask
 };
-
-
 
 
 
@@ -1730,11 +1797,18 @@ void main() {
 }
 )";
 
-// New GLSL shader for blackening effect
+
+
+
+
+
+// Ensure the blackening effect is visible by modifying the shader
 const char* blackeningFragmentShader = R"(
 #version 330 core
 uniform sampler2D originalTexture;
 uniform sampler2D maskTexture;
+uniform float intensity;  // Controls how strong the blackening effect is
+uniform vec3 burnColor;   // Color to use for the burn effect
 
 out vec4 FragColor;
 in vec2 TexCoord;
@@ -1743,16 +1817,19 @@ void main() {
     vec4 original = texture(originalTexture, TexCoord);
     vec4 mask = texture(maskTexture, TexCoord);
     
-    // Since the mask texture is white where blackening should occur,
-    // we need to invert it to get the right effect
-    float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
+    // Calculate the blackening effect intensity - use alpha channel for stronger effect
+    float maskIntensity = mask.r;  // Changed from (mask.r + mask.g + mask.b) / 3.0
+    
+    // Make the effect more pronounced
+    maskIntensity = pow(maskIntensity, 0.5); // Apply power function to increase effect
+    
+    // Create a stronger darkening effect
+    vec3 darkened = mix(original.rgb, burnColor, maskIntensity * intensity * 2.0);
     
     // Apply the blackening effect to the original texture
-    FragColor = original * (1.0 - maskIntensity);
-    FragColor.a = original.a; // Preserve alpha channel
+    FragColor = vec4(darkened, original.a);
 }
 )";
-
 
 
 
@@ -3166,18 +3243,17 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 }
 
 
-void generateFluidStampCollisionsDamage()
-{
+
+
+void generateFluidStampCollisionsDamage() {
 	if (collisionPoints.empty())
 		return;
 
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
-	{
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
 
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
-			stamps[i].under_fire = true;
+		for (size_t i = 0; i < stamps.size(); i++) {
+			stamps[i].under_fire = false;
 
 			float minX, minY, maxX, maxY;
 			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
@@ -3185,7 +3261,6 @@ void generateFluidStampCollisionsDamage()
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
 			int blueStampCollisions = 0;
-			int bothStampCollisions = 0;
 
 			float red_count = 0;
 			float blue_count = 0;
@@ -3193,16 +3268,14 @@ void generateFluidStampCollisionsDamage()
 			vector<ivec2> collision_pixel_locations;
 
 			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints)
-			{
+			for (const auto& point : collisionPoints) {
 				float normX = point.x / float(WIDTH);
 				float normY = point.y / float(HEIGHT);
 
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
 
-				if (collides)
-				{
+				if (collides) {
 					stampCollisions++;
 
 					if (point.r > 0) {
@@ -3214,23 +3287,12 @@ void generateFluidStampCollisionsDamage()
 						blue_count += point.b;
 						blueStampCollisions++;
 					}
-
-					if (point.r > 0 && point.b > 0) {
-						bothStampCollisions++;
-					}
 				}
 			}
 
-			stamps[i].under_fire = false;
-
 			// Report collisions for this stamp
-			if (stampCollisions > 0)
-			{
+			if (stampCollisions > 0) {
 				stampHitCount++;
-
-
-
-
 
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
@@ -3239,46 +3301,60 @@ void generateFluidStampCollisionsDamage()
 					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
 
 				float damage = 0.0f;
+				bool should_add_blackening = false;
 
-				if (type == "Ally Ship")
-				{
+				if (type == "Ally Ship") {
 					damage = blue_count;
-
-					if (blueStampCollisions > 0)
-					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-					}
+					should_add_blackening = (blueStampCollisions > 0);
 				}
-				else
-				{
+				else {
 					damage = red_count;
-
-					if (redStampCollisions > 0)
-					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-					}
+					should_add_blackening = (redStampCollisions > 0);
 				}
 
-				// This is matter of personal taste
-				if (damage > 1)
+				// Debug print
+				std::cout << "Collision detected on " << type << " - Damage: " << damage
+					<< ", Points: " << collision_pixel_locations.size()
+					<< ", Current Health: " << stamps[i].health << std::endl;
+
+				// Set ship to under fire for visual effect
+				if (damage > 1) {
 					stamps[i].under_fire = true;
+				}
 
+				// Apply damage
+				stamps[i].health -= damage * DT;
 
-				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
-				static float last_did_damage_at = GLOBAL_TIME;
+				// Add blackening points if needed
+				if (should_add_blackening && !collision_pixel_locations.empty()) {
+					int added_points = 0;
 
+					// Add new blackening points
+					for (const auto& point : collision_pixel_locations) {
+						// Check if this point already exists to avoid duplicates
+						bool point_exists = false;
+						for (const auto& existing : stamps[i].blackening_points) {
+							if (existing.x == point.x && existing.y == point.y) {
+								point_exists = true;
+								break;
+							}
+						}
 
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - last_did_damage_at;
+						if (!point_exists) {
+							stamps[i].blackening_points.push_back(point);
+							added_points++;
+						}
+					}
 
-				stamps[i].health -= damage * DT;// *fps_coeff;
-				cout << stamps[i].health << endl;
+					// Debug print
+					if (added_points > 0) {
+						std::cout << "Added " << added_points << " new blackening points to " << type
+							<< " (total: " << stamps[i].blackening_points.size() << ")" << std::endl;
 
-				last_did_damage_at = GLOBAL_TIME;// global_time_end;
-
+						// Force mask update
+						stamps[i].invalidateBlackeningMask();
+					}
+				}
 			}
 		}
 	};
@@ -3977,8 +4053,13 @@ void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, 
 	glViewport(0, 0, WIDTH, HEIGHT);
 }
 
-// Function to apply blackening effect
-void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint outputTexture, int width, int height) {
+
+
+
+
+// Updated blackening effect function with stronger visual effect
+void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint outputTexture,
+	int width, int height, float intensity, glm::vec3 burnColor) {
 	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
 	glViewport(0, 0, width, height);
@@ -3986,6 +4067,12 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glUseProgram(blackeningProgram);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "originalTexture"), 0);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "maskTexture"), 1);
+
+	// Increase the intensity for more visible effect
+	glUniform1f(glGetUniformLocation(blackeningProgram, "intensity"), std::min(1.0f, intensity * 1.5f));
+
+	// Use a more pronounced burn color
+	glUniform3f(glGetUniformLocation(blackeningProgram, "burnColor"), burnColor.x, burnColor.y, burnColor.z);
 
 	GLuint projectionLocation = glGetUniformLocation(blackeningProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -3995,12 +4082,31 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, maskTexture);
 
+	// Enable blending for better results
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	glDisable(GL_BLEND);
 	glViewport(0, 0, WIDTH, HEIGHT);
+
+	// Check for GL errors
+	GLenum err = glGetError();
+	if (err != GL_NO_ERROR) {
+		std::cerr << "OpenGL error in applyBlackeningEffectGPU: " << err << std::endl;
+	}
 }
 
-GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
+
+
+
+
+
+
+// Improved function to create blackening mask texture with stronger visual effect
+GLuint createBlackeningMaskTexture(const Stamp& stamp) {
 	// Create a temporary texture to use as a mask
 	GLuint maskTexture;
 	glGenTextures(1, &maskTexture);
@@ -4011,47 +4117,59 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	// Create an empty black texture
-	std::vector<unsigned char> emptyData(stamp.width * stamp.height * 4, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+	std::vector<unsigned char> maskData(stamp.width * stamp.height * 4, 0);
 
-	// If there are blackening points, update the texture with white points
+	// If there are blackening points, render them to the mask
 	if (!stamp.blackening_points.empty()) {
-		// Create a temporary data array to upload to the texture
-		std::vector<unsigned char> pointData = emptyData;
-
-
-		for (const auto& point : stamp.blackening_points) {
-			size_t index = (point.y * stamp.width + point.x) * 4;
-
-			if (index >= 0 && index < pointData.size() - 3) {
-				pointData[index + 0] = 0; // R
-				pointData[index + 1] = 0; // G
-				pointData[index + 2] = 0; // B
-				pointData[index + 3] = 255; // A
-			}
-		}
+		// For each blackening point, set a bright white spot with some radius
+		const int brushRadius = std::max(3, stamp.width / 20); // Make this larger for more visible effect
 
 		for (const auto& point : stamp.blackening_points) {
-			size_t index = (point.y * stamp.width + point.x) * 4;
-			if (index >= 0 && index < pointData.size() - 3) {
+			// Apply a larger, more visible burn mark at each point
+			for (int dy = -brushRadius; dy <= brushRadius; dy++) {
+				for (int dx = -brushRadius; dx <= brushRadius; dx++) {
+					// Calculate position and distance
+					int px = point.x + dx;
+					int py = point.y + dy;
 
-				if (pointData[index + 0] < 256 - 32)
-				{
-					pointData[index + 0] += 32; // R
-					pointData[index + 1] += 32; // G
-					pointData[index + 2] += 32; // B
+					// Skip if out of bounds
+					if (px < 0 || px >= stamp.width || py < 0 || py >= stamp.height)
+						continue;
+
+					// Calculate squared distance from center for circular brush
+					float distSq = (dx * dx + dy * dy);
+					float radiusSq = brushRadius * brushRadius;
+
+					if (distSq <= radiusSq) {
+						// Create falloff based on distance (stronger in center)
+						float intensity = 1.0f - std::sqrt(distSq) / brushRadius;
+						intensity = std::pow(intensity, 0.75f); // Adjust falloff curve
+
+						// Brighten existing value to allow for overlapping damage
+						int index = (py * stamp.width + px) * 4;
+						unsigned char currentValue = maskData[index];
+						unsigned char newValue = static_cast<unsigned char>(std::min(255.0f, currentValue + (255.0f * intensity)));
+
+						// Apply to all channels for stronger effect
+						maskData[index] = newValue;     // R
+						maskData[index + 1] = 0;        // G 
+						maskData[index + 2] = 0;        // B
+						maskData[index + 3] = 255;      // A (full opacity)
+					}
 				}
-
-				pointData[index + 3] = 255; // A
 			}
 		}
-
-		// Upload the temporary data to the texture
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
 	}
+
+	// Upload the mask data to the texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, maskData.data());
 
 	return maskTexture;
 }
+
+
+
+
 
 
 
@@ -4712,16 +4830,20 @@ void addMouseColor()
 
 
 
-
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
-			if (stamp.blackening_points.size() != 0) {
+			// Only process textures with blackening points
+			if (!stamp.blackening_points.empty()) {
+				// Print debug info
+				std::cout << "Applying blackening to stamp: " << stamp.baseFilename
+					<< " with " << stamp.blackening_points.size() << " damage points" << std::endl;
+
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
 
-				// Create a texture from the backup data
+				// Create a texture from the backup data (undamaged texture)
 				GLuint originalTexture;
 				glGenTextures(1, &originalTexture);
 				glBindTexture(GL_TEXTURE_2D, originalTexture);
@@ -4731,25 +4853,57 @@ void updateDynamicTexture(Stamp& stamp) {
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.backupData[i].data());
 
-				// Create mask texture containing blackening points
-				GLuint maskTexture = createBlackeningMaskTexture(stamp, i);
+				// Force regenerate mask texture every time for debugging
+				if (stamp.blackeningMaskTexture != 0) {
+					glDeleteTextures(1, &stamp.blackeningMaskTexture);
+					stamp.blackeningMaskTexture = 0;
+				}
+				stamp.mask_needs_update = true;
 
-				// Apply dilation to the mask texture
+				// Get or create the mask texture
+				GLuint maskTexture;
+				if (stamp.blackeningMaskTexture == 0 || stamp.mask_needs_update) {
+					maskTexture = createBlackeningMaskTexture(stamp);
+					if (stamp.blackeningMaskTexture != 0) {
+						glDeleteTextures(1, &stamp.blackeningMaskTexture);
+					}
+					stamp.blackeningMaskTexture = maskTexture;
+					stamp.mask_needs_update = false;
+				}
+				else {
+					maskTexture = stamp.blackeningMaskTexture;
+				}
+
+				// Apply dilation to the mask texture to spread the effect - use larger radius
 				applyDilationGPU(maskTexture, tempTexture1, stamp.width, stamp.height, 10);
 
-				// Apply Gaussian blur to the dilated mask
-				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
+				// Apply Gaussian blur to the dilated mask - use larger sigma for more spread
+				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 5.0);
 
-				// Apply the blackening effect to the original texture using the blurred mask
-				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i], stamp.width, stamp.height);
+				// Create a more visible burn color
+				glm::vec3 burnColor;
+				if (stamp.health < 5000.0f) {
+					// Darker black/red for more damage
+					burnColor = glm::vec3(0.1f, 0.0f, 0.0f);
+				}
+				else {
+					// Dark gray for light damage
+					burnColor = glm::vec3(0.05f, 0.05f, 0.05f);
+				}
+
+				// Set damage intensity based on health - apply more aggressively
+				float healthRatio = stamp.health / 10000.0f;
+				stamp.damage_intensity = 1.0f - healthRatio;
+				stamp.damage_intensity = std::max(0.5f, stamp.damage_intensity); // Minimum 0.5 for visibility
+
+				// Apply the blackening effect to the original texture
+				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i],
+					stamp.width, stamp.height, stamp.damage_intensity, burnColor);
 
 				// Clean up temporary textures
 				glDeleteTextures(1, &originalTexture);
-				glDeleteTextures(1, &maskTexture);
 
 				// Update the pixelData to match what's now in the GPU texture
-				// NOTE: This is only needed if the pixelData is used elsewhere in CPU code
-				// If possible, avoid this readback for better performance
 				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 			}
@@ -4757,13 +4911,13 @@ void updateDynamicTexture(Stamp& stamp) {
 				// For stamps without blackening points, just ensure the texture is updated
 				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
-					(stamp.channels == 1) ? GL_RED :
-					(stamp.channels == 3) ? GL_RGB : GL_RGBA,
+					(stamp.channels == 1) ? GL_RED : (stamp.channels == 3) ? GL_RGB : GL_RGBA,
 					GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 			}
 		}
 	}
 }
+
 
 
 
@@ -5734,6 +5888,70 @@ void renderToScreen()
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
+
+
+
+	// Add this to your renderToScreen function before rendering the stamps
+// This will render red dots at all damage points for debugging
+if (1)//showDebugDamagePoints) 
+{  // Add this boolean to your globals
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Set up orthographic projection for screen space drawing
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, WIDTH, HEIGHT, 0, -1, 1);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // Draw damage points for debugging
+    glPointSize(4.0);
+    glBegin(GL_POINTS);
+    glColor4f(1.0f, 0.0f, 0.0f, 0.7f); // Red with some transparency
+    
+    auto drawDamagePoints = [&](const std::vector<Stamp>& stamps) {
+        for (const auto& stamp : stamps) {
+            if (!stamp.blackening_points.empty()) {
+                float minX, minY, maxX, maxY;
+                calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+                
+                // Convert normalized coordinates to screen coordinates
+                float screenMinX = minX * WIDTH;
+                float screenMinY = minY * HEIGHT;
+                float screenWidth = (maxX - minX) * WIDTH;
+                float screenHeight = (maxY - minY) * HEIGHT;
+                
+                for (const auto& point : stamp.blackening_points) {
+                    // Convert texture coordinates to screen coordinates
+                    float screenX = screenMinX + (point.x / float(stamp.width)) * screenWidth;
+                    float screenY = screenMinY + (point.y / float(stamp.height)) * screenHeight;
+                    
+                    glVertex2f(screenX, screenY);
+                }
+            }
+        }
+    };
+    
+    drawDamagePoints(allyShips);
+    drawDamagePoints(enemyShips);
+    
+    glEnd();
+    
+    // Restore matrices
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    
+    glDisable(GL_BLEND);
+}
+
+
+
 	// Now render all the stamps with textures using the new program
 	// Enable blending for transparent textures
 	glEnable(GL_BLEND);
@@ -5743,6 +5961,13 @@ void renderToScreen()
 
 	projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+
+
+
+
+
+
 
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
