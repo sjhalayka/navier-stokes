@@ -6223,10 +6223,10 @@ void idle()
 	// Accumulate time, cap it to prevent excessive catch-up
 	static float accumulator = 0.0f;
 	accumulator += deltaTime;
-	const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
-	if (accumulator > MAX_ACCUMULATOR) {
-		accumulator = MAX_ACCUMULATOR;
-	}
+	//const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
+	//if (accumulator > MAX_ACCUMULATOR) {
+	//	accumulator = MAX_ACCUMULATOR;
+	//}
 
 	// Fixed time step loop
 	while (accumulator >= DT) {
