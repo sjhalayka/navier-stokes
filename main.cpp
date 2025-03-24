@@ -241,12 +241,24 @@ public:
 	size_t y;
 };
 
-
+struct BlackeningPoint {
+	int x, y;
+	float intensity;   // Intensity value (0-1) for this damage point
+	float age;         // How long this damage point has been present
+};
 
 
 class Stamp {
 
 public:
+
+
+
+
+	// Replace vector<ivec2> blackening_points with:
+	vector<BlackeningPoint> blackening_points;
+
+
 	Stamp(void)
 	{
 		blackeningMaskTexture = 0;
@@ -507,7 +519,7 @@ public:
 
 	size_t currentVariationIndex = 0;              // Which texture variation to use
 
-	vector<ivec2> blackening_points;
+	//vector<ivec2> blackening_points;
 
 	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
@@ -3119,7 +3131,7 @@ void reapplyAllStamps() {
 
 
 
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<ivec2>& collision_pixel_locations)
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<BlackeningPoint>& collision_pixel_locations)
 {
 	//if (!stamp.active) return false;
 
@@ -3230,11 +3242,17 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 
 	if (is_opaque_enough)
 	{
-		ivec2 iv;
+
+
+		BlackeningPoint iv;
 		iv.x = pixelX;
 		iv.y = pixelY;
-		iv.stamp_index = stamp_index;
-		iv.stamp_type = stamp_type;
+
+		//ivec2 iv;
+		//iv.x = pixelX;
+		//iv.y = pixelY;
+		//iv.stamp_index = stamp_index;
+		//iv.stamp_type = stamp_type;
 		collision_pixel_locations.push_back(iv);
 	}
 
@@ -3265,7 +3283,7 @@ void generateFluidStampCollisionsDamage() {
 			float red_count = 0;
 			float blue_count = 0;
 
-			vector<ivec2> collision_pixel_locations;
+			vector<BlackeningPoint> collision_pixel_locations;
 
 			// Test each collision point against this stamp
 			for (const auto& point : collisionPoints) {
@@ -4104,8 +4122,7 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 
 
 
-
-// Improved function to create blackening mask texture with stronger visual effect
+// Optimized mask generation function for better performance
 GLuint createBlackeningMaskTexture(const Stamp& stamp) {
 	// Create a temporary texture to use as a mask
 	GLuint maskTexture;
@@ -4116,56 +4133,60 @@ GLuint createBlackeningMaskTexture(const Stamp& stamp) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	// Create an empty black texture
-	std::vector<unsigned char> maskData(stamp.width * stamp.height * 4, 0);
+	// Create an empty black texture (only R channel needed for mask)
+	std::vector<unsigned char> maskData(stamp.width * stamp.height, 0);
 
 	// If there are blackening points, render them to the mask
 	if (!stamp.blackening_points.empty()) {
-		// For each blackening point, set a bright white spot with some radius
-		const int brushRadius = std::max(3, stamp.width / 20); // Make this larger for more visible effect
+		// For each blackening point, set mask values
+		const int brushRadius = std::max(3, stamp.width / 30); // Smaller radius for better performance
 
 		for (const auto& point : stamp.blackening_points) {
-			// Apply a larger, more visible burn mark at each point
-			for (int dy = -brushRadius; dy <= brushRadius; dy++) {
-				for (int dx = -brushRadius; dx <= brushRadius; dx++) {
-					// Calculate position and distance
-					int px = point.x + dx;
-					int py = point.y + dy;
+			// Limit the area affected for better performance
+			int minX = std::max(0, point.x - brushRadius);
+			int maxX = std::min(stamp.width - 1, point.x + brushRadius);
+			int minY = std::max(0, point.y - brushRadius);
+			int maxY = std::min(stamp.height - 1, point.y + brushRadius);
 
-					// Skip if out of bounds
-					if (px < 0 || px >= stamp.width || py < 0 || py >= stamp.height)
-						continue;
-
-					// Calculate squared distance from center for circular brush
-					float distSq = (dx * dx + dy * dy);
+			// Apply more efficient loop bounds
+			for (int py = minY; py <= maxY; py++) {
+				for (int px = minX; px <= maxX; px++) {
+					// Calculate squared distance from point
+					float dx = px - point.x;
+					float dy = py - point.y;
+					float distSq = dx * dx + dy * dy;
 					float radiusSq = brushRadius * brushRadius;
 
 					if (distSq <= radiusSq) {
-						// Create falloff based on distance (stronger in center)
+						// Create falloff based on distance
 						float intensity = 1.0f - std::sqrt(distSq) / brushRadius;
 						intensity = std::pow(intensity, 0.75f); // Adjust falloff curve
 
-						// Brighten existing value to allow for overlapping damage
-						int index = (py * stamp.width + px) * 4;
-						unsigned char currentValue = maskData[index];
-						unsigned char newValue = static_cast<unsigned char>(std::min(255.0f, currentValue + (255.0f * intensity)));
+						// Get index in single-channel data
+						int index = py * stamp.width + px;
 
-						// Apply to all channels for stronger effect
-						maskData[index] = newValue;     // R
-						maskData[index + 1] = 0;        // G 
-						maskData[index + 2] = 0;        // B
-						maskData[index + 3] = 255;      // A (full opacity)
+						// Use max to combine with existing damage
+						unsigned char currentValue = maskData[index];
+						unsigned char newValue = static_cast<unsigned char>(
+							std::max(currentValue, static_cast<unsigned char>(255.0f * intensity))
+							);
+
+						// Store in single-channel data
+						maskData[index] = newValue;
 					}
 				}
 			}
 		}
 	}
 
-	// Upload the mask data to the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, maskData.data());
+	// Upload the mask data to the texture (using R channel only for better performance)
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, stamp.width, stamp.height, 0, GL_RED, GL_UNSIGNED_BYTE, maskData.data());
 
 	return maskTexture;
 }
+
+
+
 
 
 
