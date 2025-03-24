@@ -2556,178 +2556,6 @@ void main() {
 )";
 
 
-GLuint stampCollisionFBO;
-GLuint stampCollisionResultTexture;
-GLuint stampCollisionProgram;
-const int MAX_STAMP_SIZE = 256; // Adjust based on your largest stamp size
-
-// 2. New shader code for per-stamp collision detection
-const char* stampCollisionFragmentShader = R"(
-#version 330 core
-uniform sampler2D stampTexture;
-uniform sampler2D collisionTexture;
-uniform vec2 stampPos;
-uniform vec2 stampSize;
-uniform vec2 screenSize;
-uniform float aspect;
-
-out vec4 FragColor;
-in vec2 TexCoord;
-
-void main() {
-    // Get alpha value from stamp texture at current texcoord
-    float stampAlpha = texture(stampTexture, TexCoord).a;
-    
-    // If this pixel is part of the stamp (alpha > 0)
-    if (stampAlpha > 0.05) {
-        // Calculate normalized screen-space coordinates
-        vec2 normalizedStampPos = vec2(stampPos.x, (stampPos.y - 0.5) * aspect + 0.5);
-        vec2 screenPos = normalizedStampPos + (TexCoord - 0.5) * stampSize / screenSize;
-        
-        // Sample collision texture at this position
-        vec4 collision = texture(collisionTexture, screenPos);
-        
-        // Output collision data if it exists and the stamp is present here
-        FragColor = collision;
-    } else {
-        // No stamp present at this pixel
-        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-    }
-}
-)";
-
-
-
-
-
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<ivec2>& collision_pixel_locations)
-{
-	//if (!stamp.active) return false;
-
-	//// Validate variation index
-	size_t variationIndex = stamp.currentVariationIndex;
-	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-	//	stamp.pixelData[variationIndex].empty()) {
-	//	// Fall back to first available texture
-	//	for (size_t i = 0; i < stamp.pixelData.size(); i++) {
-	//		if (!stamp.pixelData[i].empty()) {
-	//			variationIndex = i;
-	//			break;
-	//		}
-	//	}
-	//	// If still no valid texture, return false
-	//	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-	//		stamp.pixelData[variationIndex].empty()) {
-	//		return false;
-	//	}
-	//}
-
-	//if (stamp.pixelData[variationIndex].empty()) {
-	//	// No pixel data available, fall back to the bounding box check
-	//	float minX, minY, maxX, maxY;
-	//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
-
-	//	float aspect = HEIGHT / float(WIDTH);
-
-	//	// Convert pixel coordinates to normalized coordinates (0-1)
-	//	float pointX = point.x / (float)WIDTH;
-	//	float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
-
-	//	// Apply aspect ratio correction to y-coordinate
-	//	pointY = (pointY - 0.5f) * aspect + 0.5f;
-
-	//	// Simple bounding box check
-	//	return (pointX >= minX && pointX <= maxX &&
-	//		pointY >= minY && pointY <= maxY);
-	//}
-
-
-
-
-
-	// Get the normalized stamp position (0-1 in screen space)
-	float stampX = stamp.posX;  // Normalized X position
-	float stampY = stamp.posY;  // Normalized Y position
-
-	// Calculate the screen-space dimensions of the stamp
-	float aspect = HEIGHT / float(WIDTH);
-	float stampWidth = stamp.width / float(WIDTH);  // In normalized screen units
-	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
-
-	// Convert collision point to normalized screen coordinates
-	float pointX = point.x / float(WIDTH);  // 0-1 range
-	float pointY = point.y / float(HEIGHT);  // 0-1 range
-
-	// SUPER IMPORTANT
-	pointY = (pointY - 0.5f) / aspect + 0.5f;
-
-	// Calculate bounding box
-	float minX, minY, maxX, maxY;
-	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
-
-	//global_minXs.push_back(minX);
-	//global_minYs.push_back(minY);
-	//global_maxXs.push_back(maxX);
-	//global_maxYs.push_back(maxY);
-
-	// Check if the collision point is within the stamp's bounding box
-	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
-		return false;
-
-	// Map the collision point to texture coordinates
-	float texCoordX = (pointX - minX) / (maxX - minX);
-	float texCoordY = (pointY - minY) / (maxY - minY);
-
-	// Convert to pixel coordinates in the texture
-	int pixelX = int(texCoordX * stamp.width);
-	int pixelY = int(texCoordY * stamp.height);
-	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
-	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
-
-
-
-
-
-	// Get the alpha/opacity at this pixel for the current variation
-	float opacity = 0.0f;
-	if (stamp.channels == 4) {
-		// Use alpha channel for RGBA textures
-		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
-	}
-	else if (stamp.channels == 1) {
-		// Use intensity for grayscale
-		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
-	}
-	else if (stamp.channels == 3) {
-		// For RGB, use average intensity as opacity
-		float r = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
-		float g = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 1) / 255.0f;
-		float b = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 2) / 255.0f;
-		opacity = (r + g + b) / 3.0f;
-	}
-
-
-	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
-
-	if (is_opaque_enough)
-	{
-		ivec2 iv;
-		iv.x = pixelX;
-		iv.y = pixelY;
-		iv.stamp_index = stamp_index;
-		iv.stamp_type = stamp_type;
-		collision_pixel_locations.push_back(iv);
-	}
-
-	// Check if the pixel is opaque enough for a collision
-	return is_opaque_enough;
-}
-
-
-
-
-
-
 
 
 
@@ -3214,6 +3042,250 @@ void reapplyAllStamps() {
 
 
 
+bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<ivec2>& collision_pixel_locations)
+{
+	//if (!stamp.active) return false;
+
+	//// Validate variation index
+	size_t variationIndex = stamp.currentVariationIndex;
+	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//	stamp.pixelData[variationIndex].empty()) {
+	//	// Fall back to first available texture
+	//	for (size_t i = 0; i < stamp.pixelData.size(); i++) {
+	//		if (!stamp.pixelData[i].empty()) {
+	//			variationIndex = i;
+	//			break;
+	//		}
+	//	}
+	//	// If still no valid texture, return false
+	//	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
+	//		stamp.pixelData[variationIndex].empty()) {
+	//		return false;
+	//	}
+	//}
+
+	//if (stamp.pixelData[variationIndex].empty()) {
+	//	// No pixel data available, fall back to the bounding box check
+	//	float minX, minY, maxX, maxY;
+	//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+	//	float aspect = HEIGHT / float(WIDTH);
+
+	//	// Convert pixel coordinates to normalized coordinates (0-1)
+	//	float pointX = point.x / (float)WIDTH;
+	//	float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
+
+	//	// Apply aspect ratio correction to y-coordinate
+	//	pointY = (pointY - 0.5f) * aspect + 0.5f;
+
+	//	// Simple bounding box check
+	//	return (pointX >= minX && pointX <= maxX &&
+	//		pointY >= minY && pointY <= maxY);
+	//}
+
+
+
+
+
+	// Get the normalized stamp position (0-1 in screen space)
+	float stampX = stamp.posX;  // Normalized X position
+	float stampY = stamp.posY;  // Normalized Y position
+
+	// Calculate the screen-space dimensions of the stamp
+	float aspect = HEIGHT / float(WIDTH);
+	float stampWidth = stamp.width / float(WIDTH);  // In normalized screen units
+	float stampHeight = (stamp.height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
+
+	// Convert collision point to normalized screen coordinates
+	float pointX = point.x / float(WIDTH);  // 0-1 range
+	float pointY = point.y / float(HEIGHT);  // 0-1 range
+
+	// SUPER IMPORTANT
+	pointY = (pointY - 0.5f) / aspect + 0.5f;
+
+	// Calculate bounding box
+	float minX, minY, maxX, maxY;
+	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+	//global_minXs.push_back(minX);
+	//global_minYs.push_back(minY);
+	//global_maxXs.push_back(maxX);
+	//global_maxYs.push_back(maxY);
+
+	// Check if the collision point is within the stamp's bounding box
+	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
+		return false;
+
+	// Map the collision point to texture coordinates
+	float texCoordX = (pointX - minX) / (maxX - minX);
+	float texCoordY = (pointY - minY) / (maxY - minY);
+
+	// Convert to pixel coordinates in the texture
+	int pixelX = int(texCoordX * stamp.width);
+	int pixelY = int(texCoordY * stamp.height);
+	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
+	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
+
+
+
+
+
+	// Get the alpha/opacity at this pixel for the current variation
+	float opacity = 0.0f;
+	if (stamp.channels == 4) {
+		// Use alpha channel for RGBA textures
+		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 3) / 255.0f;
+	}
+	else if (stamp.channels == 1) {
+		// Use intensity for grayscale
+		opacity = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+	}
+	else if (stamp.channels == 3) {
+		// For RGB, use average intensity as opacity
+		float r = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 0) / 255.0f;
+		float g = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 1) / 255.0f;
+		float b = getPixelValueFromStamp(stamp, variationIndex, pixelX, pixelY, 2) / 255.0f;
+		opacity = (r + g + b) / 3.0f;
+	}
+
+
+	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
+
+	if (is_opaque_enough)
+	{
+		ivec2 iv;
+		iv.x = pixelX;
+		iv.y = pixelY;
+		iv.stamp_index = stamp_index;
+		iv.stamp_type = stamp_type;
+		collision_pixel_locations.push_back(iv);
+	}
+
+	// Check if the pixel is opaque enough for a collision
+	return is_opaque_enough;
+}
+
+
+void generateFluidStampCollisionsDamage()
+{
+	if (collisionPoints.empty())
+		return;
+
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
+	{
+		int stampHitCount = 0;
+
+		for (size_t i = 0; i < stamps.size(); i++)
+		{
+			stamps[i].under_fire = true;
+
+			float minX, minY, maxX, maxY;
+			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
+
+			int stampCollisions = 0;
+			int redStampCollisions = 0;
+			int blueStampCollisions = 0;
+			int bothStampCollisions = 0;
+
+			float red_count = 0;
+			float blue_count = 0;
+
+			vector<ivec2> collision_pixel_locations;
+
+			// Test each collision point against this stamp
+			for (const auto& point : collisionPoints)
+			{
+				float normX = point.x / float(WIDTH);
+				float normY = point.y / float(HEIGHT);
+
+				// Perform the actual collision check
+				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
+
+				if (collides)
+				{
+					stampCollisions++;
+
+					if (point.r > 0) {
+						red_count += point.r;
+						redStampCollisions++;
+					}
+
+					if (point.b > 0) {
+						blue_count += point.b;
+						blueStampCollisions++;
+					}
+
+					if (point.r > 0 && point.b > 0) {
+						bothStampCollisions++;
+					}
+				}
+			}
+
+			stamps[i].under_fire = false;
+
+			// Report collisions for this stamp
+			if (stampCollisions > 0)
+			{
+				stampHitCount++;
+
+
+
+
+
+				std::string textureName = stamps[i].baseFilename;
+				std::string variationName = "unknown";
+
+				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
+					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
+
+				float damage = 0.0f;
+
+				if (type == "Ally Ship")
+				{
+					damage = blue_count;
+
+					if (blueStampCollisions > 0)
+					{
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+					}
+				}
+				else
+				{
+					damage = red_count;
+
+					if (redStampCollisions > 0)
+					{
+						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
+							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
+					}
+				}
+
+				// This is matter of personal taste
+				if (damage > 1)
+					stamps[i].under_fire = true;
+
+
+				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
+				static float last_did_damage_at = GLOBAL_TIME;
+
+
+				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				//std::chrono::duration<float, std::milli> elapsed;
+				//elapsed = global_time_end - last_did_damage_at;
+
+				stamps[i].health -= damage * DT;// *fps_coeff;
+				cout << stamps[i].health << endl;
+
+				last_did_damage_at = GLOBAL_TIME;// global_time_end;
+
+			}
+		}
+	};
+
+	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
+	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
+}
 
 
 
@@ -3401,6 +3473,61 @@ void diffuseFriendlyColor() {
 
 
 
+void detectCollisions()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+	glUseProgram(detectCollisionProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+
+	// Clear previous collision locations
+	collisionPoints.clear();
+
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
+
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+			}
+		}
+	}
+}
+
+
+
 
 
 
@@ -3476,356 +3603,6 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
 }
 
 
-// 3. Initialization function to add to initGL()
-void initGPUCollisionDetection() {
-	// Compile the stamp collision shader
-	stampCollisionProgram = createShaderProgram(vertexShaderSource, stampCollisionFragmentShader);
-
-	// Create framebuffer for per-stamp collision detection
-	glGenFramebuffers(1, &stampCollisionFBO);
-
-	// Create texture for stamp collision results
-	glGenTextures(1, &stampCollisionResultTexture);
-	glBindTexture(GL_TEXTURE_2D, stampCollisionResultTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, MAX_STAMP_SIZE, MAX_STAMP_SIZE, 0, GL_RGBA, GL_FLOAT, nullptr);
-}
-
-// 4. GPU queries for collision detection
-GLuint createOcclusionQuery() {
-	GLuint queryID;
-	glGenQueries(1, &queryID);
-	return queryID;
-}
-
-// 5. Render a stamp to collision texture for analysis
-void renderStampToCollisionTexture(const Stamp& stamp, GLuint targetTexture) {
-	// Setup framebuffer with dimensions that match the stamp size
-	glBindFramebuffer(GL_FRAMEBUFFER, stampCollisionFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, targetTexture, 0);
-	glViewport(0, 0, stamp.width, stamp.height);
-
-	// Clear the target texture
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	// Use the specialized shader for stamp collision detection
-	glUseProgram(stampCollisionProgram);
-
-	// Get current variation index and validate
-	size_t variationIndex = stamp.currentVariationIndex;
-	if (variationIndex >= stamp.textureIDs.size() || stamp.textureIDs[variationIndex] == 0) {
-		for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-			if (stamp.textureIDs[i] != 0) {
-				variationIndex = i;
-				break;
-			}
-		}
-	}
-
-	// Set uniforms for collision detection
-	glUniform1i(glGetUniformLocation(stampCollisionProgram, "stampTexture"), 0);
-	glUniform1i(glGetUniformLocation(stampCollisionProgram, "collisionTexture"), 1);
-	glUniform2f(glGetUniformLocation(stampCollisionProgram, "stampPos"), stamp.posX, stamp.posY);
-	glUniform2f(glGetUniformLocation(stampCollisionProgram, "stampSize"),
-		(float)stamp.width / WIDTH, (float)stamp.height / HEIGHT);
-	glUniform2f(glGetUniformLocation(stampCollisionProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
-	glUniform1f(glGetUniformLocation(stampCollisionProgram, "aspect"), WIDTH / (float)HEIGHT);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, collisionTexture);
-
-	// Render a quad covering the stamp's area
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Reset viewport
-	glViewport(0, 0, WIDTH, HEIGHT);
-}
-
-// 6. Check if a stamp has collisions with a specific color channel
-bool checkStampCollisionWithGPUQuery(const Stamp& stamp, GLuint queryID, bool checkForRedColor) {
-	// Bind to collision result texture
-	glBindFramebuffer(GL_FRAMEBUFFER, stampCollisionFBO);
-
-	// Set up color mask based on which color channel we're checking
-	if (checkForRedColor) {
-		glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE); // Only check red
-	}
-	else {
-		glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE); // Only check blue
-	}
-
-	// Begin occlusion query
-	glBeginQuery(GL_ANY_SAMPLES_PASSED, queryID);
-
-	// Render stamp mask against collision texture
-	renderStampToCollisionTexture(stamp, stampCollisionResultTexture);
-
-	// End query
-	glEndQuery(GL_ANY_SAMPLES_PASSED);
-
-	// Reset color mask
-	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-	// Read query result (this is much faster than reading back pixels)
-	GLuint result = 0;
-	glGetQueryObjectuiv(queryID, GL_QUERY_RESULT, &result);
-
-	return result > 0;
-}
-
-// 7. Calculate damage amount from collision texture for a specific stamp
-float calculateShipDamageFromCollisionTexture(Stamp& stamp, bool checkRedColor) {
-	// Calculate normalized stamp bounding box
-	float minX, minY, maxX, maxY;
-	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
-
-	// Convert to pixel coordinates
-	int pixelMinX = static_cast<int>(minX * WIDTH);
-	int pixelMinY = static_cast<int>(minY * HEIGHT);
-	int pixelMaxX = static_cast<int>(maxX * WIDTH);
-	int pixelMaxY = static_cast<int>(maxY * HEIGHT);
-
-	// Clamp to texture bounds
-	pixelMinX = std::max(0, pixelMinX);
-	pixelMaxX = std::min(WIDTH - 1, pixelMaxX);
-	pixelMinY = std::max(0, pixelMinY);
-	pixelMaxY = std::min(HEIGHT - 1, pixelMaxY);
-
-	// Calculate dimensions of the area to read back
-	int readWidth = pixelMaxX - pixelMinX + 1;
-	int readHeight = pixelMaxY - pixelMinY + 1;
-
-	// Allocate buffer for just the stamp's area
-	std::vector<float> collisionData(readWidth * readHeight * 4);
-
-	// Read back only the relevant portion of the collision texture
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-	glReadPixels(pixelMinX, pixelMinY, readWidth, readHeight, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Calculate damage by summing collision intensity
-	float damage = 0.0f;
-	int channelIndex = checkRedColor ? 0 : 2; // 0 for red, 2 for blue
-
-	// Get collision points for original function for comparison
-	vector<ivec2> collision_pixel_locations;
-
-	for (int y = 0; y < readHeight; y++) {
-		for (int x = 0; x < readWidth; x++) {
-			int index = (y * readWidth + x) * 4 + channelIndex;
-			float intensity = collisionData[index];
-
-			if (intensity > COLOR_DETECTION_THRESHOLD) {
-				damage += intensity;
-
-				// Create a collision point at screen coordinates
-				CollisionPoint point(pixelMinX + x, pixelMinY + y,
-					checkRedColor ? intensity : 0.0f,
-					checkRedColor ? 0.0f : intensity);
-
-				// Use the original collision detection function to get the pixel location
-				// This ensures consistency with the original implementation
-				if (isCollisionInStamp(point, stamp, 0, checkRedColor ? "Enemy Ship" : "Ally Ship", collision_pixel_locations)) {
-					// Collision points are already added to collision_pixel_locations by isCollisionInStamp
-				}
-			}
-		}
-	}
-
-	// Add all found collision pixels to the stamp's blackening points
-	for (const auto& pixelLocation : collision_pixel_locations) {
-		stamp.blackening_points.push_back(pixelLocation);
-	}
-
-	return damage;
-}
-
-// 8. Apply damage to a ship
-void applyDamageToShip(Stamp& ship, float damage) {
-	// Mark ship as under fire if damage exceeds threshold
-	if (damage > 1.0f) {
-		ship.under_fire = true;
-	}
-
-	// Apply damage proportional to time step
-	ship.health -= damage * DT;
-	std::cout << "Ship health: " << ship.health << std::endl;
-}
-
-// 9. Main GPU-accelerated collision detection and damage function
-void detectCollisionsAndApplyDamageGPU() {
-	// First, run the global collision detection shader to mark collision areas
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-
-	glUseProgram(detectCollisionProgram);
-
-	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "collisionThreshold"), COLLISION_THRESHOLD);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-
-	// Render full-screen quad to detect all collisions
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-
-	// Read back collision texture data from GPU
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
-	collisionPoints.clear();
-
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-			float a = collisionData[index + 3];
-
-			if (a > 0.0) {
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
-
-	// Process ally ships
-	for (size_t i = 0; i < allyShips.size(); i++) {
-		allyShips[i].under_fire = false;
-
-		// Skip ships marked for removal
-		if (allyShips[i].to_be_culled) {
-			continue;
-		}
-
-		float minX, minY, maxX, maxY;
-		calculateBoundingBox(allyShips[i], minX, minY, maxX, maxY);
-
-		int stampCollisions = 0;
-		int blueStampCollisions = 0;
-		float blue_count = 0;
-		vector<ivec2> collision_pixel_locations;
-
-		// Test each collision point against this ship
-		for (const auto& point : collisionPoints) {
-			float normX = point.x / float(WIDTH);
-			float normY = point.y / float(HEIGHT);
-
-			// Perform the actual collision check
-			bool collides = isCollisionInStamp(point, allyShips[i], i, "Ally Ship", collision_pixel_locations);
-
-			if (collides) {
-				stampCollisions++;
-
-				if (point.b > 0) {
-					blue_count += point.b;
-					blueStampCollisions++;
-				}
-			}
-		}
-
-		// Process collisions for this ship
-		if (stampCollisions > 0) {
-			float damage = blue_count;
-
-			if (blueStampCollisions > 0) {
-				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-					allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
-			}
-
-			// Mark ship as under fire if damage is significant
-			if (damage > 1)
-				allyShips[i].under_fire = true;
-
-			allyShips[i].health -= damage * DT;
-			cout << "Ally ship health: " << allyShips[i].health << endl;
-		}
-	}
-
-	// Process enemy ships
-	for (size_t i = 0; i < enemyShips.size(); i++) {
-		enemyShips[i].under_fire = false;
-
-		// Skip ships marked for removal
-		if (enemyShips[i].to_be_culled) {
-			continue;
-		}
-
-		float minX, minY, maxX, maxY;
-		calculateBoundingBox(enemyShips[i], minX, minY, maxX, maxY);
-
-		int stampCollisions = 0;
-		int redStampCollisions = 0;
-		float red_count = 0;
-		vector<ivec2> collision_pixel_locations;
-
-		// Test each collision point against this ship
-		for (const auto& point : collisionPoints) {
-			float normX = point.x / float(WIDTH);
-			float normY = point.y / float(HEIGHT);
-
-			// Perform the actual collision check
-			bool collides = isCollisionInStamp(point, enemyShips[i], i, "Enemy Ship", collision_pixel_locations);
-
-			if (collides) {
-				stampCollisions++;
-
-				if (point.r > 0) {
-					red_count += point.r;
-					redStampCollisions++;
-				}
-			}
-		}
-
-		// Process collisions for this ship
-		if (stampCollisions > 0) {
-			float damage = red_count;
-
-			if (redStampCollisions > 0) {
-				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-					enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
-			}
-
-			// Mark ship as under fire if damage is significant
-			if (damage > 1)
-				enemyShips[i].under_fire = true;
-
-			enemyShips[i].health -= damage * DT;
-			cout << "Enemy ship health: " << enemyShips[i].health << endl;
-		}
-	}
-}
-
-// 10. Clean up resources in reshape or at program exit
-void cleanupGPUCollisionResources() {
-	glDeleteTextures(1, &stampCollisionResultTexture);
-	glDeleteFramebuffers(1, &stampCollisionFBO);
-	glDeleteProgram(stampCollisionProgram);
-}
 
 void initGPUImageProcessing() {
 	// Create shader programs
@@ -4330,8 +4107,6 @@ void initGL() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	initGPUImageProcessing();
-	initGPUCollisionDetection();
-
 
 	textRenderer = new TextRenderer("font.png", WIDTH, HEIGHT);
 
@@ -4991,160 +4766,7 @@ void updateDynamicTexture(Stamp& stamp) {
 }
 
 
-void detectCollisionsAndApplyDamage() {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-	glUseProgram(detectCollisionProgram);
-
-	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-
-	// Read back collision texture data from GPU
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
-	collisionPoints.clear();
-
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-			float a = collisionData[index + 3];
-
-			if (a > 0.0) {
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
-
-	// ---- Now apply damage to ships directly (previously in generateFluidStampCollisionsDamage) ----
-	if (collisionPoints.empty())
-		return;
-
-	// Process ally ships
-	for (size_t i = 0; i < allyShips.size(); i++) {
-		allyShips[i].under_fire = false;
-
-		float minX, minY, maxX, maxY;
-		calculateBoundingBox(allyShips[i], minX, minY, maxX, maxY);
-
-		int stampCollisions = 0;
-		int blueStampCollisions = 0;
-		float blue_count = 0;
-		vector<ivec2> collision_pixel_locations;
-
-		// Test each collision point against this ship
-		for (const auto& point : collisionPoints) {
-			float normX = point.x / float(WIDTH);
-			float normY = point.y / float(HEIGHT);
-
-			// Perform the actual collision check
-			bool collides = isCollisionInStamp(point, allyShips[i], i, "Ally Ship", collision_pixel_locations);
-
-			if (collides) {
-				stampCollisions++;
-
-				if (point.b > 0) {
-					blue_count += point.b;
-					blueStampCollisions++;
-				}
-			}
-		}
-
-		// Process collisions for this ship
-		if (stampCollisions > 0) {
-			float damage = blue_count;
-
-			if (blueStampCollisions > 0) {
-				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-					allyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
-			}
-
-			// Mark ship as under fire if damage is significant
-			if (damage > 1)
-				allyShips[i].under_fire = true;
-
-			static float last_did_damage_at = GLOBAL_TIME;
-			allyShips[i].health -= damage * DT;
-			cout << allyShips[i].health << endl;
-			last_did_damage_at = GLOBAL_TIME;
-		}
-	}
-
-	// Process enemy ships
-	for (size_t i = 0; i < enemyShips.size(); i++) {
-		enemyShips[i].under_fire = false;
-
-		float minX, minY, maxX, maxY;
-		calculateBoundingBox(enemyShips[i], minX, minY, maxX, maxY);
-
-		int stampCollisions = 0;
-		int redStampCollisions = 0;
-		float red_count = 0;
-		vector<ivec2> collision_pixel_locations;
-
-		// Test each collision point against this ship
-		for (const auto& point : collisionPoints) {
-			float normX = point.x / float(WIDTH);
-			float normY = point.y / float(HEIGHT);
-
-			// Perform the actual collision check
-			bool collides = isCollisionInStamp(point, enemyShips[i], i, "Enemy Ship", collision_pixel_locations);
-
-			if (collides) {
-				stampCollisions++;
-
-				if (point.r > 0) {
-					red_count += point.r;
-					redStampCollisions++;
-				}
-			}
-		}
-
-		// Process collisions for this ship
-		if (stampCollisions > 0) {
-			float damage = red_count;
-
-			if (redStampCollisions > 0) {
-				for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-					enemyShips[i].blackening_points.push_back(collision_pixel_locations[j]);
-			}
-
-			// Mark ship as under fire if damage is significant
-			if (damage > 1)
-				enemyShips[i].under_fire = true;
-
-			static float last_did_damage_at = GLOBAL_TIME;
-			enemyShips[i].health -= damage * DT;
-			cout << enemyShips[i].health << endl;
-			last_did_damage_at = GLOBAL_TIME;
-		}
-	}
-}
 
 
 void updateObstacle() {
@@ -5962,6 +5584,7 @@ void cull_marked_powerups(void)
 }
 
 
+
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
@@ -5997,12 +5620,14 @@ void simulationStep()
 	cull_marked_ships();
 
 
+
 	bool old_red_mode = red_mode;
 
 	red_mode = true;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -6010,6 +5635,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
+		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -6020,29 +5646,38 @@ void simulationStep()
 	addMouseColor();
 
 
+
 	clearObstacleTexture();
 	reapplyAllStamps();
 
 	updateObstacle();
 
 
+
 	advectVelocity();
+	//applyVorticityConfinement();
 	diffuseVelocity();
 
 	advectColor();
+	//applyVorticityConfinementColor();
 	diffuseColor();
 
 	advectFriendlyColor();
+	//applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
 
-	// Run collision detection and damage generation every frame for more responsive gameplay
-	//detectCollisions();
-	//generateFluidStampCollisionsDamage();
+	//computeDivergence();
+	//solvePressure(20);
+	//subtractPressureGradient();
 
-	detectCollisionsAndApplyDamageGPU();
-	//detectCollisionsAndApplyDamage();
+	if (1)//frameCount % 30 == 0)
+	{
+		detectCollisions();
+		generateFluidStampCollisionsDamage();
+	}
+
+
 }
-
 
 
 
@@ -6212,41 +5847,38 @@ void display() {
 
 
 
+
+
+// GLUT idle callback
 void idle()
 {
-	// Use GLUT's elapsed time (in milliseconds) as the real-time source
-	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
-	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	float deltaTime = currentTime - lastTime;
-	lastTime = currentTime;
 
-	// Accumulate time, cap it to prevent excessive catch-up
-	static float accumulator = 0.0f;
-	accumulator += deltaTime;
-	//const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
-	//if (accumulator > MAX_ACCUMULATOR) {
-	//	accumulator = MAX_ACCUMULATOR;
+	//static float previousTime = GLOBAL_TIME;
+	//float deltaTime = GLOBAL_TIME - previousTime;
+	//previousTime = GLOBAL_TIME;
+	//
+	//static float accumulator = 0.0f;
+	//accumulator += deltaTime;
+
+	//while (accumulator >= DT) {
+	//	simulationStep();
+	//	accumulator -= DT;	
 	//}
 
-	// Fixed time step loop
-	while (accumulator >= DT) {
-		simulationStep(); // Update the simulation by one fixed step
-		GLOBAL_TIME += DT; // Increment global time by fixed step
-		accumulator -= DT;
-	}
 
-	// Handle continuous actions (e.g., firing bullets)
-	if (spacePressed) {
+
+	GLOBAL_TIME += DT;
+
+
+	simulationStep();
+
+	if (spacePressed)
 		fireBullet();
-	}
 
-	// Request redraw
+	//createThrusterFire();
+
 	glutPostRedisplay();
 }
-
-
-
-
 
 // GLUT mouse button callback
 void mouseButton(int button, int state, int x, int y) {
@@ -6650,7 +6282,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(curlProgram);
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
-	cleanupGPUCollisionResources();
+
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
