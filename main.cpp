@@ -6039,7 +6039,7 @@ void simulationStep()
 	//detectCollisions();
 	//generateFluidStampCollisionsDamage();
 
-	detectCollisionsAndApplyDamageGPU(); 
+	detectCollisionsAndApplyDamageGPU();
 	//detectCollisionsAndApplyDamage();
 }
 
@@ -6212,38 +6212,41 @@ void display() {
 
 
 
-
-
-// GLUT idle callback
 void idle()
 {
+	// Use GLUT's elapsed time (in milliseconds) as the real-time source
+	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	float deltaTime = currentTime - lastTime;
+	lastTime = currentTime;
 
-	//static float previousTime = GLOBAL_TIME;
-	//float deltaTime = GLOBAL_TIME - previousTime;
-	//previousTime = GLOBAL_TIME;
-	//
-	//static float accumulator = 0.0f;
-	//accumulator += deltaTime;
+	// Accumulate time, cap it to prevent excessive catch-up
+	static float accumulator = 0.0f;
+	accumulator += deltaTime;
+	const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
+	if (accumulator > MAX_ACCUMULATOR) {
+		accumulator = MAX_ACCUMULATOR;
+	}
 
-	//while (accumulator >= DT) {
-	//	simulationStep();
-	//	accumulator -= DT;	
-	//}
+	// Fixed time step loop
+	while (accumulator >= DT) {
+		simulationStep(); // Update the simulation by one fixed step
+		GLOBAL_TIME += DT; // Increment global time by fixed step
+		accumulator -= DT;
+	}
 
-
-
-	GLOBAL_TIME += DT;
-
-
-	simulationStep();
-
-	if (spacePressed)
+	// Handle continuous actions (e.g., firing bullets)
+	if (spacePressed) {
 		fireBullet();
+	}
 
-	//createThrusterFire();
-
+	// Request redraw
 	glutPostRedisplay();
 }
+
+
+
+
 
 // GLUT mouse button callback
 void mouseButton(int button, int state, int x, int y) {
