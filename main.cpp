@@ -3263,7 +3263,61 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 
 
 
-void generateFluidStampCollisionsDamage() {
+void generateFluidStampCollisionsDamage() 
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+	glUseProgram(detectCollisionProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+
+	// Clear previous collision locations
+	collisionPoints.clear();
+
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
+
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+			}
+		}
+	}
+
+
+
+
 	if (collisionPoints.empty())
 		return;
 
@@ -3566,59 +3620,59 @@ void diffuseFriendlyColor() {
 
 
 
-
-void detectCollisions()
-{
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-
-	glUseProgram(detectCollisionProgram);
-
-
-	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-
-	// Read back collision texture data from GPU
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
-	collisionPoints.clear();
-
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-			float a = collisionData[index + 3];
-
-			if (a > 0.0) {
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
-}
+//
+//void detectCollisions()
+//{
+//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+//
+//	glUseProgram(detectCollisionProgram);
+//
+//
+//	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+//	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+//
+//	// Set uniforms
+//	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
+//	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
+//	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
+//	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+//
+//	// Bind textures
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+//	glActiveTexture(GL_TEXTURE2);
+//	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+//
+//	// Render full-screen quad
+//	glBindVertexArray(vao);
+//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+//
+//	// Allocate buffer for collision data - RGBA
+//	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+//
+//	// Read back collision texture data from GPU
+//	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+//
+//	// Clear previous collision locations
+//	collisionPoints.clear();
+//
+//	// Find collision locations and categorize them
+//	for (int y = 0; y < HEIGHT; ++y) {
+//		for (int x = 0; x < WIDTH; ++x) {
+//			int index = (y * WIDTH + x) * 4;
+//			float r = collisionData[index];
+//			float b = collisionData[index + 2];
+//			float a = collisionData[index + 3];
+//
+//			if (a > 0.0) {
+//				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+//			}
+//		}
+//	}
+//}
 
 
 
@@ -5847,7 +5901,7 @@ void simulationStep()
 
 	if (1)//frameCount % 30 == 0)
 	{
-		detectCollisions();
+		//detectCollisions();
 		generateFluidStampCollisionsDamage();
 	}
 
@@ -5914,62 +5968,62 @@ void renderToScreen()
 
 	// Add this to your renderToScreen function before rendering the stamps
 // This will render red dots at all damage points for debugging
-if (1)//showDebugDamagePoints) 
-{  // Add this boolean to your globals
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    // Set up orthographic projection for screen space drawing
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0, WIDTH, HEIGHT, 0, -1, 1);
-    
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    // Draw damage points for debugging
-    glPointSize(4.0);
-    glBegin(GL_POINTS);
-    glColor4f(1.0f, 0.0f, 0.0f, 0.7f); // Red with some transparency
-    
-    auto drawDamagePoints = [&](const std::vector<Stamp>& stamps) {
-        for (const auto& stamp : stamps) {
-            if (!stamp.blackening_points.empty()) {
-                float minX, minY, maxX, maxY;
-                calculateBoundingBox(stamp, minX, minY, maxX, maxY);
-                
-                // Convert normalized coordinates to screen coordinates
-                float screenMinX = minX * WIDTH;
-                float screenMinY = minY * HEIGHT;
-                float screenWidth = (maxX - minX) * WIDTH;
-                float screenHeight = (maxY - minY) * HEIGHT;
-                
-                for (const auto& point : stamp.blackening_points) {
-                    // Convert texture coordinates to screen coordinates
-                    float screenX = screenMinX + (point.x / float(stamp.width)) * screenWidth;
-                    float screenY = screenMinY + (point.y / float(stamp.height)) * screenHeight;
-                    
-                    glVertex2f(screenX, screenY);
-                }
-            }
-        }
-    };
-    
-    drawDamagePoints(allyShips);
-    drawDamagePoints(enemyShips);
-    
-    glEnd();
-    
-    // Restore matrices
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    
-    glDisable(GL_BLEND);
-}
+	if (1)//showDebugDamagePoints) 
+	{  // Add this boolean to your globals
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		// Set up orthographic projection for screen space drawing
+		glMatrixMode(GL_PROJECTION);
+		glPushMatrix();
+		glLoadIdentity();
+		glOrtho(0, WIDTH, HEIGHT, 0, -1, 1);
+
+		glMatrixMode(GL_MODELVIEW);
+		glPushMatrix();
+		glLoadIdentity();
+
+		// Draw damage points for debugging
+		glPointSize(4.0);
+		glBegin(GL_POINTS);
+		glColor4f(1.0f, 0.0f, 0.0f, 0.7f); // Red with some transparency
+
+		auto drawDamagePoints = [&](const std::vector<Stamp>& stamps) {
+			for (const auto& stamp : stamps) {
+				if (!stamp.blackening_points.empty()) {
+					float minX, minY, maxX, maxY;
+					calculateBoundingBox(stamp, minX, minY, maxX, maxY);
+
+					// Convert normalized coordinates to screen coordinates
+					float screenMinX = minX * WIDTH;
+					float screenMinY = minY * HEIGHT;
+					float screenWidth = (maxX - minX) * WIDTH;
+					float screenHeight = (maxY - minY) * HEIGHT;
+
+					for (const auto& point : stamp.blackening_points) {
+						// Convert texture coordinates to screen coordinates
+						float screenX = screenMinX + (point.x / float(stamp.width)) * screenWidth;
+						float screenY = screenMinY + (point.y / float(stamp.height)) * screenHeight;
+
+						glVertex2f(screenX, screenY);
+					}
+				}
+			}
+		};
+
+		drawDamagePoints(allyShips);
+		drawDamagePoints(enemyShips);
+
+		glEnd();
+
+		// Restore matrices
+		glMatrixMode(GL_PROJECTION);
+		glPopMatrix();
+		glMatrixMode(GL_MODELVIEW);
+		glPopMatrix();
+
+		glDisable(GL_BLEND);
+	}
 
 
 
