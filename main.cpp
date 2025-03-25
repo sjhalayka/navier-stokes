@@ -192,6 +192,53 @@ const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching
 //std::chrono::high_resolution_clock::time_point app_start_time = std::chrono::high_resolution_clock::now();
 
 
+// OpenGL variables
+GLuint velocityTexture[2];
+GLuint pressureTexture[2];
+GLuint divergenceTexture;
+GLuint obstacleTexture;
+GLuint collisionTexture;
+GLuint colorTexture[2];  // Ping-pong buffers for color
+int colorIndex = 0;      // Index for current color texture
+GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
+int friendlyColorIndex = 0;      // Index for current friendly color texture
+GLuint backgroundTexture;
+GLuint backgroundTexture2;  // New second background texture
+GLuint processingFBO;
+GLuint tempTexture1;
+GLuint tempTexture2;
+
+GLuint vorticityTexture;
+GLuint vorticityForceTexture;
+
+
+
+
+GLuint advectProgram;
+GLuint divergenceProgram;
+GLuint pressureProgram;
+GLuint gradientSubtractProgram;
+GLuint addForceProgram;
+GLuint detectCollisionProgram;
+GLuint addColorProgram;
+GLuint diffuseColorProgram;
+GLuint diffuseVelocityProgram;
+GLuint stampObstacleProgram;
+GLuint stampTextureProgram;
+GLuint renderProgram;
+GLuint dilationProgram;
+GLuint gaussianBlurHorizontalProgram;
+GLuint gaussianBlurVerticalProgram;
+GLuint blackeningProgram;
+GLuint curlProgram;
+GLuint vorticityForceProgram;
+GLuint applyForceProgram;
+GLuint blackeningMarkProgram;
+GLuint blackeningCopyProgram;
+
+GLuint vao, vbo;
+GLuint fbo;
+
 
 
 
@@ -242,12 +289,12 @@ public:
 };
 
 
-class Stamp {
 
+class Stamp {
 public:
 	Stamp(void)
 	{
-
+		blackeningTexture = 0;
 	}
 
 	~Stamp()
@@ -257,6 +304,10 @@ public:
 			if (textureID != 0) {
 				glDeleteTextures(1, &textureID);
 			}
+		}
+
+		if (blackeningTexture != 0) {
+			glDeleteTextures(1, &blackeningTexture);
 		}
 
 		textureIDs.clear();
@@ -293,7 +344,6 @@ public:
 		velX = other.velX;
 		velY = other.velY;
 		currentVariationIndex = other.currentVariationIndex;
-		blackening_points = other.blackening_points;
 		powerup = other.powerup;
 		under_fire = other.under_fire;
 		cannons = other.cannons;
@@ -320,6 +370,28 @@ public:
 				glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
 			}
 		}
+
+		// Also copy blackening texture if it exists
+		blackeningTexture = 0;
+		if (other.blackeningTexture != 0) {
+			initBlackeningTexture();
+
+			// Copy contents from other blackening texture
+			glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
+
+			// Simple shader to copy the texture
+			glUseProgram(blackeningCopyProgram);
+			glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
+
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
 	}
 
 	// Assignment operator
@@ -332,6 +404,12 @@ public:
 					glDeleteTextures(1, &textureID);
 				}
 			}
+
+			if (blackeningTexture != 0) {
+				glDeleteTextures(1, &blackeningTexture);
+				blackeningTexture = 0;
+			}
+
 			textureIDs.clear();
 			pixelData.clear();
 			backupData.clear();
@@ -362,14 +440,12 @@ public:
 			velX = other.velX;
 			velY = other.velY;
 			currentVariationIndex = other.currentVariationIndex;
-			blackening_points = other.blackening_points;
 			powerup = other.powerup;
 			under_fire = other.under_fire;
 			cannons = other.cannons;
 			is_foreground = other.is_foreground;
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
-
 
 			// Deep copy pixel data
 			pixelData = other.pixelData;
@@ -390,12 +466,51 @@ public:
 					glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
 				}
 			}
+
+			// Also copy blackening texture if it exists
+			if (other.blackeningTexture != 0) {
+				initBlackeningTexture();
+
+				// Copy contents from other blackening texture
+				glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
+
+				// Simple shader to copy the texture
+				glUseProgram(blackeningCopyProgram);
+				glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
+
+				glBindVertexArray(vao);
+				glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			}
 		}
 		return *this;
 	}
 
+	// Method to initialize blackening texture
+	void initBlackeningTexture() {
+		if (blackeningTexture == 0) {
+			glGenTextures(1, &blackeningTexture);
+			glBindTexture(GL_TEXTURE_2D, blackeningTexture);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+			// Initialize with transparent black
+			std::vector<unsigned char> emptyData(width * height * 4, 0);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+		}
+	}
 
+	// Check if any blackening is present
+	bool hasBlackening() const {
+		return (blackeningTexture != 0);
+	}
 
 	// StampTexture properties
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
@@ -406,57 +521,35 @@ public:
 	std::vector<std::vector<unsigned char>> pixelData;
 	std::vector<std::vector<unsigned char>> backupData;
 
+	// New GPU blackening texture
+	GLuint blackeningTexture;
 
-
-
-
-	int channels = 0;                         // Store the number of channels
-
+	// Rest of the Stamp class members remain the same, except blackening_points
+	int channels = 0;
 	bool to_be_culled = false;
-
 	float health = 10000.0;
-
 	float birth_time = 0;
-	// A negative death time means that the bullet is immortal 
-	// (it is culled only when colliding with the ally/enemy or goes off screen)
-	// A mortal bullet dies after a certain amount of time
 	float death_time = -1;
-
 	float stamp_opacity = 1;
-
 	float force_radius = 0.02f;
 	float colour_radius = force_radius;
-
-	float force_randomization = 0;// force_radius / 100.0;
-	float colour_randomization = 0;// force_radius / 10.0;
-	float path_randomization = 0.0f;// force_radius / 50.0;
+	float force_randomization = 0;
+	float colour_randomization = 0;
+	float path_randomization = 0.0f;
 	float sinusoidal_frequency = 5.0f;
 	float sinusoidal_amplitude = 0.001f;
 	bool sinusoidal_shift = false;
 	float random_forking = 0.0f;
-
 	vector<vec2> curve_path;
-
-	// StampInfo properties
-	float posX = 0, posY = 0;                       // Normalized position (0-1)
+	float posX = 0, posY = 0;
 	float velX = 0, velY = 0;
-
-	size_t currentVariationIndex = 0;              // Which texture variation to use
-
-	vector<ivec2> blackening_points;
-
-	enum powerup_type powerup;// { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
-
+	size_t currentVariationIndex = 0;
+	enum powerup_type powerup;
 	bool under_fire = false;
-
 	vector<Cannon> cannons;
-
 	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
 };
-
-
-
 
 
 
@@ -1393,52 +1486,6 @@ int lastVariationIndex = 0; // Track last variation to detect changes
 
 
 
-// OpenGL variables
-GLuint velocityTexture[2];
-GLuint pressureTexture[2];
-GLuint divergenceTexture;
-GLuint obstacleTexture;
-GLuint collisionTexture;
-GLuint colorTexture[2];  // Ping-pong buffers for color
-int colorIndex = 0;      // Index for current color texture
-GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
-int friendlyColorIndex = 0;      // Index for current friendly color texture
-GLuint backgroundTexture;
-GLuint backgroundTexture2;  // New second background texture
-GLuint processingFBO;
-GLuint tempTexture1;
-GLuint tempTexture2;
-
-GLuint vorticityTexture;
-GLuint vorticityForceTexture;
-
-
-
-
-GLuint advectProgram;
-GLuint divergenceProgram;
-GLuint pressureProgram;
-GLuint gradientSubtractProgram;
-GLuint addForceProgram;
-GLuint detectCollisionProgram;
-GLuint addColorProgram;
-GLuint diffuseColorProgram;
-GLuint diffuseVelocityProgram;
-GLuint stampObstacleProgram;
-GLuint stampTextureProgram;
-GLuint renderProgram;
-GLuint dilationProgram;
-GLuint gaussianBlurHorizontalProgram;
-GLuint gaussianBlurVerticalProgram;
-GLuint blackeningProgram;
-GLuint curlProgram;
-GLuint vorticityForceProgram;
-GLuint applyForceProgram;
-
-
-GLuint vao, vbo;
-GLuint fbo;
-
 // Mouse state
 int mouseX = 0, mouseY = 0;
 int prevMouseX = 0, prevMouseY = 0;
@@ -1534,6 +1581,69 @@ GLuint loadTexture(const char* filename) {
 
 std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
 //std::vector<std::pair<int, int>> collisionLocations;
+
+
+
+
+
+
+
+const char* blackeningMarkFragmentShader = R"(
+#version 330 core
+uniform sampler2D currentBlackening;
+uniform vec2 collisionPos;        // Collision position in texture space (0-1)
+uniform float radius;             // Radius of the blackening mark in texture space
+uniform vec2 texSize;             // Texture dimensions
+uniform float collisionIntensity; // Intensity from the collision (r or b value)
+
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    // Get current blackening value
+    vec4 current = texture(currentBlackening, TexCoord);
+    
+    // Calculate distance from this fragment to collision point (in pixels)
+    vec2 pixelPos = TexCoord * texSize;
+    vec2 collisionPixel = collisionPos * texSize;
+    float distance = length(pixelPos - collisionPixel);
+    
+    // Add blackening based on distance
+    if (distance <= radius) {
+        // Intensity decreases with distance (quadratic falloff)
+        float intensity = 1.0 - pow(distance / radius, 2.0);
+        
+        // Scale by collision intensity
+        intensity *= collisionIntensity;
+
+		intensity /= 0.01;
+        
+        // Combine with existing blackening (use max to ensure we don't reduce blackening)
+        FragColor = max(current, vec4(intensity, intensity, intensity, 1.0));
+    } else {
+        // Outside the radius, keep current value
+        FragColor = current;
+    }
+}
+)";
+
+
+
+
+// Simple texture copy shader - used for copying blackening textures
+const char* blackeningCopyFragmentShader = R"(
+#version 330 core
+uniform sampler2D sourceTexture;
+in vec2 TexCoord;
+out vec4 FragColor;
+
+void main() {
+    FragColor = texture(sourceTexture, TexCoord);
+}
+)";
+
+
+
 
 
 
@@ -3036,56 +3146,51 @@ void reapplyAllStamps() {
 
 
 
+void updateBlackeningMark(Stamp& stamp, float texX, float texY, float intensity = 1.0f) {
+	// Bind to the processing framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stamp.blackeningTexture, 0);
+
+	// Set viewport to texture dimensions
+	glViewport(0, 0, stamp.width, stamp.height);
+
+	// Use the blackening mark shader
+	glUseProgram(blackeningMarkProgram);
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(blackeningMarkProgram, "currentBlackening"), 0);
+	glUniform2f(glGetUniformLocation(blackeningMarkProgram, "collisionPos"), texX, texY);
+	glUniform1f(glGetUniformLocation(blackeningMarkProgram, "radius"), 0.05f); // 5% of texture size
+	glUniform2f(glGetUniformLocation(blackeningMarkProgram, "texSize"), stamp.width, stamp.height);
+	glUniform1f(glGetUniformLocation(blackeningMarkProgram, "collisionIntensity"), intensity);
+
+	GLuint projectionLocation = glGetUniformLocation(blackeningMarkProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Bind the current blackening texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, stamp.blackeningTexture);
+
+	// Draw a full-screen quad to update the texture
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Reset viewport
+	glViewport(0, 0, WIDTH, HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 
 
 
 
+bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t stamp_index, const string& stamp_type) {
+	// Skip if stamp is culled
+	if (stamp.to_be_culled)
+		return false;
 
-bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const size_t stamp_index, const string& stamp_type, vector<ivec2>& collision_pixel_locations)
-{
-	//if (!stamp.active) return false;
-
-	//// Validate variation index
+	// Validate variation index
 	size_t variationIndex = stamp.currentVariationIndex;
-	//if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-	//	stamp.pixelData[variationIndex].empty()) {
-	//	// Fall back to first available texture
-	//	for (size_t i = 0; i < stamp.pixelData.size(); i++) {
-	//		if (!stamp.pixelData[i].empty()) {
-	//			variationIndex = i;
-	//			break;
-	//		}
-	//	}
-	//	// If still no valid texture, return false
-	//	if (variationIndex < 0 || variationIndex >= stamp.pixelData.size() ||
-	//		stamp.pixelData[variationIndex].empty()) {
-	//		return false;
-	//	}
-	//}
-
-	//if (stamp.pixelData[variationIndex].empty()) {
-	//	// No pixel data available, fall back to the bounding box check
-	//	float minX, minY, maxX, maxY;
-	//	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
-
-	//	float aspect = HEIGHT / float(WIDTH);
-
-	//	// Convert pixel coordinates to normalized coordinates (0-1)
-	//	float pointX = point.x / (float)WIDTH;
-	//	float pointY = point.y / (float)HEIGHT; // Y is already in screen coordinates
-
-	//	// Apply aspect ratio correction to y-coordinate
-	//	pointY = (pointY - 0.5f) * aspect + 0.5f;
-
-	//	// Simple bounding box check
-	//	return (pointX >= minX && pointX <= maxX &&
-	//		pointY >= minY && pointY <= maxY);
-	//}
-
-
-
-
 
 	// Get the normalized stamp position (0-1 in screen space)
 	float stampX = stamp.posX;  // Normalized X position
@@ -3107,11 +3212,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	float minX, minY, maxX, maxY;
 	calculateBoundingBox(stamp, minX, minY, maxX, maxY);
 
-	//global_minXs.push_back(minX);
-	//global_minYs.push_back(minY);
-	//global_maxXs.push_back(maxX);
-	//global_maxYs.push_back(maxY);
-
 	// Check if the collision point is within the stamp's bounding box
 	if (pointX < minX || pointX > maxX || pointY < minY || pointY > maxY)
 		return false;
@@ -3125,10 +3225,6 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 	int pixelY = int(texCoordY * stamp.height);
 	pixelX = std::max(0, std::min(pixelX, stamp.width - 1));
 	pixelY = std::max(0, std::min(pixelY, stamp.height - 1));
-
-
-
-
 
 	// Get the alpha/opacity at this pixel for the current variation
 	float opacity = 0.0f;
@@ -3148,17 +3244,25 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 		opacity = (r + g + b) / 3.0f;
 	}
 
-
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
-	if (is_opaque_enough)
-	{
-		ivec2 iv;
-		iv.x = pixelX;
-		iv.y = pixelY;
-		iv.stamp_index = stamp_index;
-		iv.stamp_type = stamp_type;
-		collision_pixel_locations.push_back(iv);
+	if (is_opaque_enough) {
+		// Initialize the blackening texture if needed
+		if (stamp.blackeningTexture == 0) {
+			stamp.initBlackeningTexture();
+		}
+
+		// Calculate the intensity for the blackening based on collision values
+		float intensity = 0.0f;
+		if (stamp_type == "Ally Ship") {
+			intensity = point.b; // Use blue value for ally ships
+		}
+		else {
+			intensity = point.r; // Use red value for enemy ships
+		}
+
+		// Update the blackening texture with the collision point
+		updateBlackeningMark(stamp, texCoordX, texCoordY, intensity);
 	}
 
 	// Check if the pixel is opaque enough for a collision
@@ -3166,17 +3270,20 @@ bool isCollisionInStamp(const CollisionPoint& point, const Stamp& stamp, const s
 }
 
 
-void generateFluidStampCollisionsDamage()
-{
+
+
+
+
+
+
+void generateFluidStampCollisionsDamage() {
 	if (collisionPoints.empty())
 		return;
 
-	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type)
-	{
+	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
 
-		for (size_t i = 0; i < stamps.size(); i++)
-		{
+		for (size_t i = 0; i < stamps.size(); i++) {
 			stamps[i].under_fire = true;
 
 			float minX, minY, maxX, maxY;
@@ -3190,19 +3297,15 @@ void generateFluidStampCollisionsDamage()
 			float red_count = 0;
 			float blue_count = 0;
 
-			vector<ivec2> collision_pixel_locations;
-
 			// Test each collision point against this stamp
-			for (const auto& point : collisionPoints)
-			{
+			for (const auto& point : collisionPoints) {
 				float normX = point.x / float(WIDTH);
 				float normY = point.y / float(HEIGHT);
 
 				// Perform the actual collision check
-				bool collides = isCollisionInStamp(point, stamps[i], i, type, collision_pixel_locations);
+				bool collides = isCollisionInStamp(point, stamps[i], i, type);
 
-				if (collides)
-				{
+				if (collides) {
 					stampCollisions++;
 
 					if (point.r > 0) {
@@ -3224,13 +3327,8 @@ void generateFluidStampCollisionsDamage()
 			stamps[i].under_fire = false;
 
 			// Report collisions for this stamp
-			if (stampCollisions > 0)
-			{
+			if (stampCollisions > 0) {
 				stampHitCount++;
-
-
-
-
 
 				std::string textureName = stamps[i].baseFilename;
 				std::string variationName = "unknown";
@@ -3240,45 +3338,23 @@ void generateFluidStampCollisionsDamage()
 
 				float damage = 0.0f;
 
-				if (type == "Ally Ship")
-				{
+				if (type == "Ally Ship") {
 					damage = blue_count;
-
-					if (blueStampCollisions > 0)
-					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-					}
 				}
-				else
-				{
+				else {
 					damage = red_count;
-
-					if (redStampCollisions > 0)
-					{
-						for (size_t j = 0; j < collision_pixel_locations.size(); j++)
-							stamps[i].blackening_points.push_back(collision_pixel_locations[j]);
-					}
 				}
 
 				// This is matter of personal taste
 				if (damage > 1)
 					stamps[i].under_fire = true;
 
-
-				//static std::chrono::high_resolution_clock::time_point last_did_damage_at = std::chrono::high_resolution_clock::now();
 				static float last_did_damage_at = GLOBAL_TIME;
 
-
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - last_did_damage_at;
-
-				stamps[i].health -= damage * DT;// *fps_coeff;
+				stamps[i].health -= damage * DT;
 				cout << stamps[i].health << endl;
 
-				last_did_damage_at = GLOBAL_TIME;// global_time_end;
-
+				last_did_damage_at = GLOBAL_TIME;
 			}
 		}
 	};
@@ -3286,10 +3362,6 @@ void generateFluidStampCollisionsDamage()
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
-
-
-
-
 
 
 
@@ -4000,58 +4072,61 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glViewport(0, 0, WIDTH, HEIGHT);
 }
 
-GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
-	// Create a temporary texture to use as a mask
-	GLuint maskTexture;
-	glGenTextures(1, &maskTexture);
-	glBindTexture(GL_TEXTURE_2D, maskTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Create an empty black texture
-	std::vector<unsigned char> emptyData(stamp.width * stamp.height * 4, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
-
-	// If there are blackening points, update the texture with white points
-	if (!stamp.blackening_points.empty()) {
-		// Create a temporary data array to upload to the texture
-		std::vector<unsigned char> pointData = emptyData;
 
 
-		for (const auto& point : stamp.blackening_points) {
-			size_t index = (point.y * stamp.width + point.x) * 4;
-
-			if (index >= 0 && index < pointData.size() - 3) {
-				pointData[index + 0] = 0; // R
-				pointData[index + 1] = 0; // G
-				pointData[index + 2] = 0; // B
-				pointData[index + 3] = 255; // A
-			}
-		}
-
-		for (const auto& point : stamp.blackening_points) {
-			size_t index = (point.y * stamp.width + point.x) * 4;
-			if (index >= 0 && index < pointData.size() - 3) {
-
-				if (pointData[index + 0] < 256 - 32)
-				{
-					pointData[index + 0] += 32; // R
-					pointData[index + 1] += 32; // G
-					pointData[index + 2] += 32; // B
-				}
-
-				pointData[index + 3] = 255; // A
-			}
-		}
-
-		// Upload the temporary data to the texture
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
-	}
-
-	return maskTexture;
-}
+//
+//GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
+//	// Create a temporary texture to use as a mask
+//	GLuint maskTexture;
+//	glGenTextures(1, &maskTexture);
+//	glBindTexture(GL_TEXTURE_2D, maskTexture);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//
+//	// Create an empty black texture
+//	std::vector<unsigned char> emptyData(stamp.width * stamp.height * 4, 0);
+//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
+//
+//	// If there are blackening points, update the texture with white points
+//	if (!stamp.blackening_points.empty()) {
+//		// Create a temporary data array to upload to the texture
+//		std::vector<unsigned char> pointData = emptyData;
+//
+//
+//		for (const auto& point : stamp.blackening_points) {
+//			size_t index = (point.y * stamp.width + point.x) * 4;
+//
+//			if (index >= 0 && index < pointData.size() - 3) {
+//				pointData[index + 0] = 0; // R
+//				pointData[index + 1] = 0; // G
+//				pointData[index + 2] = 0; // B
+//				pointData[index + 3] = 255; // A
+//			}
+//		}
+//
+//		for (const auto& point : stamp.blackening_points) {
+//			size_t index = (point.y * stamp.width + point.x) * 4;
+//			if (index >= 0 && index < pointData.size() - 3) {
+//
+//				if (pointData[index + 0] < 256 - 32)
+//				{
+//					pointData[index + 0] += 32; // R
+//					pointData[index + 1] += 32; // G
+//					pointData[index + 2] += 32; // B
+//				}
+//
+//				pointData[index + 3] = 255; // A
+//			}
+//		}
+//
+//		// Upload the temporary data to the texture
+//		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
+//	}
+//
+//	return maskTexture;
+//}
 
 
 
@@ -4093,6 +4168,12 @@ void initGL() {
 	curlProgram = createShaderProgram(vertexShaderSource, curlFragmentShader);
 	vorticityForceProgram = createShaderProgram(vertexShaderSource, vorticityForceFragmentShader);
 	applyForceProgram = createShaderProgram(vertexShaderSource, applyForceFragmentShader);
+
+	blackeningMarkProgram = createShaderProgram(vertexShaderSource, blackeningMarkFragmentShader);
+	blackeningCopyProgram = createShaderProgram(vertexShaderSource, blackeningCopyFragmentShader);
+
+
+
 
 	glGenTextures(1, &vorticityTexture);
 	glBindTexture(GL_TEXTURE_2D, vorticityTexture);
@@ -4712,11 +4793,10 @@ void addMouseColor()
 
 
 
-
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
-			if (stamp.blackening_points.size() != 0) {
+			if (stamp.blackeningTexture != 0) {
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
@@ -4731,11 +4811,8 @@ void updateDynamicTexture(Stamp& stamp) {
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.backupData[i].data());
 
-				// Create mask texture containing blackening points
-				GLuint maskTexture = createBlackeningMaskTexture(stamp, i);
-
-				// Apply dilation to the mask texture
-				applyDilationGPU(maskTexture, tempTexture1, stamp.width, stamp.height, 10);
+				// Apply dilation directly to the blackening texture
+				applyDilationGPU(stamp.blackeningTexture, tempTexture1, stamp.width, stamp.height, 10);
 
 				// Apply Gaussian blur to the dilated mask
 				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
@@ -4743,18 +4820,16 @@ void updateDynamicTexture(Stamp& stamp) {
 				// Apply the blackening effect to the original texture using the blurred mask
 				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i], stamp.width, stamp.height);
 
-				// Clean up temporary textures
+				// Clean up temporary texture
 				glDeleteTextures(1, &originalTexture);
-				glDeleteTextures(1, &maskTexture);
 
 				// Update the pixelData to match what's now in the GPU texture
-				// NOTE: This is only needed if the pixelData is used elsewhere in CPU code
-				// If possible, avoid this readback for better performance
+				// Note: This is only needed if the pixelData is used elsewhere in CPU code
 				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 			}
 			else {
-				// For stamps without blackening points, just ensure the texture is updated
+				// For stamps without blackening, just ensure the texture is updated
 				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height,
 					(stamp.channels == 1) ? GL_RED :
@@ -4764,8 +4839,6 @@ void updateDynamicTexture(Stamp& stamp) {
 		}
 	}
 }
-
-
 
 
 
@@ -6282,12 +6355,33 @@ void reshape(int w, int h) {
 	glDeleteProgram(curlProgram);
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
+	glDeleteProgram(blackeningMarkProgram);
+	glDeleteProgram(blackeningCopyProgram);
 
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
+
+
+
+
+	//for (auto& stamp : allyShips) {
+	//	if (stamp.blackeningTexture != 0) {
+	//		glDeleteTextures(1, &stamp.blackeningTexture);
+	//		stamp.blackeningTexture = 0;
+	//	}
+	//}
+
+	//for (auto& stamp : enemyShips) {
+	//	if (stamp.blackeningTexture != 0) {
+	//		glDeleteTextures(1, &stamp.blackeningTexture);
+	//		stamp.blackeningTexture = 0;
+	//	}
+	//}
+
+
 
 	// Delete textures
 	glDeleteTextures(2, velocityTexture);
