@@ -316,83 +316,83 @@ public:
 	}
 
 	// Make the copy constructor and assignment operator for proper resource management
-	//Stamp(const Stamp& other)
-	//{
-	//	// Copy basic properties
-	//	width = other.width;
-	//	height = other.height;
-	//	baseFilename = other.baseFilename;
-	//	textureNames = other.textureNames;
-	//	channels = other.channels;
-	//	to_be_culled = other.to_be_culled;
-	//	health = other.health;
-	//	birth_time = other.birth_time;
-	//	death_time = other.death_time;
-	//	stamp_opacity = other.stamp_opacity;
-	//	force_radius = other.force_radius;
-	//	colour_radius = other.colour_radius;
-	//	force_randomization = other.force_randomization;
-	//	colour_randomization = other.colour_randomization;
-	//	path_randomization = other.path_randomization;
-	//	sinusoidal_frequency = other.sinusoidal_frequency;
-	//	sinusoidal_amplitude = other.sinusoidal_amplitude;
-	//	sinusoidal_shift = other.sinusoidal_shift;
-	//	random_forking = other.random_forking;
-	//	curve_path = other.curve_path;
-	//	posX = other.posX;
-	//	posY = other.posY;
-	//	velX = other.velX;
-	//	velY = other.velY;
-	//	currentVariationIndex = other.currentVariationIndex;
-	//	powerup = other.powerup;
-	//	under_fire = other.under_fire;
-	//	cannons = other.cannons;
-	//	is_foreground = other.is_foreground;
-	//	prevPosX = other.prevPosX;
-	//	prevPosY = other.prevPosY;
+	Stamp(const Stamp& other)
+	{
+		// Copy basic properties
+		width = other.width;
+		height = other.height;
+		baseFilename = other.baseFilename;
+		textureNames = other.textureNames;
+		channels = other.channels;
+		to_be_culled = other.to_be_culled;
+		health = other.health;
+		birth_time = other.birth_time;
+		death_time = other.death_time;
+		stamp_opacity = other.stamp_opacity;
+		force_radius = other.force_radius;
+		colour_radius = other.colour_radius;
+		force_randomization = other.force_randomization;
+		colour_randomization = other.colour_randomization;
+		path_randomization = other.path_randomization;
+		sinusoidal_frequency = other.sinusoidal_frequency;
+		sinusoidal_amplitude = other.sinusoidal_amplitude;
+		sinusoidal_shift = other.sinusoidal_shift;
+		random_forking = other.random_forking;
+		curve_path = other.curve_path;
+		posX = other.posX;
+		posY = other.posY;
+		velX = other.velX;
+		velY = other.velY;
+		currentVariationIndex = other.currentVariationIndex;
+		powerup = other.powerup;
+		under_fire = other.under_fire;
+		cannons = other.cannons;
+		is_foreground = other.is_foreground;
+		prevPosX = other.prevPosX;
+		prevPosY = other.prevPosY;
 
-	//	// Deep copy pixel data
-	//	pixelData = other.pixelData;
-	//	backupData = other.backupData;
+		// Deep copy pixel data
+		pixelData = other.pixelData;
+		backupData = other.backupData;
 
-	//	// Create new textures
-	//	textureIDs.resize(other.textureIDs.size(), 0);
-	//	for (size_t i = 0; i < other.textureIDs.size(); i++) {
-	//		if (other.textureIDs[i] != 0 && i < other.pixelData.size() && !other.pixelData[i].empty()) {
-	//			glGenTextures(1, &textureIDs[i]);
-	//			glBindTexture(GL_TEXTURE_2D, textureIDs[i]);
-	//			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	//			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	//			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		// Create new textures
+		textureIDs.resize(other.textureIDs.size(), 0);
+		for (size_t i = 0; i < other.textureIDs.size(); i++) {
+			if (other.textureIDs[i] != 0 && i < other.pixelData.size() && !other.pixelData[i].empty()) {
+				glGenTextures(1, &textureIDs[i]);
+				glBindTexture(GL_TEXTURE_2D, textureIDs[i]);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	//			GLenum format = (channels == 1) ? GL_RED : (channels == 3) ? GL_RGB : GL_RGBA;
-	//			glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
-	//		}
-	//	}
+				GLenum format = (channels == 1) ? GL_RED : (channels == 3) ? GL_RGB : GL_RGBA;
+				glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, other.pixelData[i].data());
+			}
+		}
 
-	//	// Also copy blackening texture if it exists
-	//	blackeningTexture = 0;
-	//	if (other.blackeningTexture != 0) {
-	//		initBlackeningTexture();
+		// Also copy blackening texture if it exists
+		blackeningTexture = 0;
+		if (other.blackeningTexture != 0) {
+			initBlackeningTexture();
 
-	//		// Copy contents from other blackening texture
-	//		glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-	//		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
+			// Copy contents from other blackening texture
+			glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
 
-	//		glActiveTexture(GL_TEXTURE0);
-	//		glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
 
-	//		// Simple shader to copy the texture
-	//		glUseProgram(blackeningCopyProgram);
-	//		glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
+			// Simple shader to copy the texture
+			glUseProgram(blackeningCopyProgram);
+			glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
 
-	//		glBindVertexArray(vao);
-	//		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+			glBindVertexArray(vao);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	//		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	//	}
-	//}
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+	}
 
 	// Assignment operator
 	Stamp& operator=(const Stamp& other)
@@ -897,10 +897,7 @@ bool loadStampTextures() {
 Stamp deepCopyStamp(const Stamp& source)
 {
 	// Use the copy constructor which now handles texture creation properly
-
-	Stamp temp = source;
-
-	return temp;// Stamp(source);
+	return Stamp(source);
 }
 
 
