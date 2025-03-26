@@ -3282,7 +3282,10 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
-	if (is_opaque_enough) {
+
+	// don't do blackening if foreground
+	if (is_opaque_enough/* && stamp.is_foreground == false*/)
+	{
 		// Only initialize the blackening texture if we actually need it
 		if (stamp.blackeningTexture == 0) {
 			stamp.initBlackeningTexture();
@@ -6038,24 +6041,31 @@ void display() {
 void idle()
 {
 
-	//static float previousTime = GLOBAL_TIME;
-	//float deltaTime = GLOBAL_TIME - previousTime;
-	//previousTime = GLOBAL_TIME;
-	//
-	//static float accumulator = 0.0f;
-	//accumulator += deltaTime;
+	// Use GLUT's elapsed time (in milliseconds) as the real-time source
+	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	float deltaTime = currentTime - lastTime;
+	lastTime = currentTime;
 
-	//while (accumulator >= DT) {
-	//	simulationStep();
-	//	accumulator -= DT;	
-	//}
+	// Accumulate time, cap it to prevent excessive catch-up
+	static float accumulator = 0.0f;
+	accumulator += deltaTime;
+	const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
+	if (accumulator > MAX_ACCUMULATOR) {
+		accumulator = MAX_ACCUMULATOR;
+	}
+
+	// Fixed time step loop
+	while (accumulator >= DT) {
+		simulationStep(); // Update the simulation by one fixed step
+		GLOBAL_TIME += DT; // Increment global time by fixed step
+		accumulator -= DT;
+	}
 
 
 
-	GLOBAL_TIME += DT;
-
-
-	simulationStep();
+	//GLOBAL_TIME += DT;
+	//simulationStep();
 
 	if (spacePressed)
 		fireBullet();
