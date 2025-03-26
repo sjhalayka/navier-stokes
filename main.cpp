@@ -6054,13 +6054,8 @@ void idle()
 	float deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
 
-	// Accumulate time, cap it to prevent excessive catch-up
 	static float accumulator = 0.0f;
 	accumulator += deltaTime;
-	const float MAX_ACCUMULATOR = DT * 5; // Cap at 5 frames to avoid spiral of death
-	if (accumulator > MAX_ACCUMULATOR) {
-		accumulator = MAX_ACCUMULATOR;
-	}
 
 	// Fixed time step loop
 	while (accumulator >= DT) {
@@ -6068,11 +6063,6 @@ void idle()
 		GLOBAL_TIME += DT; // Increment global time by fixed step
 		accumulator -= DT;
 	}
-
-
-
-	//GLOBAL_TIME += DT;
-	//simulationStep();
 
 	if (spacePressed)
 		fireBullet();
