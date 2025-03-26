@@ -5600,26 +5600,41 @@ void mark_colliding_ships(void)
 				{
 					// For foreground objects, we want to push the ship away
 
-					for (size_t k = 0; k < 10; k++)
+					
+					bool found_non_collision = false;
+
+					for (size_t k = 0; k < 100; k++)
 					{
 						vec2 avg_out;
 
-						if(false == isPixelPerfectCollision(allyShips[i], enemyShips[j], avg_out))
+						if (false == isPixelPerfectCollision(allyShips[i], enemyShips[j], avg_out))
+						{
+							found_non_collision = true;
 							break;
+						}
 
 						avg_out.x /= allyShips[i].width;
 						avg_out.y /= allyShips[i].height;
 
-						if (avg_out.x < 0.5)
+						if (avg_out.x < 0.45)
 							allyShips[i].posX += 0.001;
-						else if (avg_out.x > 0.5)
+						else if (avg_out.x > 0.55)
 							allyShips[i].posX -= 0.001;
 
-						if (avg_out.y < 0.5)
+						if (avg_out.y < 0.45)
 							allyShips[i].posY += 0.001;
-						else if (avg_out.y > 0.5)
+						else if (avg_out.y > 0.55)
 							allyShips[i].posY -= 0.001;
 					}
+
+					// In case the player gets stuck between a foreground object and the edge of the screen
+					if (found_non_collision == false)
+					{
+						make_dying_bullets(allyShips[i], false);
+						allyShips[i].health = 0;
+						allyShips[i].to_be_culled = true;
+					}
+
 				}
 				else
 				{
