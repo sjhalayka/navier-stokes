@@ -5340,12 +5340,11 @@ void move_ships(void)
 				continue;
 
 			const float aspect = WIDTH / float(HEIGHT);
+			stamp.prevPosX = stamp.posX;
+			stamp.prevPosY = stamp.posY;
 
 			if (is_ally)
 			{
-				stamp.prevPosX = stamp.posX;
-				stamp.prevPosY = stamp.posY;
-
 				stamp.posX += stamp.velX / aspect;
 				stamp.posY += stamp.velY;
 
@@ -5379,13 +5378,11 @@ void move_ships(void)
 				vd.x = lerp(vd.x, vd2.x, 0.15f);
 				vd.y = lerp(vd.y, vd2.y, 0.15f);
 
-				stamp.prevPosX = stamp.posX;
-				stamp.prevPosY = stamp.posY;
-
 				stamp.posX = vd.x;
 				stamp.posY = vd.y;
 
 				const float vel_y = stamp.posY - stamp.prevPosY;
+				const float vel_x = stamp.posX - stamp.prevPosX;
 
 				stamp.currentVariationIndex = 0;
 
@@ -5396,6 +5393,8 @@ void move_ships(void)
 				else
 					stamp.currentVariationIndex = 0;
 
+				stamp.velX = vel_x;
+				stamp.velY = vel_y;
 
 
 
@@ -5507,27 +5506,41 @@ void mark_dying_ships(void)
 	}
 }
 
-void mark_colliding_ships(void)
-{
-	// to do: detect if is_foreground, then step back until outside of foreground instead
-	// of dying 
 
-	for (size_t i = 0; i < allyShips.size(); ++i)
+
+
+
+void mark_colliding_ships(void) 
+{
+	for (size_t i = 0; i < allyShips.size(); ++i) 
 	{
-		for (size_t j = 0; j < enemyShips.size(); ++j)
+		for (size_t j = 0; j < enemyShips.size(); ++j) 
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				make_dying_bullets(allyShips[i], false);
-				allyShips[i].health = 0;
-				allyShips[i].to_be_culled = true;
+				if (enemyShips[j].is_foreground)
+				{
+					// For foreground objects, we want to push the ship away
+
+					// Calculate vector from foreground object to ship
+					float pushDirX = allyShips[i].posX - enemyShips[j].posX;
+					float pushDirY = allyShips[i].posY - enemyShips[j].posY;
+				}
+				else 
+				{
+					// For regular enemies, destroy the ship immediately
+					make_dying_bullets(allyShips[i], false);
+					allyShips[i].health = 0;
+					allyShips[i].to_be_culled = true;
+				}
 			}
 		}
 	}
-
-	// to do: detect enemy ship - enemy ship collision too, but for foregrounds only
-
 }
+
+
+
+
 
 void mark_offscreen_ships(void)
 {
