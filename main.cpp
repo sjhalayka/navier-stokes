@@ -5389,12 +5389,19 @@ void move_ships(void)
 
 				stamp.currentVariationIndex = 0;
 
-				if (vel_y > 0.001)
-					stamp.currentVariationIndex = 1;
-				else if (vel_y < -0.001)
-					stamp.currentVariationIndex = 2;
-				else
+				if (stamp.is_foreground)
+				{
 					stamp.currentVariationIndex = 0;
+				}
+				else
+				{
+					if (vel_y > 0.001)
+						stamp.currentVariationIndex = 1;
+					else if (vel_y < -0.001)
+						stamp.currentVariationIndex = 2;
+					else
+						stamp.currentVariationIndex = 0;
+				}
 
 				stamp.velX = vel_x;
 				stamp.velY = vel_y;
