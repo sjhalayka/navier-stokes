@@ -3319,6 +3319,8 @@ void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const
 		return;
 	}
 
+	cout << points.size() << endl;
+
 	// Limit number of points to shader array size
 	const int MAX_POINTS = 1024;  // Maximum points we can process in one batch
 
@@ -6426,6 +6428,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(applyForceProgram);
 	glDeleteProgram(blackeningMarkProgram);
 	glDeleteProgram(blackeningCopyProgram);
+	glDeleteProgram(batchBlackeningProgram);
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
