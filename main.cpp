@@ -64,6 +64,23 @@ using namespace std;
 // to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
 
+// Structure to hold collision point data
+struct BlackeningPoint {
+	float x, y;          // Texture coordinates
+	float intensity;     // Collision intensity
+};
+
+// Map to store blackening points for each texture
+struct BlackeningData {
+	std::vector<BlackeningPoint> points;
+	int width;
+	int height;
+};
+
+// Map using texture ID as key to collect collision points for each stamp
+std::unordered_map<GLuint, BlackeningData> stampCollisionMap;
+
+
 class vec2
 {
 public:
@@ -235,6 +252,8 @@ GLuint vorticityForceProgram;
 GLuint applyForceProgram;
 GLuint blackeningMarkProgram;
 GLuint blackeningCopyProgram;
+
+GLuint batchBlackeningProgram;
 
 GLuint vao, vbo;
 GLuint fbo;
@@ -1555,7 +1574,54 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
+// Add this shader definition
+const char* batchBlackeningFragmentShader = R"(
+#version 330 core
+uniform sampler2D currentBlackening;        // Current blackening texture
+uniform vec2 collisionPositions[1024];        // Array of collision positions
+uniform float collisionIntensities[1024];     // Array of collision intensities
+uniform int numCollisionPoints;             // Actual number of collision points
+uniform float radius;                       // Radius of the blackening mark
+uniform vec2 texSize;                       // Texture dimensions
 
+out vec4 FragColor;
+in vec2 TexCoord;
+
+void main() {
+    // Get current blackening value
+    vec4 current = texture(currentBlackening, TexCoord);
+    
+    // Maximum blackening from all collision points
+    float maxBlackening = 0.0;
+    
+    // Process all collision points
+    for (int i = 0; i < numCollisionPoints; i++) {
+        vec2 collisionPos = collisionPositions[i];
+        float intensity = collisionIntensities[i];
+        
+        // Calculate distance from this fragment to collision point
+        vec2 pixelPos = TexCoord * texSize;
+        vec2 collisionPixel = collisionPos * texSize;
+        float distance = length(pixelPos - collisionPixel);
+        
+        // Add blackening based on distance
+        if (distance <= radius * texSize.x) {
+            // Intensity decreases with distance (quadratic falloff)
+            float pointBlackening = 1.0 - pow(distance / (radius * texSize.x), 2.0);
+            
+            // Scale by collision intensity
+            pointBlackening *= intensity;
+            pointBlackening /= 0.01;
+            
+            // Keep the maximum blackening value
+            maxBlackening = max(maxBlackening, pointBlackening);
+        }
+    }
+    
+    // Combine with existing blackening (use max to ensure we don't reduce blackening)
+    FragColor = max(current, vec4(maxBlackening, maxBlackening, maxBlackening, 1.0));
+}
+)";
 
 
 
@@ -3218,7 +3284,6 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 
 	if (is_opaque_enough) {
 		// Only initialize the blackening texture if we actually need it
-		// (i.e., when a collision is detected and the pixel is opaque enough)
 		if (stamp.blackeningTexture == 0) {
 			stamp.initBlackeningTexture();
 		}
@@ -3232,17 +3297,91 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 			intensity = point.r; // Use red value for enemy ships
 		}
 
-		// Update the blackening texture with the collision point
-		updateBlackeningMark(stamp, texCoordX, texCoordY, intensity);
+		// Ensure the texture exists in the map
+		if (stampCollisionMap.find(stamp.blackeningTexture) == stampCollisionMap.end()) {
+			stampCollisionMap[stamp.blackeningTexture] = { {}, stamp.width, stamp.height };
+		}
+
+		// Store the collision point for batch processing
+		BlackeningPoint bp;
+		bp.x = texCoordX;
+		bp.y = texCoordY;
+		bp.intensity = intensity;
+		stampCollisionMap[stamp.blackeningTexture].points.push_back(bp);
 	}
 
-	// Check if the pixel is opaque enough for a collision
 	return is_opaque_enough;
 }
 
 
+void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const std::vector<BlackeningPoint>& points) {
+	if (points.empty() || textureID == 0) {
+		return;
+	}
 
+	// Limit number of points to shader array size
+	const int MAX_POINTS = 1024;  // Maximum points we can process in one batch
 
+	// Process points in batches
+	for (size_t offset = 0; offset < points.size(); offset += MAX_POINTS) {
+		int numPoints = std::min(MAX_POINTS, (int)(points.size() - offset));
+
+		// Prepare position and intensity arrays
+		std::vector<float> positions(MAX_POINTS * 2, 0.0f);  // x,y pairs
+		std::vector<float> intensities(MAX_POINTS, 0.0f);
+
+		for (int i = 0; i < numPoints; i++) {
+			const auto& bp = points[offset + i];
+			positions[i * 2] = bp.x;
+			positions[i * 2 + 1] = bp.y;
+			intensities[i] = bp.intensity;
+		}
+
+		// Bind to the processing framebuffer
+		glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureID, 0);
+
+		// Set viewport to texture dimensions
+		glViewport(0, 0, width, height);
+
+		// Use the batch blackening shader
+		glUseProgram(batchBlackeningProgram);
+
+		// Set uniforms
+		glUniform1i(glGetUniformLocation(batchBlackeningProgram, "currentBlackening"), 0);
+		glUniform2fv(glGetUniformLocation(batchBlackeningProgram, "collisionPositions"), MAX_POINTS, positions.data());
+		glUniform1fv(glGetUniformLocation(batchBlackeningProgram, "collisionIntensities"), MAX_POINTS, intensities.data());
+		glUniform1i(glGetUniformLocation(batchBlackeningProgram, "numCollisionPoints"), numPoints);
+		glUniform1f(glGetUniformLocation(batchBlackeningProgram, "radius"), 0.05f);  // 5% of texture size
+		glUniform2f(glGetUniformLocation(batchBlackeningProgram, "texSize"), width, height);
+
+		GLuint projectionLocation = glGetUniformLocation(batchBlackeningProgram, "projection");
+		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+		// Bind the current blackening texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, textureID);
+
+		// Draw a full-screen quad to update the texture
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+
+	// Reset viewport
+	glViewport(0, 0, WIDTH, HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void processCollectedBlackeningPoints() {
+	for (auto& [textureID, data] : stampCollisionMap) {
+		if (!data.points.empty()) {
+			batchUpdateBlackeningTexture(textureID, data.width, data.height, data.points);
+		}
+	}
+
+	// Clear the map for the next frame
+	stampCollisionMap.clear();
+}
 
 
 void generateFluidStampCollisionsDamage() {
@@ -4141,7 +4280,7 @@ void initGL() {
 	blackeningMarkProgram = createShaderProgram(vertexShaderSource, blackeningMarkFragmentShader);
 	blackeningCopyProgram = createShaderProgram(vertexShaderSource, blackeningCopyFragmentShader);
 
-
+	batchBlackeningProgram = createShaderProgram(vertexShaderSource, batchBlackeningFragmentShader);
 
 
 	glGenTextures(1, &vorticityTexture);
@@ -5704,6 +5843,7 @@ void simulationStep()
 	{
 		detectCollisions();
 		generateFluidStampCollisionsDamage();
+		processCollectedBlackeningPoints();
 	}
 
 
