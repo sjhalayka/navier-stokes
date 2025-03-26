@@ -63,6 +63,13 @@ using namespace std;
 
 // to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
+// to do: chop up giant foreground images into many foregrounds. do not add to many foregrounds if completely transparent
+
+// to do: collision detection and response to collisions with foreground
+
+
+
+
 
 // Structure to hold collision point data
 struct BlackeningPoint {
@@ -199,7 +206,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -5520,8 +5527,69 @@ void mark_dying_ships(void)
 
 
 
+bool isPixelPerfectCollision(const Stamp& a, const Stamp& b, vec2 &avg_out) {
+	float aMinX, aMinY, aMaxX, aMaxY;
+	float bMinX, bMinY, bMaxX, bMaxY;
+
+	calculateBoundingBox(a, aMinX, aMinY, aMaxX, aMaxY);
+	calculateBoundingBox(b, bMinX, bMinY, bMaxX, bMaxY);
+
+	avg_out.x = avg_out.y = 0;
+
+	// Quick check if bounding boxes overlap
+	if (!(aMaxX >= bMinX && aMinX <= bMaxX && aMaxY >= bMinY && aMinY <= bMaxY))
+	{
+		return false;
+	}
+
+	// Calculate overlapping region in normalized coordinates
+	float overlapMinX = std::max(aMinX, bMinX);
+	float overlapMaxX = std::min(aMaxX, bMaxX);
+	float overlapMinY = std::max(aMinY, bMinY);
+	float overlapMaxY = std::min(aMaxY, bMaxY);
+
+	size_t pixel_count = 0;
+
+	// Convert to pixel coordinates for both stamps
+	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
+		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
+			// Map to texture space for both stamps
+			int texAx = int((x - aMinX) / (aMaxX - aMinX) * a.width);
+			int texAy = int((y - aMinY) / (aMaxY - aMinY) * a.height);
+			int texBx = int((x - bMinX) / (bMaxX - bMinX) * b.width);
+			int texBy = int((y - bMinY) / (bMaxY - bMinY) * b.height);
+
+			// Get alpha values
+			float alphaA = getPixelValueFromStamp(a, a.currentVariationIndex, texAx, texAy, 3) / 255.0f;
+			float alphaB = getPixelValueFromStamp(b, b.currentVariationIndex, texBx, texBy, 3) / 255.0f;
+
+			if (alphaA > 0.0f && alphaB > 0.0f) 
+			{
+				avg_out.x += texAx;
+				avg_out.y += texAy;
+				pixel_count++;
+			}
+		}
+	}
+
+	if (pixel_count > 0)
+	{
+		avg_out.x /= pixel_count;
+		avg_out.y /= pixel_count;
+	}
+
+	if (pixel_count == 0)
+		return false;
+	else
+		return true;
+}
+
+
 void mark_colliding_ships(void)
 {
+	// to do: once this is complete and tested, then do enemy ship to enemy ship collisions,
+	// to do: so that enemy ships don't penetrate the foreground
+
 	for (size_t i = 0; i < allyShips.size(); ++i)
 	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
@@ -5532,9 +5600,26 @@ void mark_colliding_ships(void)
 				{
 					// For foreground objects, we want to push the ship away
 
-					// Calculate vector from foreground object to ship
-					float pushDirX = allyShips[i].posX - enemyShips[j].posX;
-					float pushDirY = allyShips[i].posY - enemyShips[j].posY;
+					for (size_t k = 0; k < 10; k++)
+					{
+						vec2 avg_out;
+
+						if(false == isPixelPerfectCollision(allyShips[i], enemyShips[j], avg_out))
+							break;
+
+						avg_out.x /= allyShips[i].width;
+						avg_out.y /= allyShips[i].height;
+
+						if (avg_out.x < 0.5)
+							allyShips[i].posX += 0.001;
+						else if (avg_out.x > 0.5)
+							allyShips[i].posX -= 0.001;
+
+						if (avg_out.y < 0.5)
+							allyShips[i].posY += 0.001;
+						else if (avg_out.y > 0.5)
+							allyShips[i].posY -= 0.001;
+					}
 				}
 				else
 				{
@@ -6054,8 +6139,14 @@ void idle()
 	float deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
 
+	// Accumulate time, cap it to prevent excessive catch-up
 	static float accumulator = 0.0f;
 	accumulator += deltaTime;
+
+	const float MAX_ACCUMULATOR = DT * 1.0; // Cap at 5 frames to avoid spiral of death
+	if (accumulator > MAX_ACCUMULATOR) {
+		accumulator = MAX_ACCUMULATOR;
+	}
 
 	// Fixed time step loop
 	while (accumulator >= DT) {
@@ -6063,6 +6154,11 @@ void idle()
 		GLOBAL_TIME += DT; // Increment global time by fixed step
 		accumulator -= DT;
 	}
+
+
+
+	//GLOBAL_TIME += DT;
+	//simulationStep();
 
 	if (spacePressed)
 		fireBullet();
