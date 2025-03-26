@@ -1611,7 +1611,7 @@ void main() {
             
             // Scale by collision intensity
             pointBlackening *= intensity;
-            pointBlackening /= 0.01;
+            //pointBlackening /= 0.01;
             
             // Keep the maximum blackening value
             maxBlackening = max(maxBlackening, pointBlackening);
