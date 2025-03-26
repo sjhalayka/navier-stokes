@@ -5510,111 +5510,21 @@ void mark_dying_ships(void)
 
 
 
-
 void mark_colliding_ships(void)
 {
 	for (size_t i = 0; i < allyShips.size(); ++i)
 	{
-		if (allyShips[i].to_be_culled) continue; // Skip already marked ships
-
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 		{
-			if (enemyShips[j].to_be_culled) continue; // Skip already marked enemies
-
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
 				if (enemyShips[j].is_foreground)
 				{
-					// Handle collision with foreground object
-					Stamp& ally = allyShips[i];
-					const Stamp& foreground = enemyShips[j];
+					// For foreground objects, we want to push the ship away
 
-					// Calculate ally's previous position and velocity
-					float allyVelX = ally.posX - ally.prevPosX;
-					float allyVelY = ally.posY - ally.prevPosY;
-
-					// Get foreground velocity
-					float fgVelX = foreground.velX;
-					float fgVelY = foreground.velY;
-
-					// Calculate relative velocity
-					float relVelX = allyVelX - fgVelX;
-					float relVelY = allyVelY - fgVelY;
-
-					// Calculate bounding boxes for the collision
-					float allyMinX, allyMinY, allyMaxX, allyMaxY;
-					float fgMinX, fgMinY, fgMaxX, fgMaxY;
-					calculateBoundingBox(ally, allyMinX, allyMinY, allyMaxX, allyMaxY);
-					calculateBoundingBox(foreground, fgMinX, fgMinY, fgMaxX, fgMaxY);
-
-					// Calculate overlap distances
-					float overlapLeft = allyMaxX - fgMinX;
-					float overlapRight = fgMaxX - allyMinX;
-					float overlapTop = allyMaxY - fgMinY;
-					float overlapBottom = fgMaxY - allyMinY;
-
-					// Find the direction of least penetration
-					float minOverlapX = std::min(overlapLeft, overlapRight);
-					float minOverlapY = std::min(overlapTop, overlapBottom);
-
-					// Determine adjustment direction based on relative positions
-					float pushX = 0.0f;
-					float pushY = 0.0f;
-
-					// Choose to resolve along the axis of minimum penetration
-					if (minOverlapX < minOverlapY) {
-						// Resolve horizontally
-						if (ally.posX < foreground.posX) {
-							// Ally is to the left of foreground
-							pushX = -minOverlapX;
-						}
-						else {
-							// Ally is to the right of foreground
-							pushX = minOverlapX;
-						}
-					}
-					else {
-						// Resolve vertically
-						if (ally.posY < foreground.posY) {
-							// Ally is below foreground
-							pushY = -minOverlapY;
-						}
-						else {
-							// Ally is above foreground
-							pushY = minOverlapY;
-						}
-					}
-
-					// If both velocities are zero, use positioning to determine push direction
-					if (std::abs(relVelX) < 0.0001f && std::abs(relVelY) < 0.0001f) {
-						// Calculate vector from foreground center to ally center
-						float dirX = ally.posX - foreground.posX;
-						float dirY = ally.posY - foreground.posY;
-
-						// Normalize push direction
-						float length = std::sqrt(dirX * dirX + dirY * dirY);
-						if (length > 0.0001f) {
-							dirX /= length;
-							dirY /= length;
-
-							// Use the minimum overlap as push distance
-							float pushDistance = std::min(minOverlapX, minOverlapY);
-							pushX = dirX * pushDistance;
-							pushY = dirY * pushDistance;
-						}
-					}
-
-					// Apply the push
-					ally.posX += pushX;
-					ally.posY += pushY;
-
-					// Check if the new position still collides
-					if (isPixelPerfectCollision(ally, foreground)) {
-						// If still colliding after adjustment, destroy the ship
-						make_dying_bullets(ally, false);
-						allyShips[i].health = 0;
-						ally.to_be_culled = true;
-					}
+					// Calculate vector from foreground object to ship
+					float pushDirX = allyShips[i].posX - enemyShips[j].posX;
+					float pushDirY = allyShips[i].posY - enemyShips[j].posY;
 				}
 				else
 				{
@@ -5627,8 +5537,6 @@ void mark_colliding_ships(void)
 		}
 	}
 }
-
-
 
 
 
@@ -6673,4 +6581,7 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
+
+
 
