@@ -290,6 +290,7 @@ public:
 
 
 
+
 class Stamp {
 public:
 	Stamp(void)
@@ -308,6 +309,7 @@ public:
 
 		if (blackeningTexture != 0) {
 			glDeleteTextures(1, &blackeningTexture);
+			blackeningTexture = 0;
 		}
 
 		textureIDs.clear();
@@ -315,7 +317,7 @@ public:
 		backupData.clear();
 	}
 
-	// Make the copy constructor and assignment operator for proper resource management
+	// Modified copy constructor to avoid automatic blackening texture initialization
 	Stamp(const Stamp& other)
 	{
 		// Copy basic properties
@@ -371,30 +373,11 @@ public:
 			}
 		}
 
-		// Also copy blackening texture if it exists
+		// Important: Don't automatically copy blackening texture, initialize to 0
 		blackeningTexture = 0;
-		if (other.blackeningTexture != 0) {
-			initBlackeningTexture();
-
-			// Copy contents from other blackening texture
-			glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
-
-			// Simple shader to copy the texture
-			glUseProgram(blackeningCopyProgram);
-			glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
-
-			glBindVertexArray(vao);
-			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		}
 	}
 
-	// Assignment operator
+	// Modified assignment operator to avoid automatic blackening texture initialization
 	Stamp& operator=(const Stamp& other)
 	{
 		if (this != &other) {
@@ -467,26 +450,8 @@ public:
 				}
 			}
 
-			// Also copy blackening texture if it exists
-			if (other.blackeningTexture != 0) {
-				initBlackeningTexture();
-
-				// Copy contents from other blackening texture
-				glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blackeningTexture, 0);
-
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, other.blackeningTexture);
-
-				// Simple shader to copy the texture
-				glUseProgram(blackeningCopyProgram);
-				glUniform1i(glGetUniformLocation(blackeningCopyProgram, "sourceTexture"), 0);
-
-				glBindVertexArray(vao);
-				glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-				glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			}
+			// Important: Don't automatically copy blackening texture, initialize to 0
+			blackeningTexture = 0;
 		}
 		return *this;
 	}
@@ -516,7 +481,7 @@ public:
 	std::vector<GLuint> textureIDs;         // Multiple texture IDs
 	int width = 0; // pixels
 	int height = 0; // pixels
-	std::string baseFilename;               // Base filename without suf fix
+	std::string baseFilename;               // Base filename without suffix
 	std::vector<std::string> textureNames;  // Names of the specific textures
 	std::vector<std::vector<unsigned char>> pixelData;
 	std::vector<std::vector<unsigned char>> backupData;
@@ -524,7 +489,7 @@ public:
 	// New GPU blackening texture
 	GLuint blackeningTexture;
 
-	// Rest of the Stamp class members remain the same, except blackening_points
+	// Rest of the Stamp class members remain the same
 	int channels = 0;
 	bool to_be_culled = false;
 	float health = 10000.0;
@@ -896,8 +861,14 @@ bool loadStampTextures() {
 
 Stamp deepCopyStamp(const Stamp& source)
 {
-	// Use the copy constructor which now handles texture creation properly
-	return Stamp(source);
+	// The copy constructor now handles texture creation properly
+	// and doesn't automatically initialize blackening textures
+	Stamp newStamp(source);
+
+	// Explicitly ensure blackeningTexture is 0
+	newStamp.blackeningTexture = 0;
+
+	return newStamp;
 }
 
 
@@ -3183,7 +3154,6 @@ void updateBlackeningMark(Stamp& stamp, float texX, float texY, float intensity 
 
 
 
-
 bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t stamp_index, const string& stamp_type) {
 	// Skip if stamp is culled
 	if (stamp.to_be_culled)
@@ -3247,7 +3217,8 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
 	if (is_opaque_enough) {
-		// Initialize the blackening texture if needed
+		// Only initialize the blackening texture if we actually need it
+		// (i.e., when a collision is detected and the pixel is opaque enough)
 		if (stamp.blackeningTexture == 0) {
 			stamp.initBlackeningTexture();
 		}
@@ -3268,8 +3239,6 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 	// Check if the pixel is opaque enough for a collision
 	return is_opaque_enough;
 }
-
-
 
 
 
@@ -4793,9 +4762,11 @@ void addMouseColor()
 
 
 
+
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
+			// Only process blackening if the texture actually exists
 			if (stamp.blackeningTexture != 0) {
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
@@ -4824,7 +4795,6 @@ void updateDynamicTexture(Stamp& stamp) {
 				glDeleteTextures(1, &originalTexture);
 
 				// Update the pixelData to match what's now in the GPU texture
-				// Note: This is only needed if the pixelData is used elsewhere in CPU code
 				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[i]);
 				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
 			}
@@ -4842,6 +4812,7 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
+
 void updateObstacle() {
 	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
@@ -4854,44 +4825,35 @@ void updateObstacle() {
 		// Create new stamp from the current template based on type
 		Stamp newStamp;
 
-
-
-
-
-
-
 		switch (currentTemplateType) {
 		case ALLY:
 			if (allyTemplates.empty()) return;
 			newStamp = deepCopyStamp(allyTemplates[currentAllyTemplateIndex]);
+			// Explicitly ensure blackeningTexture is 0
+			newStamp.blackeningTexture = 0;
 			break;
 		case ENEMY:
 			if (enemyTemplates.empty()) return;
 			newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+			// Explicitly ensure blackeningTexture is 0
+			newStamp.blackeningTexture = 0;
 			break;
 		case BULLET:
 			if (bulletTemplates.empty()) return;
 			newStamp = deepCopyStamp(bulletTemplates[0]); // Always use the first bullet template
+			// Explicitly ensure blackeningTexture is 0
+			newStamp.blackeningTexture = 0;
 			break;
 		case POWERUP:
 			if (powerUpTemplates.empty()) return;
 			newStamp = deepCopyStamp(powerUpTemplates[currentPowerUpTemplateIndex]);
+			// Explicitly ensure blackeningTexture is 0
+			newStamp.blackeningTexture = 0;
 			break;
 		}
 
 		newStamp.posX = mousePosX;
 		newStamp.posY = mousePosY;
-
-
-
-
-
-
-
-
-
-
-
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
@@ -4925,10 +4887,6 @@ void updateObstacle() {
 			}
 		}
 
-		//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<float, std::milli> elapsed;
-		//elapsed = global_time_end - app_start_time;
-
 		// Add the stamp to the appropriate vector based on the template type
 		switch (currentTemplateType) {
 		case ALLY:
@@ -4946,18 +4904,16 @@ void updateObstacle() {
 			size_t index = rand() % num_powerup_tempates;
 
 			newStamp = powerUpTemplates[SINUSOIDAL_POWERUP + index];
+			// Explicitly ensure blackeningTexture is 0
+			newStamp.blackeningTexture = 0;
 
 			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
-
-			//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			//std::chrono::duration<float, std::milli> elapsed;
-			//elapsed = global_time_end - app_start_time;
 
 			newStamp.posX = 1.0f;
 			newStamp.posY = rand() / float(RAND_MAX);
 
 			newStamp.birth_time = GLOBAL_TIME;
-			newStamp.death_time = -1.0f;// GLOBAL_TIME;
+			newStamp.death_time = -1.0f;
 			newStamp.velX = -0.001f;
 			newStamp.velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
@@ -4977,6 +4933,7 @@ void updateObstacle() {
 
 	lastRightMouseDown = rightMouseDown;
 }
+
 
 
 
@@ -6036,6 +5993,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 50.0f; // Longer lifespan for foreground
+		newStamp.blackeningTexture = 0;
 
 		enemyShips.push_back(newStamp);
 
@@ -6045,9 +6003,12 @@ void keyboard(unsigned char key, int x, int y) {
 	}
 
 
+
 	case '0':
 	{
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+		// Explicitly ensure blackeningTexture is 0
+		newStamp.blackeningTexture = 0;
 
 		float normalized_stamp_width = newStamp.width / float(WIDTH);
 		float normalized_stamp_height = newStamp.height / float(HEIGHT);
@@ -6058,36 +6019,6 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.curve_path.push_back(start);
 
-		//vec2 middle;
-
-		//middle.x = 0.75f;
-
-		//if (rand() % 2 == 0)
-		//	middle.y = 0.75f + 0.1f * (rand() / float(RAND_MAX));
-		//else
-		//	middle.y = 0.75f - 0.1f * (rand() / float(RAND_MAX));
-
-		//newStamp.curve_path.push_back(middle);
-
-		//middle.x = 0.5f;
-
-		//if (rand() % 2 == 0)
-		//	middle.y = 0.5f + 0.1f * (rand() / float(RAND_MAX));
-		//else
-		//	middle.y = 0.5f - 0.1f * (rand() / float(RAND_MAX));
-
-		//newStamp.curve_path.push_back(middle);
-
-		//middle.x = 0.25f;
-
-		//if (rand() % 2 == 0)
-		//	middle.y = 0.25f + 0.1f * (rand() / float(RAND_MAX));
-		//else
-		//	middle.y = 0.25f - 0.1f * (rand() / float(RAND_MAX));
-
-		//newStamp.curve_path.push_back(middle);
-
-
 		vec2 end;
 		end.x = -normalized_stamp_width / 2.0f;
 		end.y = rand() / float(RAND_MAX);
@@ -6096,15 +6027,14 @@ void keyboard(unsigned char key, int x, int y) {
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
 
-		//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
-
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 15.0f;
 
 		enemyShips.push_back(newStamp);
 		break;
 	}
+
+
 
 	case ' ': // Space bar
 		spacePressed = true;
@@ -6327,13 +6257,12 @@ void specialKeyboardUp(int key, int x, int y) {
 
 
 
+
+
 void reshape(int w, int h) {
 	glViewport(0, 0, w, h);
 	WIDTH = w;
 	HEIGHT = h;
-
-
-
 
 	// Delete existing shader programs
 	glDeleteProgram(advectProgram);
@@ -6358,30 +6287,10 @@ void reshape(int w, int h) {
 	glDeleteProgram(blackeningMarkProgram);
 	glDeleteProgram(blackeningCopyProgram);
 
-
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
-
-
-
-
-	//for (auto& stamp : allyShips) {
-	//	if (stamp.blackeningTexture != 0) {
-	//		glDeleteTextures(1, &stamp.blackeningTexture);
-	//		stamp.blackeningTexture = 0;
-	//	}
-	//}
-
-	//for (auto& stamp : enemyShips) {
-	//	if (stamp.blackeningTexture != 0) {
-	//		glDeleteTextures(1, &stamp.blackeningTexture);
-	//		stamp.blackeningTexture = 0;
-	//	}
-	//}
-
-
 
 	// Delete textures
 	glDeleteTextures(2, velocityTexture);
@@ -6399,7 +6308,7 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &vorticityTexture);
 	glDeleteTextures(1, &vorticityForceTexture);
 
-
+	// Cleanup textures in templates
 	for (auto& stamp : allyTemplates) {
 		for (auto& textureID : stamp.textureIDs) {
 			if (textureID != 0) {
@@ -6452,8 +6361,6 @@ void reshape(int w, int h) {
 	// Reinitialize OpenGL
 	initGL();
 }
-
-
 
 
 
