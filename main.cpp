@@ -2151,7 +2151,7 @@ void main()
     //}
     
 	// why is this necessary?
-	stampCoord /= 1.35;//sqrt(2.0);
+	stampCoord /= 1.5;//sqrt(2.0);
 
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
@@ -2215,7 +2215,7 @@ void main()
 	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
 
 	// why is this necessary?
-	stampCoord /= 1.35;//sqrt(2.0);
+	stampCoord /= 1.5;//sqrt(2.0);
 
 
     // Check if we're within stamp bounds
