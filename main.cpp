@@ -669,6 +669,8 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 			// Calculate positioning offset for this chunk relative to the original stamp
 			// These values will be used to maintain proper positioning of each chunk
+
+			// why is this necessary to divide by 1.35?
 			float offsetX = (float)startX / originalStamp.width / 1.35;
 			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
 
@@ -2149,7 +2151,7 @@ void main()
     //}
     
 	// why is this necessary?
-	stampCoord /= 1.5;//sqrt(2.0);
+	stampCoord /= 1.35;//sqrt(2.0);
 
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
@@ -2213,7 +2215,7 @@ void main()
 	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
 
 	// why is this necessary?
-	stampCoord /= 1.5;//sqrt(2.0);
+	stampCoord /= 1.35;//sqrt(2.0);
 
 
     // Check if we're within stamp bounds
