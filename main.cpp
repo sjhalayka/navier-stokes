@@ -616,7 +616,7 @@ bool isChunkFullyTransparent(const std::vector<unsigned char>& pixelData, int wi
 }
 
 // Function to create chunked stamps from a large foreground stamp
-std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize = 64) {
+std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize) {
 	std::vector<Stamp> chunks;
 
 	// Skip if the stamp is not valid
@@ -632,7 +632,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 		for (int chunkX = 0; chunkX < numChunksX; chunkX++) {
 			// Calculate the starting position of this chunk in the original image
 			int startX = chunkX * chunkSize;
-			int startY = chunkY * chunkSize / (WIDTH/float(HEIGHT));
+			int startY = chunkY * chunkSize;
 
 			// Calculate actual chunk dimensions (handle edge chunks that might be smaller)
 			int actualChunkWidth = std::min(chunkSize, originalStamp.width - startX);
@@ -665,8 +665,11 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 			// Calculate positioning offset for this chunk
 			// These offsets will be used to position the chunk relative to the original stamp's position
-			float offsetX = (float)startX / originalStamp.width;
-			float offsetY = (float)startY / originalStamp.height;
+			float offsetX = (float)startX / originalStamp.width / 1.35;
+			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35/ (WIDTH / float(HEIGHT));
+
+
+
 
 			// Extract pixel data for this chunk
 			std::vector<unsigned char> chunkPixelData(actualChunkWidth * actualChunkHeight * originalStamp.channels);
@@ -6482,7 +6485,7 @@ void testForegroundChunking() {
 	originalStamp.is_foreground = true;
 
 	// Generate chunks
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp);
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 128);
 
 	std::cout << "Generated " << chunks.size() << " chunks." << std::endl;
 
@@ -6519,12 +6522,12 @@ void testForegroundChunking() {
 		float normalizedChunkHeight = chunkStamp.height / float(HEIGHT);
 
 		chunkStamp.curve_path = originalStamp.curve_path;
-		//chunkStamp.posX = originalStamp.posX - normalizedOrigWidth / 2.0f +
-		//	chunkStamp.data_offsetX * normalizedOrigWidth +
-		//	normalizedChunkWidth / 2.0f;
-		//chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f +
-		//	chunkStamp.data_offsetY * normalizedOrigHeight +
-		//	normalizedChunkHeight / 2.0f;
+		chunkStamp.posX = originalStamp.posX - normalizedOrigWidth / 2.0f +
+			chunkStamp.data_offsetX * normalizedOrigWidth +
+			normalizedChunkWidth / 2.0f;
+		chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f +
+			chunkStamp.data_offsetY * normalizedOrigHeight +
+			normalizedChunkHeight / 2.0f;
 
 		enemyShips.push_back(chunkStamp);
 	}
@@ -7049,6 +7052,8 @@ int main(int argc, char** argv) {
 
 	glutSpecialFunc(specialKeyboard);
 	glutSpecialUpFunc(specialKeyboardUp);
+
+	glutFullScreen();
 
 	// Print instructions
 	printInstructions();
