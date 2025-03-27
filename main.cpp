@@ -6487,7 +6487,8 @@ void testForegroundChunking() {
 	originalStamp.is_foreground = true;
 
 
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 64);
+	// must be divisible by 120 along both axes
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120);
 
 	std::cout << "Generated " << chunks.size() << " chunks." << std::endl;
 
