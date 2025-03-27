@@ -543,58 +543,6 @@ public:
 };
 
 
-// Helper struct to hold a tile with its offset
-struct TileInfo {
-	Stamp tile;
-	float offsetX;
-	float offsetY;
-};
-
-// Function to check if a texture is fully transparent
-bool isFullyTransparent(const std::vector<unsigned char>& pixelData, int width, int height, int channels) {
-	// For RGBA format (channels == 4)
-	if (channels == 4) {
-		for (int i = 3; i < pixelData.size(); i += 4) {
-			if (pixelData[i] > 0) {
-				return false; // Found a non-zero alpha value
-			}
-		}
-		return true; // All alpha values are zero
-	}
-
-	// For RGB format (channels == 3), we assume it's not transparent
-	if (channels == 3) {
-		return false;
-	}
-
-	// For single channel format (channels == 1), check if all values are zero
-	if (channels == 1) {
-		for (int i = 0; i < pixelData.size(); i++) {
-			if (pixelData[i] > 0) {
-				return false; // Found a non-zero value
-			}
-		}
-		return true; // All values are zero
-	}
-
-	// Default case
-	return false;
-}
-
-// https://claude.ai/chat/e0f5876e-407e-4031-9c3f-d7aa352f02f9
-
-Stamp deepCopyStamp(const Stamp& source)
-{
-	// The copy constructor now handles texture creation properly
-	// and doesn't automatically initialize blackening textures
-	Stamp newStamp(source);
-
-	// Explicitly ensure blackeningTexture is 0
-	newStamp.blackeningTexture = 0;
-
-	return newStamp;
-}
-
 
 
 std::vector<Stamp> allyShips;
@@ -620,213 +568,6 @@ int currentPowerUpTemplateIndex = 0;
 enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
 
 TemplateType currentTemplateType = ALLY;
-
-
-
-
-
-
-
-std::vector<TileInfo> cutForegroundIntoTiles(const Stamp& originalStamp, int tileWidth, int tileHeight)
-{
-	std::vector<TileInfo> tiles;
-
-	// If the stamp is smaller than the tile size, just return the original
-	if (originalStamp.width <= tileWidth && originalStamp.height <= tileHeight)
-	{
-		TileInfo info;
-		info.tile = deepCopyStamp(originalStamp);
-		info.offsetX = 0.0f;
-		info.offsetY = 0.0f;
-		tiles.push_back(info);
-		return tiles;
-	}
-
-	// Calculate the number of tiles in each dimension
-	int numTilesX = (originalStamp.width + tileWidth - 1) / tileWidth; // Ceiling division
-	int numTilesY = (originalStamp.height + tileHeight - 1) / tileHeight;
-
-	std::cout << "Cutting foreground into " << numTilesX << "x" << numTilesY << " tiles" << std::endl;
-
-	// Iterate through each tile position
-	for (int tileY = 0; tileY < numTilesY; tileY++) {
-		for (int tileX = 0; tileX < numTilesX; tileX++) {
-			// Calculate the tile's position and size in the original texture
-			int startX = tileX * tileWidth;
-			int startY = tileY * tileHeight;
-			int actualTileWidth = std::min(tileWidth, originalStamp.width - startX);
-			int actualTileHeight = std::min(tileHeight, originalStamp.height - startY);
-
-			// Create a new stamp for this tile
-			Stamp tileStamp;
-			tileStamp.width = actualTileWidth;
-			tileStamp.height = actualTileHeight;
-			tileStamp.channels = originalStamp.channels;
-			tileStamp.baseFilename = originalStamp.baseFilename + "_tile_" + std::to_string(tileX) + "_" + std::to_string(tileY);
-			tileStamp.textureNames = originalStamp.textureNames;
-			tileStamp.currentVariationIndex = originalStamp.currentVariationIndex;
-			tileStamp.is_foreground = true;
-
-			// Set other properties from the original stamp
-			tileStamp.birth_time = originalStamp.birth_time;
-			tileStamp.death_time = originalStamp.death_time;
-			tileStamp.blackeningTexture = 0;
-			tileStamp.health = originalStamp.health;
-			tileStamp.stamp_opacity = originalStamp.stamp_opacity;
-
-			// Calculate offset in normalized coordinates (relative to the original stamp)
-			float normX = startX / static_cast<float>(originalStamp.width);
-			float normY = startY / static_cast<float>(originalStamp.height);
-
-			// Extract pixel data for this tile from the original texture
-			bool hasValidTexture = false;
-
-			for (size_t varIdx = 0; varIdx < originalStamp.pixelData.size(); varIdx++) {
-				if (varIdx >= originalStamp.textureIDs.size() ||
-					originalStamp.pixelData[varIdx].empty() ||
-					originalStamp.textureIDs[varIdx] == 0) {
-					// Skip empty variation
-					tileStamp.pixelData.push_back(std::vector<unsigned char>());
-					tileStamp.backupData.push_back(std::vector<unsigned char>());
-					tileStamp.textureIDs.push_back(0);
-					continue;
-				}
-
-				std::vector<unsigned char> tilePixelData(actualTileWidth * actualTileHeight * originalStamp.channels);
-				std::vector<unsigned char> tileBackupData(actualTileWidth * actualTileHeight * originalStamp.channels);
-
-				// Copy pixel data from the original texture to this tile
-				for (int y = 0; y < actualTileHeight; y++) {
-					for (int x = 0; x < actualTileWidth; x++) {
-						for (int c = 0; c < originalStamp.channels; c++) {
-							int origIdx = ((startY + y) * originalStamp.width + (startX + x)) * originalStamp.channels + c;
-							int tileIdx = (y * actualTileWidth + x) * originalStamp.channels + c;
-
-							if (origIdx < originalStamp.pixelData[varIdx].size()) {
-								tilePixelData[tileIdx] = originalStamp.pixelData[varIdx][origIdx];
-								tileBackupData[tileIdx] = originalStamp.backupData[varIdx][origIdx];
-							}
-						}
-					}
-				}
-
-				// Check if this tile is fully transparent
-				if (isFullyTransparent(tilePixelData, actualTileWidth, actualTileHeight, originalStamp.channels)) {
-					// Skip fully transparent tiles
-					tileStamp.pixelData.push_back(std::vector<unsigned char>());
-					tileStamp.backupData.push_back(std::vector<unsigned char>());
-					tileStamp.textureIDs.push_back(0);
-					continue;
-				}
-
-				// Create a new OpenGL texture for this tile
-				GLuint textureID;
-				glGenTextures(1, &textureID);
-				glBindTexture(GL_TEXTURE_2D, textureID);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-				GLenum format = (originalStamp.channels == 1) ? GL_RED :
-					(originalStamp.channels == 3) ? GL_RGB : GL_RGBA;
-
-				glTexImage2D(GL_TEXTURE_2D, 0, format, actualTileWidth, actualTileHeight, 0,
-					format, GL_UNSIGNED_BYTE, tilePixelData.data());
-
-				tileStamp.pixelData.push_back(tilePixelData);
-				tileStamp.backupData.push_back(tileBackupData);
-				tileStamp.textureIDs.push_back(textureID);
-
-				hasValidTexture = true;
-			}
-
-			// If at least one variation has a valid texture, add this tile to the list
-			if (hasValidTexture) {
-				TileInfo info;
-				info.tile = tileStamp;
-				info.offsetX = normX;
-				info.offsetY = normY;
-				tiles.push_back(info);
-			}
-		}
-	}
-
-	std::cout << "Created " << tiles.size() << " non-empty tiles" << std::endl;
-	return tiles;
-}
-
-
-void addTiledForeground(int foregroundIndex, int tileWidth, int tileHeight) {
-	if (foregroundTemplates.empty() || foregroundIndex >= foregroundTemplates.size()) {
-		std::cout << "Invalid foreground template index." << std::endl;
-		return;
-	}
-
-	// Get the original foreground template
-	const Stamp& originalTemplate = foregroundTemplates[foregroundIndex];
-
-	// Create a deep copy of the template to use as the base for tiling
-	Stamp baseStamp = deepCopyStamp(originalTemplate);
-	baseStamp.is_foreground = true;
-	baseStamp.blackeningTexture = 0;
-	baseStamp.health = 1000000.0f; // practically infinite
-	baseStamp.birth_time = GLOBAL_TIME;
-	baseStamp.death_time = GLOBAL_TIME + 50.0f; // Longer lifespan for foreground
-
-	// Calculate normalized dimensions of the original template
-	float normalized_stamp_width = originalTemplate.width / float(WIDTH);
-	float normalized_stamp_height = originalTemplate.height / float(HEIGHT);
-	float aspect = WIDTH / float(HEIGHT);
-	float adjusted_normalized_stamp_height = normalized_stamp_height * aspect;
-
-	// Define the path for the entire foreground
-	vec2 start;
-	start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-	start.y = rand() / float(RAND_MAX); // random y position
-
-	vec2 end;
-	end.x = -normalized_stamp_width / 2.0f; // off the left edge
-	end.y = start.y; // maintain same y (could add randomness if desired)
-
-	// Cut the foreground into tiles
-	std::vector<TileInfo> tiles = cutForegroundIntoTiles(baseStamp, tileWidth, tileHeight);
-
-	// Add each non-empty tile
-	for (auto& tileInfo : tiles) {
-		Stamp& tileStamp = tileInfo.tile;
-
-		// Calculate normalized size of this tile
-		float tile_norm_width = tileStamp.width / float(WIDTH);
-		float tile_norm_height = tileStamp.height / float(HEIGHT);
-		float adjusted_tile_norm_height = tile_norm_height * aspect;
-
-		// Adjust for normalized offset
-		float offsetX = tileInfo.offsetX * normalized_stamp_width;
-		float offsetY = tileInfo.offsetY * adjusted_normalized_stamp_height;
-
-		// Create path for this tile based on parent's path
-		tileStamp.curve_path.clear();
-		vec2 tileStart, tileEnd;
-		tileStart.x = start.x - normalized_stamp_width / 2.0f + offsetX + tile_norm_width / 2.0f;
-		tileStart.y = start.y - adjusted_normalized_stamp_height / 2.0f + offsetY + adjusted_tile_norm_height / 2.0f;
-		tileEnd.x = end.x - normalized_stamp_width / 2.0f + offsetX + tile_norm_width / 2.0f;
-		tileEnd.y = end.y - adjusted_normalized_stamp_height / 2.0f + offsetY + adjusted_tile_norm_height / 2.0f;
-
-		tileStamp.curve_path.push_back(tileStart);
-		tileStamp.curve_path.push_back(tileEnd);
-
-		// Set initial position
-		tileStamp.posX = tileStart.x;
-		tileStamp.posY = tileStart.y;
-
-		// Add to enemyShips
-		enemyShips.push_back(tileStamp);
-	}
-
-	std::cout << "Added tiled foreground with " << tiles.size() << " non-empty tiles using template: "
-		<< originalTemplate.baseFilename << std::endl;
-}
 
 
 //
@@ -1143,6 +884,18 @@ bool loadStampTextures() {
 
 
 
+
+Stamp deepCopyStamp(const Stamp& source)
+{
+	// The copy constructor now handles texture creation properly
+	// and doesn't automatically initialize blackening textures
+	Stamp newStamp(source);
+
+	// Explicitly ensure blackeningTexture is 0
+	newStamp.blackeningTexture = 0;
+
+	return newStamp;
+}
 
 
 void RandomUnitVector(float& x_out, float& y_out)
@@ -6472,10 +6225,95 @@ void keyboardup(unsigned char key, int x, int y) {
 }
 
 
+
+std::vector<Stamp> createForegroundSubstamps(const Stamp& originalStamp, int numSubstamps) {
+	std::vector<Stamp> substamps;
+
+	// Calculate how to divide the original stamp
+	int subWidth = originalStamp.width / numSubstamps;
+
+	for (int i = 0; i < numSubstamps; i++) {
+		// Create a new substamp
+		Stamp substamp;
+		substamp.width = subWidth;
+		substamp.height = originalStamp.height;
+		substamp.channels = originalStamp.channels;
+		substamp.baseFilename = originalStamp.baseFilename + "_sub" + std::to_string(i);
+		substamp.is_foreground = true;
+		substamp.birth_time = GLOBAL_TIME;
+		substamp.death_time = GLOBAL_TIME + 50.0f;
+		substamp.health = 1000000.0f; // Same as original
+		substamp.stamp_opacity = 1.0f;
+
+		// Extract a slice of the original texture
+		for (size_t varIdx = 0; varIdx < originalStamp.textureIDs.size(); varIdx++) {
+			if (originalStamp.textureIDs[varIdx] == 0) {
+				// Skip unavailable variations
+				substamp.textureIDs.push_back(0);
+				substamp.pixelData.push_back(std::vector<unsigned char>());
+				substamp.backupData.push_back(std::vector<unsigned char>());
+				continue;
+			}
+
+			// Create new texture and pixel data for this substamp
+			GLuint textureID = 0;
+			glGenTextures(1, &textureID);
+			glBindTexture(GL_TEXTURE_2D, textureID);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+			// Extract the relevant slice of pixel data
+			std::vector<unsigned char> sliceData(subWidth * originalStamp.height * originalStamp.channels);
+			std::vector<unsigned char> sliceBackupData(subWidth * originalStamp.height * originalStamp.channels);
+
+			for (int y = 0; y < originalStamp.height; y++) {
+				for (int x = 0; x < subWidth; x++) {
+					int srcX = i * subWidth + x;
+					if (srcX >= originalStamp.width) break;
+
+					for (int c = 0; c < originalStamp.channels; c++) {
+						int srcIdx = (y * originalStamp.width + srcX) * originalStamp.channels + c;
+						int dstIdx = (y * subWidth + x) * originalStamp.channels + c;
+
+						if (srcIdx < originalStamp.pixelData[varIdx].size() && dstIdx < sliceData.size()) {
+							sliceData[dstIdx] = originalStamp.pixelData[varIdx][srcIdx];
+							sliceBackupData[dstIdx] = originalStamp.backupData[varIdx][srcIdx];
+						}
+					}
+				}
+			}
+
+			// Upload the data to the texture
+			GLenum format = (originalStamp.channels == 1) ? GL_RED :
+				(originalStamp.channels == 3) ? GL_RGB : GL_RGBA;
+			glTexImage2D(GL_TEXTURE_2D, 0, format, subWidth, originalStamp.height, 0,
+				format, GL_UNSIGNED_BYTE, sliceData.data());
+
+			// Store the data
+			substamp.textureIDs.push_back(textureID);
+			substamp.pixelData.push_back(sliceData);
+			substamp.backupData.push_back(sliceBackupData);
+			substamp.textureNames.push_back(originalStamp.textureNames[varIdx] + "_sub" + std::to_string(i));
+		}
+
+		// Calculate the normalized width for placement
+		substamp.currentVariationIndex = 0; // Use first available variation
+		substamps.push_back(substamp);
+	}
+
+	return substamps;
+}
+
+
+
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key)
 	{
+
+
 	case '9':
 	{
 		if (foregroundTemplates.empty()) {
@@ -6484,14 +6322,80 @@ void keyboard(unsigned char key, int x, int y) {
 		}
 
 		// Select a random foreground template
-		int foregroundIndex = rand() % foregroundTemplates.size();
+		int foregroundIndex = 0;// rand() % foregroundTemplates.size();
+		Stamp originalStamp = deepCopyStamp(foregroundTemplates[foregroundIndex]);
+		originalStamp.blackeningTexture = 0;
 
-		// Define tile size - adjust these values based on your needs
-		int tileWidth = 64;  // Can be changed to optimize performance
-		int tileHeight = 64; // Can be changed to optimize performance
+		// Calculate how many substamps to create based on screen width and stamp size
+		float normalizedOriginalWidth = originalStamp.width / float(WIDTH);
+		int numSubstamps = std::max(1, int(normalizedOriginalWidth * 3.0)); // Adjust divisor for desired granularity
 
-		// Add the tiled foreground
-		addTiledForeground(foregroundIndex, tileWidth, tileHeight);
+		if (numSubstamps <= 1 || originalStamp.width < 300) {
+			// For small foregrounds, place as a single stamp
+			originalStamp.is_foreground = true;
+			float normalizedStampWidth = originalStamp.width / float(WIDTH);
+
+			vec2 start;
+			start.x = 1.0f + normalizedStampWidth / 2.0f; // Start just off the right edge
+			start.y = rand() / float(RAND_MAX);           // Random Y position
+
+			vec2 end;
+			end.x = -normalizedStampWidth / 2.0f;        // End off the left edge
+			end.y = start.y;                              // Consistent Y for horizontal movement
+
+			originalStamp.curve_path.push_back(start);
+			originalStamp.curve_path.push_back(end);
+
+			originalStamp.posX = start.x;
+			originalStamp.posY = start.y;
+			originalStamp.birth_time = GLOBAL_TIME;
+			originalStamp.death_time = GLOBAL_TIME + 50.0f;
+
+			enemyShips.push_back(originalStamp);
+
+			std::cout << "Added single foreground element at position (" << start.x << ", "
+				<< start.y << ") using template: " << originalStamp.baseFilename << std::endl;
+		}
+		else {
+			// Create substamps
+			std::vector<Stamp> substamps = createForegroundSubstamps(originalStamp, numSubstamps);
+
+			// Calculate the normalized width of each substamp based on screen width
+			float subStampPixelWidth = originalStamp.width / float(numSubstamps);
+			float subStampNormalizedWidth = subStampPixelWidth / float(WIDTH);
+
+			// Random Y position for all substamps (consistent across the set)
+			float baseY = rand() / float(RAND_MAX);
+
+			// Place substamps contiguously from right to left
+			for (int i = 0; i < substamps.size(); i++) {
+				// Start position: right edge of screen plus offset for each substamp
+				float startX = 1.0f + subStampNormalizedWidth * (i + 0.5f);
+
+				vec2 start;
+				start.x = startX;
+				start.y = baseY;
+
+				// End position: move left across the screen
+				vec2 end;
+				end.x = -subStampNormalizedWidth * (numSubstamps - i - 0.5f); // Ensure it moves fully off-screen
+				end.y = baseY;
+
+				substamps[i].curve_path.push_back(start);
+				substamps[i].curve_path.push_back(end);
+
+				substamps[i].posX = start.x;
+				substamps[i].posY = start.y;
+				substamps[i].birth_time = GLOBAL_TIME;
+				substamps[i].death_time = GLOBAL_TIME + 50.0f;
+
+				// Add to enemyShips (used for foreground rendering)
+				enemyShips.push_back(substamps[i]);
+			}
+
+			std::cout << "Added " << substamps.size() << " contiguous foreground substamps at y="
+				<< baseY << " using template: " << originalStamp.baseFilename << std::endl;
+		}
 		break;
 	}
 
