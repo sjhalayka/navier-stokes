@@ -27,6 +27,7 @@
 #include <chrono>
 #include <set>
 #include <unordered_map>
+#include <map>
 using namespace std;
 
 #pragma comment(lib, "freeglut")
@@ -316,7 +317,6 @@ public:
 
 
 
-
 class Stamp {
 public:
 	Stamp(void)
@@ -378,6 +378,12 @@ public:
 		is_foreground = other.is_foreground;
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
+
+		// Copy chunking data
+		data_offsetX = other.data_offsetX;
+		data_offsetY = other.data_offsetY;
+		data_original_width = other.data_original_width;
+		data_original_height = other.data_original_height;
 
 		// Deep copy pixel data
 		pixelData = other.pixelData;
@@ -455,6 +461,12 @@ public:
 			is_foreground = other.is_foreground;
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
+
+			// Copy chunking data
+			data_offsetX = other.data_offsetX;
+			data_offsetY = other.data_offsetY;
+			data_original_width = other.data_original_width;
+			data_original_height = other.data_original_height;
 
 			// Deep copy pixel data
 			pixelData = other.pixelData;
@@ -540,8 +552,13 @@ public:
 	vector<Cannon> cannons;
 	bool is_foreground = false;
 	float prevPosX = 0, prevPosY = 0;
-};
 
+	// New parameters for chunking
+	float data_offsetX = 0.0f;
+	float data_offsetY = 0.0f;
+	int data_original_width = 0;
+	int data_original_height = 0;
+};
 
 
 
@@ -568,6 +585,141 @@ int currentPowerUpTemplateIndex = 0;
 enum TemplateType { ALLY, ENEMY, BULLET, POWERUP };
 
 TemplateType currentTemplateType = ALLY;
+
+
+
+
+
+
+bool isChunkFullyTransparent(const std::vector<unsigned char>& pixelData, int width, int height,
+	int channels, int startX, int startY, int chunkSize) {
+	// If no alpha channel, assume it's not transparent
+	if (channels < 4) return false;
+
+	for (int y = 0; y < chunkSize; y++) {
+		for (int x = 0; x < chunkSize; x++) {
+			// Check boundaries
+			if (startX + x >= width || startY + y >= height) continue;
+
+			// Calculate pixel index
+			int idx = ((startY + y) * width + (startX + x)) * channels + 3; // +3 for alpha channel
+
+			// If any pixel has non-zero alpha, the chunk is not fully transparent
+			if (pixelData[idx] > 0) {
+				return false;
+			}
+		}
+	}
+
+	// All pixels are transparent
+	return true;
+}
+
+// Function to create chunked stamps from a large foreground stamp
+std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize = 64) {
+	std::vector<Stamp> chunks;
+
+	// Skip if the stamp is not valid
+	if (originalStamp.width <= 0 || originalStamp.height <= 0 ||
+		originalStamp.pixelData.empty() || originalStamp.textureIDs.empty()) {
+		return chunks;
+	}
+
+	int numChunksX = (originalStamp.width + chunkSize - 1) / chunkSize; // Ceiling division
+	int numChunksY = (originalStamp.height + chunkSize - 1) / chunkSize;
+
+	for (int chunkY = 0; chunkY < numChunksY; chunkY++) {
+		for (int chunkX = 0; chunkX < numChunksX; chunkX++) {
+			// Calculate the starting position of this chunk in the original image
+			int startX = chunkX * chunkSize;
+			int startY = chunkY * chunkSize / (WIDTH/float(HEIGHT));
+
+			// Calculate actual chunk dimensions (handle edge chunks that might be smaller)
+			int actualChunkWidth = std::min(chunkSize, originalStamp.width - startX);
+			int actualChunkHeight = std::min(chunkSize, originalStamp.height - startY);
+
+			// Skip fully transparent chunks
+			if (isChunkFullyTransparent(originalStamp.pixelData[originalStamp.currentVariationIndex],
+				originalStamp.width, originalStamp.height,
+				originalStamp.channels, startX, startY,
+				std::min(actualChunkWidth, actualChunkHeight))) {
+				continue;
+			}
+
+			// Create a new stamp for this chunk
+			Stamp chunkStamp;
+			chunkStamp.width = actualChunkWidth;
+			chunkStamp.height = actualChunkHeight;
+			chunkStamp.channels = originalStamp.channels;
+			chunkStamp.baseFilename = originalStamp.baseFilename + "_chunk_" +
+				std::to_string(chunkX) + "_" + std::to_string(chunkY);
+			chunkStamp.textureNames = { chunkStamp.baseFilename };
+			chunkStamp.is_foreground = true;
+
+			// Copy the path and other properties from the original stamp
+			chunkStamp.curve_path = originalStamp.curve_path;
+			chunkStamp.birth_time = originalStamp.birth_time;
+			chunkStamp.death_time = originalStamp.death_time;
+			chunkStamp.health = originalStamp.health;
+			chunkStamp.currentVariationIndex = 0;
+
+			// Calculate positioning offset for this chunk
+			// These offsets will be used to position the chunk relative to the original stamp's position
+			float offsetX = (float)startX / originalStamp.width;
+			float offsetY = (float)startY / originalStamp.height;
+
+			// Extract pixel data for this chunk
+			std::vector<unsigned char> chunkPixelData(actualChunkWidth * actualChunkHeight * originalStamp.channels);
+
+			for (int y = 0; y < actualChunkHeight; y++) {
+				for (int x = 0; x < actualChunkWidth; x++) {
+					// Calculate source and destination indices
+					int srcIdx = ((startY + y) * originalStamp.width + (startX + x)) * originalStamp.channels;
+					int dstIdx = (y * actualChunkWidth + x) * originalStamp.channels;
+
+					// Copy all channels
+					for (int c = 0; c < originalStamp.channels; c++) {
+						chunkPixelData[dstIdx + c] = originalStamp.pixelData[originalStamp.currentVariationIndex][srcIdx + c];
+					}
+				}
+			}
+
+			// Create texture for this chunk
+			GLuint textureID;
+			glGenTextures(1, &textureID);
+			glBindTexture(GL_TEXTURE_2D, textureID);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+			GLenum format = (originalStamp.channels == 1) ? GL_RED :
+				(originalStamp.channels == 3) ? GL_RGB : GL_RGBA;
+
+			glTexImage2D(GL_TEXTURE_2D, 0, format, actualChunkWidth, actualChunkHeight,
+				0, format, GL_UNSIGNED_BYTE, chunkPixelData.data());
+
+			// Store texture and pixel data
+			chunkStamp.textureIDs.push_back(textureID);
+			chunkStamp.pixelData.push_back(chunkPixelData);
+			chunkStamp.backupData.push_back(chunkPixelData);
+
+			// Store the chunk's offset in a way we can use later for positioning
+			chunkStamp.data_offsetX = offsetX;
+			chunkStamp.data_offsetY = offsetY;
+			chunkStamp.data_original_width = originalStamp.width;
+			chunkStamp.data_original_height = originalStamp.height;
+
+			// Add to our chunks vector
+			chunks.push_back(chunkStamp);
+		}
+	}
+
+	return chunks;
+}
+
+
+
 
 
 //
@@ -5335,94 +5487,163 @@ void cull_marked_bullets(void)
 
 
 
+std::map<std::string, std::vector<size_t>> identifyChunkedForegrounds(const std::vector<Stamp>& ships) {
+	std::map<std::string, std::vector<size_t>> chunkedGroups;
 
+	for (size_t i = 0; i < ships.size(); i++) {
+		const Stamp& stamp = ships[i];
 
-
-
-
-void move_ships(void)
-{
-	auto update_ships = [&](std::vector<Stamp>& stamps, bool is_ally)
-	{
-		for (auto& stamp : stamps)
-		{
-			if (stamp.to_be_culled == true)
-				continue;
-
-			const float aspect = WIDTH / float(HEIGHT);
-			stamp.prevPosX = stamp.posX;
-			stamp.prevPosY = stamp.posY;
-
-			if (is_ally)
-			{
-				stamp.posX += stamp.velX / aspect;
-				stamp.posY += stamp.velY;
-
-				// Calculate adjusted Y coordinate that accounts for aspect ratio
-				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-				// Constrain X position
-				if (stamp.posX < 0)
-					stamp.posX = 0;
-				if (stamp.posX > 1)
-					stamp.posX = 1;
-
-				// Constrain Y position, accounting for aspect ratio
-				if (adjustedPosY < 0)
-					stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
-				if (adjustedPosY > 1)
-					stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
-			}
-			else
-			{
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - app_start_time;
-
-				float t = GLOBAL_TIME - stamp.birth_time;
-				t /= stamp.death_time - stamp.birth_time;
-
-				vec2 vd = get_curve_point(stamp.curve_path, t);
-				vec2 vd2 = get_straight_point(stamp.curve_path, t);
-
-				vd.x = lerp(vd.x, vd2.x, 0.15f);
-				vd.y = lerp(vd.y, vd2.y, 0.15f);
-
-				stamp.posX = vd.x;
-				stamp.posY = vd.y;
-
-				const float vel_y = stamp.posY - stamp.prevPosY;
-				const float vel_x = stamp.posX - stamp.prevPosX;
-
-				stamp.currentVariationIndex = 0;
-
-				if (stamp.is_foreground)
-				{
-					stamp.currentVariationIndex = 0;
-				}
-				else
-				{
-					if (vel_y > 0.001)
-						stamp.currentVariationIndex = 1;
-					else if (vel_y < -0.001)
-						stamp.currentVariationIndex = 2;
-					else
-						stamp.currentVariationIndex = 0;
-				}
-
-				stamp.velX = vel_x;
-				stamp.velY = vel_y;
-
-
-
+		// Check if this is a foreground chunk (will have a baseFilename containing "_chunk_")
+		if (stamp.is_foreground && stamp.baseFilename.find("_chunk_") != std::string::npos) {
+			// Extract the original baseFilename (everything before the _chunk_ part)
+			size_t chunkPos = stamp.baseFilename.find("_chunk_");
+			if (chunkPos != std::string::npos) {
+				std::string originalBaseFilename = stamp.baseFilename.substr(0, chunkPos);
+				chunkedGroups[originalBaseFilename].push_back(i);
 			}
 		}
-	};
+	}
 
-	update_ships(allyShips, true);
-	update_ships(enemyShips, false);
+	return chunkedGroups;
 }
 
+
+
+void move_ships(void) {
+	// First, identify all chunked foregrounds
+	std::map<std::string, std::vector<size_t>> chunkedForegrounds = identifyChunkedForegrounds(enemyShips);
+
+	// Create a set of indices that are part of chunked foregrounds
+	std::set<size_t> chunkedIndices;
+	for (const auto& group : chunkedForegrounds) {
+		for (size_t idx : group.second) {
+			chunkedIndices.insert(idx);
+		}
+	}
+
+	// Process ally ships as before
+	for (auto& stamp : allyShips) {
+		if (stamp.to_be_culled) continue;
+
+		const float aspect = WIDTH / float(HEIGHT);
+		stamp.prevPosX = stamp.posX;
+		stamp.prevPosY = stamp.posY;
+
+		stamp.posX += stamp.velX / aspect;
+		stamp.posY += stamp.velY;
+
+		// Calculate adjusted Y coordinate that accounts for aspect ratio
+		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+		// Constrain X position
+		if (stamp.posX < 0)
+			stamp.posX = 0;
+		if (stamp.posX > 1)
+			stamp.posX = 1;
+
+		// Constrain Y position, accounting for aspect ratio
+		if (adjustedPosY < 0)
+			stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+		if (adjustedPosY > 1)
+			stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+	}
+
+	// Process non-chunked enemy ships as before
+	for (size_t i = 0; i < enemyShips.size(); i++) {
+		// Skip if this is part of a chunked foreground (we'll process these separately)
+		if (chunkedIndices.find(i) != chunkedIndices.end()) {
+			continue;
+		}
+
+		Stamp& stamp = enemyShips[i];
+		if (stamp.to_be_culled) continue;
+
+		const float aspect = WIDTH / float(HEIGHT);
+		stamp.prevPosX = stamp.posX;
+		stamp.prevPosY = stamp.posY;
+
+		float t = GLOBAL_TIME - stamp.birth_time;
+		t /= stamp.death_time - stamp.birth_time;
+
+		vec2 vd = get_curve_point(stamp.curve_path, t);
+		vec2 vd2 = get_straight_point(stamp.curve_path, t);
+
+		vd.x = lerp(vd.x, vd2.x, 0.15f);
+		vd.y = lerp(vd.y, vd2.y, 0.15f);
+
+		stamp.posX = vd.x;
+		stamp.posY = vd.y;
+
+		const float vel_y = stamp.posY - stamp.prevPosY;
+		const float vel_x = stamp.posX - stamp.prevPosX;
+
+		stamp.currentVariationIndex = 0;
+
+		if (stamp.is_foreground) {
+			stamp.currentVariationIndex = 0;
+		}
+		else {
+			if (vel_y > 0.001)
+				stamp.currentVariationIndex = 1;
+			else if (vel_y < -0.001)
+				stamp.currentVariationIndex = 2;
+			else
+				stamp.currentVariationIndex = 0;
+		}
+
+		stamp.velX = vel_x;
+		stamp.velY = vel_y;
+	}
+
+	// Process chunked foregrounds as groups
+	for (const auto& [baseFilename, indices] : chunkedForegrounds) {
+		if (indices.empty()) continue;
+
+		// Get the first chunk to use as reference
+		const Stamp& referenceChunk = enemyShips[indices[0]];
+
+		// Calculate time parameter
+		float t = GLOBAL_TIME - referenceChunk.birth_time;
+		t /= referenceChunk.death_time - referenceChunk.birth_time;
+
+		// Get position for original full-sized foreground
+		vec2 vd = get_curve_point(referenceChunk.curve_path, t);
+		vec2 vd2 = get_straight_point(referenceChunk.curve_path, t);
+
+		vd.x = lerp(vd.x, vd2.x, 0.15f);
+		vd.y = lerp(vd.y, vd2.y, 0.15f);
+
+		// Calculate original stamp width and height in normalized coordinates
+		float originalWidth = referenceChunk.data_original_width / float(WIDTH);
+		float originalHeight = referenceChunk.data_original_height / float(HEIGHT);
+
+		// Now update all chunks based on where the original would be
+		for (size_t idx : indices) {
+			Stamp& chunk = enemyShips[idx];
+
+			// Store previous position
+			chunk.prevPosX = chunk.posX;
+			chunk.prevPosY = chunk.posY;
+
+			// Calculate normalized chunk size
+			float chunkWidth = chunk.width / float(WIDTH);
+			float chunkHeight = chunk.height / float(HEIGHT);
+
+			// Calculate the chunk's position relative to the original
+			chunk.posX = vd.x - originalWidth / 2.0f +
+				chunk.data_offsetX * originalWidth +
+				chunkWidth / 2.0f;
+
+			chunk.posY = vd.y - originalHeight / 2.0f +
+				chunk.data_offsetY * originalHeight +
+				chunkHeight / 2.0f;
+
+			// Calculate velocity
+			chunk.velX = chunk.posX - chunk.prevPosX;
+			chunk.velY = chunk.posY - chunk.prevPosY;
+		}
+	}
+}
 
 
 void make_dying_bullets(const Stamp& stamp, const bool enemy)
@@ -6226,85 +6447,90 @@ void keyboardup(unsigned char key, int x, int y) {
 
 
 
-std::vector<Stamp> createForegroundSubstamps(const Stamp& originalStamp, int numSubstamps) {
-	std::vector<Stamp> substamps;
-
-	// Calculate how to divide the original stamp
-	int subWidth = originalStamp.width / numSubstamps;
-
-	for (int i = 0; i < numSubstamps; i++) {
-		// Create a new substamp
-		Stamp substamp;
-		substamp.width = subWidth;
-		substamp.height = originalStamp.height;
-		substamp.channels = originalStamp.channels;
-		substamp.baseFilename = originalStamp.baseFilename + "_sub" + std::to_string(i);
-		substamp.is_foreground = true;
-		substamp.birth_time = GLOBAL_TIME;
-		substamp.death_time = GLOBAL_TIME + 50.0f;
-		substamp.health = 1000000.0f; // Same as original
-		substamp.stamp_opacity = 1.0f;
-
-		// Extract a slice of the original texture
-		for (size_t varIdx = 0; varIdx < originalStamp.textureIDs.size(); varIdx++) {
-			if (originalStamp.textureIDs[varIdx] == 0) {
-				// Skip unavailable variations
-				substamp.textureIDs.push_back(0);
-				substamp.pixelData.push_back(std::vector<unsigned char>());
-				substamp.backupData.push_back(std::vector<unsigned char>());
-				continue;
-			}
-
-			// Create new texture and pixel data for this substamp
-			GLuint textureID = 0;
-			glGenTextures(1, &textureID);
-			glBindTexture(GL_TEXTURE_2D, textureID);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-			// Extract the relevant slice of pixel data
-			std::vector<unsigned char> sliceData(subWidth * originalStamp.height * originalStamp.channels);
-			std::vector<unsigned char> sliceBackupData(subWidth * originalStamp.height * originalStamp.channels);
-
-			for (int y = 0; y < originalStamp.height; y++) {
-				for (int x = 0; x < subWidth; x++) {
-					int srcX = i * subWidth + x;
-					if (srcX >= originalStamp.width) break;
-
-					for (int c = 0; c < originalStamp.channels; c++) {
-						int srcIdx = (y * originalStamp.width + srcX) * originalStamp.channels + c;
-						int dstIdx = (y * subWidth + x) * originalStamp.channels + c;
-
-						if (srcIdx < originalStamp.pixelData[varIdx].size() && dstIdx < sliceData.size()) {
-							sliceData[dstIdx] = originalStamp.pixelData[varIdx][srcIdx];
-							sliceBackupData[dstIdx] = originalStamp.backupData[varIdx][srcIdx];
-						}
-					}
-				}
-			}
-
-			// Upload the data to the texture
-			GLenum format = (originalStamp.channels == 1) ? GL_RED :
-				(originalStamp.channels == 3) ? GL_RGB : GL_RGBA;
-			glTexImage2D(GL_TEXTURE_2D, 0, format, subWidth, originalStamp.height, 0,
-				format, GL_UNSIGNED_BYTE, sliceData.data());
-
-			// Store the data
-			substamp.textureIDs.push_back(textureID);
-			substamp.pixelData.push_back(sliceData);
-			substamp.backupData.push_back(sliceBackupData);
-			substamp.textureNames.push_back(originalStamp.textureNames[varIdx] + "_sub" + std::to_string(i));
-		}
-
-		// Calculate the normalized width for placement
-		substamp.currentVariationIndex = 0; // Use first available variation
-		substamps.push_back(substamp);
+// Test function for foreground chunking
+void testForegroundChunking() {
+	if (foregroundTemplates.empty()) {
+		std::cout << "No foreground templates loaded. Cannot run test." << std::endl;
+		return;
 	}
 
-	return substamps;
+	// Choose a foreground template
+	Stamp originalStamp = deepCopyStamp(foregroundTemplates[0]);
+
+	std::cout << "Testing foreground chunking with stamp: " << originalStamp.baseFilename << std::endl;
+	std::cout << "Original dimensions: " << originalStamp.width << "x" << originalStamp.height << std::endl;
+
+	// Set up path for the original
+	float normalized_stamp_width = originalStamp.width / float(WIDTH);
+	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
+
+	vec2 start;
+	start.x = 1.0f + normalized_stamp_width / 2.0f;
+	start.y = 0.5f; // Center of screen
+
+	vec2 end;
+	end.x = -normalized_stamp_width / 2.0f;
+	end.y = 0.5f; // Center of screen
+
+	originalStamp.curve_path.push_back(start);
+	originalStamp.curve_path.push_back(end);
+
+	originalStamp.posX = start.x;
+	originalStamp.posY = start.y;
+	originalStamp.birth_time = GLOBAL_TIME;
+	originalStamp.death_time = GLOBAL_TIME + 10.0f; // 10 seconds
+	originalStamp.is_foreground = true;
+
+	// Generate chunks
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp);
+
+	std::cout << "Generated " << chunks.size() << " chunks." << std::endl;
+
+	// Check chunk coverage
+	if (chunks.empty()) {
+		std::cout << "Error: No chunks generated!" << std::endl;
+		return;
+	}
+
+	// Calculate coverage
+	int totalChunkPixels = 0;
+	for (const auto& chunk : chunks) {
+		totalChunkPixels += chunk.width * chunk.height;
+	}
+
+	int totalOriginalPixels = originalStamp.width * originalStamp.height;
+	float coverage = (float)totalChunkPixels / totalOriginalPixels;
+
+	std::cout << "Chunking pixel coverage: " << (coverage * 100.0f) << "%" << std::endl;
+	std::cout << "Chunk dimensions:" << std::endl;
+
+	for (size_t i = 0; i < chunks.size(); i++) {
+		std::cout << "  Chunk " << i << ": " << chunks[i].width << "x" << chunks[i].height
+			<< " at offset (" << chunks[i].data_offsetX << ", " << chunks[i].data_offsetY << ")" << std::endl;
+	}
+
+	std::cout << "Test complete. Adding chunks to game..." << std::endl;
+
+	// Add chunks to the game
+	for (Stamp& chunkStamp : chunks) {
+		float normalizedOrigWidth = originalStamp.width / float(WIDTH);
+		float normalizedOrigHeight = originalStamp.height / float(HEIGHT);
+		float normalizedChunkWidth = chunkStamp.width / float(WIDTH);
+		float normalizedChunkHeight = chunkStamp.height / float(HEIGHT);
+
+		chunkStamp.curve_path = originalStamp.curve_path;
+		//chunkStamp.posX = originalStamp.posX - normalizedOrigWidth / 2.0f +
+		//	chunkStamp.data_offsetX * normalizedOrigWidth +
+		//	normalizedChunkWidth / 2.0f;
+		//chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f +
+		//	chunkStamp.data_offsetY * normalizedOrigHeight +
+		//	normalizedChunkHeight / 2.0f;
+
+		enemyShips.push_back(chunkStamp);
+	}
 }
+
+
 
 
 
@@ -6312,90 +6538,99 @@ std::vector<Stamp> createForegroundSubstamps(const Stamp& originalStamp, int num
 void keyboard(unsigned char key, int x, int y) {
 	switch (key)
 	{
-
-
 	case '9':
 	{
-		if (foregroundTemplates.empty()) {
-			std::cout << "No foreground templates loaded. Make sure foreground*.png files exist." << std::endl;
-			break;
-		}
+		testForegroundChunking();
+		break;
+		//if (foregroundTemplates.empty()) {
+		//	std::cout << "No foreground templates loaded. Make sure foreground*.png files exist." << std::endl;
+		//	return;
+		//}
 
-		// Select a random foreground template
-		int foregroundIndex = 0;// rand() % foregroundTemplates.size();
-		Stamp originalStamp = deepCopyStamp(foregroundTemplates[foregroundIndex]);
-		originalStamp.blackeningTexture = 0;
+		//// Select a random foreground template
+		//int foregroundIndex = rand() % foregroundTemplates.size();
+		//Stamp originalStamp = deepCopyStamp(foregroundTemplates[foregroundIndex]);
 
-		// Calculate how many substamps to create based on screen width and stamp size
-		float normalizedOriginalWidth = originalStamp.width / float(WIDTH);
-		int numSubstamps = std::max(1, int(normalizedOriginalWidth * 3.0)); // Adjust divisor for desired granularity
+		//// Chunk the stamp if it's larger than our chunk size
+		//if (originalStamp.width > 64 || originalStamp.height > 64) {
+		//	// Calculate start and end positions
+		//	float normalized_stamp_width = originalStamp.width / float(WIDTH);
+		//	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
 
-		if (numSubstamps <= 1 || originalStamp.width < 300) {
-			// For small foregrounds, place as a single stamp
-			originalStamp.is_foreground = true;
-			float normalizedStampWidth = originalStamp.width / float(WIDTH);
+		//	vec2 start;
+		//	start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		//	start.y = rand() / float(RAND_MAX);
 
-			vec2 start;
-			start.x = 1.0f + normalizedStampWidth / 2.0f; // Start just off the right edge
-			start.y = rand() / float(RAND_MAX);           // Random Y position
+		//	vec2 end;
+		//	end.x = -normalized_stamp_width / 2.0f;
+		//	end.y = rand() / float(RAND_MAX);
 
-			vec2 end;
-			end.x = -normalizedStampWidth / 2.0f;        // End off the left edge
-			end.y = start.y;                              // Consistent Y for horizontal movement
+		//	originalStamp.curve_path.push_back(start);
+		//	originalStamp.curve_path.push_back(end);
 
-			originalStamp.curve_path.push_back(start);
-			originalStamp.curve_path.push_back(end);
+		//	originalStamp.posX = start.x;
+		//	originalStamp.posY = start.y;
+		//	originalStamp.birth_time = GLOBAL_TIME;
+		//	originalStamp.death_time = GLOBAL_TIME + 50.0f;
 
-			originalStamp.posX = start.x;
-			originalStamp.posY = start.y;
-			originalStamp.birth_time = GLOBAL_TIME;
-			originalStamp.death_time = GLOBAL_TIME + 50.0f;
+		//	// Generate the chunks
+		//	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp);
 
-			enemyShips.push_back(originalStamp);
+		//	// Add each chunk to enemyShips with correct positioning
+		//	for (Stamp& chunkStamp : chunks) {
+		//		// For each chunk, calculate its position relative to the original stamp
+		//		float normalizedOrigWidth = originalStamp.width / float(WIDTH);
+		//		float normalizedOrigHeight = originalStamp.height / float(HEIGHT);
+		//		float normalizedChunkWidth = chunkStamp.width / float(WIDTH);
+		//		float normalizedChunkHeight = chunkStamp.height / float(HEIGHT);
 
-			std::cout << "Added single foreground element at position (" << start.x << ", "
-				<< start.y << ") using template: " << originalStamp.baseFilename << std::endl;
-		}
-		else {
-			// Create substamps
-			std::vector<Stamp> substamps = createForegroundSubstamps(originalStamp, numSubstamps);
+		//		// Set the same path as the original
+		//		chunkStamp.curve_path = originalStamp.curve_path;
 
-			// Calculate the normalized width of each substamp based on screen width
-			float subStampPixelWidth = originalStamp.width / float(numSubstamps);
-			float subStampNormalizedWidth = subStampPixelWidth / float(WIDTH);
+		//		// Position the chunk relative to where the original would be
+		//		chunkStamp.posX = originalStamp.posX - normalizedOrigWidth / 2.0f + chunkStamp.data_offsetX * normalizedOrigWidth + normalizedChunkWidth / 2.0f;
+		//		chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f + chunkStamp.data_offsetY * normalizedOrigHeight + normalizedChunkHeight / 2.0f;
 
-			// Random Y position for all substamps (consistent across the set)
-			float baseY = rand() / float(RAND_MAX);
+		//		// Add to enemy ships (foreground objects are stored in the enemy ships array)
+		//		enemyShips.push_back(chunkStamp);
+		//	}
 
-			// Place substamps contiguously from right to left
-			for (int i = 0; i < substamps.size(); i++) {
-				// Start position: right edge of screen plus offset for each substamp
-				float startX = 1.0f + subStampNormalizedWidth * (i + 0.5f);
+		//	std::cout << "Added chunked foreground with " << chunks.size() << " chunks "
+		//		<< "using template: " << originalStamp.baseFilename << std::endl;
+		//}
+		//else {
+		//	// For small stamps, just add them directly as before
+		//	originalStamp.is_foreground = true;
 
-				vec2 start;
-				start.x = startX;
-				start.y = baseY;
+		//	float normalized_stamp_width = originalStamp.width / float(WIDTH);
+		//	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
 
-				// End position: move left across the screen
-				vec2 end;
-				end.x = -subStampNormalizedWidth * (numSubstamps - i - 0.5f); // Ensure it moves fully off-screen
-				end.y = baseY;
+		//	vec2 start;
+		//	start.x = 1.0f + normalized_stamp_width / 2.0f;
+		//	start.y = rand() / float(RAND_MAX);
 
-				substamps[i].curve_path.push_back(start);
-				substamps[i].curve_path.push_back(end);
+		//	vec2 end;
+		//	end.x = -normalized_stamp_width / 2.0f;
+		//	end.y = rand() / float(RAND_MAX);
 
-				substamps[i].posX = start.x;
-				substamps[i].posY = start.y;
-				substamps[i].birth_time = GLOBAL_TIME;
-				substamps[i].death_time = GLOBAL_TIME + 50.0f;
+		//	originalStamp.curve_path.push_back(start);
+		//	originalStamp.curve_path.push_back(end);
 
-				// Add to enemyShips (used for foreground rendering)
-				enemyShips.push_back(substamps[i]);
-			}
+		//	originalStamp.posX = start.x;
+		//	originalStamp.posY = start.y;
+		//	originalStamp.birth_time = GLOBAL_TIME;
+		//	originalStamp.death_time = GLOBAL_TIME + 50.0f;
+		//	originalStamp.health = 1000000.0f;
 
-			std::cout << "Added " << substamps.size() << " contiguous foreground substamps at y="
-				<< baseY << " using template: " << originalStamp.baseFilename << std::endl;
-		}
+		//	enemyShips.push_back(originalStamp);
+
+		//	std::cout << "Added small foreground element at position (" << start.x << ", " << start.y
+		//		<< ") using template: " << originalStamp.baseFilename << std::endl;
+		//}
+
+
+
+
 		break;
 	}
 
