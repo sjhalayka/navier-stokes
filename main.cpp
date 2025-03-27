@@ -666,7 +666,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			// Calculate positioning offset for this chunk
 			// These offsets will be used to position the chunk relative to the original stamp's position
 			float offsetX = (float)startX / originalStamp.width / 1.35;
-			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35/ (WIDTH / float(HEIGHT));
+			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
 
 
 
@@ -6484,8 +6484,8 @@ void testForegroundChunking() {
 	originalStamp.death_time = GLOBAL_TIME + 10.0f; // 10 seconds
 	originalStamp.is_foreground = true;
 
-	// Generate chunks
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 128);
+	// Note: the foreground image MUST BE evenly divisible by 120 along both dimensions
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120);
 
 	std::cout << "Generated " << chunks.size() << " chunks." << std::endl;
 
