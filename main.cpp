@@ -340,7 +340,6 @@ public:
 
 		textureIDs.clear();
 		pixelData.clear();
-		backupData.clear();
 	}
 
 	// Modified copy constructor to avoid automatic blackening texture initialization
@@ -387,7 +386,6 @@ public:
 
 		// Deep copy pixel data
 		pixelData = other.pixelData;
-		backupData = other.backupData;
 
 		// Create new textures
 		textureIDs.resize(other.textureIDs.size(), 0);
@@ -427,7 +425,6 @@ public:
 
 			textureIDs.clear();
 			pixelData.clear();
-			backupData.clear();
 
 			// Copy basic properties (same as copy constructor)
 			width = other.width;
@@ -470,7 +467,6 @@ public:
 
 			// Deep copy pixel data
 			pixelData = other.pixelData;
-			backupData = other.backupData;
 
 			// Create new textures
 			textureIDs.resize(other.textureIDs.size(), 0);
@@ -521,8 +517,7 @@ public:
 	int height = 0; // pixels
 	std::string baseFilename;               // Base filename without suffix
 	std::vector<std::string> textureNames;  // Names of the specific textures
-	std::vector<std::vector<unsigned char>> pixelData;
-	std::vector<std::vector<unsigned char>> backupData;
+	std::vector<std::vector<unsigned char>> pixelData; // for storing backup data before blackening per frame
 
 	// New GPU blackening texture
 	GLuint blackeningTexture;
@@ -708,7 +703,6 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			// Store texture and pixel data
 			chunkStamp.textureIDs.push_back(textureID);
 			chunkStamp.pixelData.push_back(chunkPixelData);
-			chunkStamp.backupData.push_back(chunkPixelData);
 
 			// Store the chunk's metadata for positioning
 			chunkStamp.data_offsetX = offsetX;
@@ -992,7 +986,6 @@ bool loadStampTextures() {
 					}
 					newStamp.textureIDs.push_back(textureID);
 					newStamp.pixelData.push_back((pixelData));
-					newStamp.backupData.push_back((pixelData));
 
 					std::cout << "Loaded stamp texture: " << filename << " (" << width << "x" << height << ")" << std::endl;
 					loadedAtLeastOne = true;
@@ -1000,7 +993,6 @@ bool loadStampTextures() {
 				else {
 					newStamp.textureIDs.push_back(0);
 					newStamp.pixelData.push_back(std::vector<unsigned char>());
-					newStamp.backupData.push_back(std::vector<unsigned char>());
 				}
 			}
 
@@ -1109,7 +1101,7 @@ bool loadBulletTemplates() {
 
 
 				newStamp.pixelData.push_back((pixelData));
-				newStamp.backupData.push_back((pixelData));
+			
 
 
 				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
@@ -1119,7 +1111,7 @@ bool loadBulletTemplates() {
 				newStamp.textureIDs.push_back(0);
 
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
-				newStamp.backupData.push_back(std::vector<unsigned char>());
+				
 			}
 		}
 
@@ -6498,7 +6490,7 @@ void testForegroundChunking() {
 	originalStamp.posX = start.x;
 	originalStamp.posY = start.y;
 	originalStamp.birth_time = GLOBAL_TIME;
-	originalStamp.death_time = GLOBAL_TIME + 10.0f; // 10 seconds
+	originalStamp.death_time = GLOBAL_TIME + 20.0f; // 10 seconds
 	originalStamp.is_foreground = true;
 
 
