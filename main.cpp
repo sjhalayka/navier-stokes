@@ -670,9 +670,9 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			// Calculate positioning offset for this chunk relative to the original stamp
 			// These values will be used to maintain proper positioning of each chunk
 
-			// why is this necessary to divide by 1.5?
-			float offsetX = (float)startX / originalStamp.width / 1.5;
-			float offsetY = (float)startY / originalStamp.height / 1.5 / (WIDTH / float(HEIGHT));
+			// why is this necessary to divide by 1.35?
+			float offsetX = (float)startX / originalStamp.width / 1.35;
+			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
 
 			// Extract pixel data for this chunk
 			std::vector<unsigned char> chunkPixelData(actualChunkWidth * actualChunkHeight * originalStamp.channels);
@@ -2204,7 +2204,7 @@ void main()
     float obstacle = texture(obstacleTexture, TexCoord).r;
     
     // Get dimensions
-    vec2 stampTexSize = vec2(textureSize(stampTexture, 0)); 
+    vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
     vec2 obstacleTexSize = vec2(textureSize(obstacleTexture, 0));
     float windowAspect = obstacleTexSize.x / obstacleTexSize.y; // Or use screenSize if passed
     
@@ -3549,6 +3549,8 @@ void processCollectedBlackeningPoints() {
 	}
 
 	// Clear the map for the next frame
+	
+	
 	stampCollisionMap.clear();
 }
 
@@ -5075,6 +5077,9 @@ void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
 			// Only process blackening if the texture actually exists
+
+			stamp.initBlackeningTexture();
+
 			if (stamp.blackeningTexture != 0) {
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
@@ -5893,10 +5898,10 @@ void mark_offscreen_ships(void)
 			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
 
 			// get rid of enemy ships that completely cross the left edge of the screen
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
 				//stamp.posX > 1 + stamp_width_in_normalized_units / 2.0f ||
-				//adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
-				//adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -6471,11 +6476,11 @@ void testForegroundChunking() {
 
 	vec2 start;
 	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.8f; // Center of screen
+	start.y = 0.5f; // Center of screen
 
 	vec2 end;
 	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.8f; // Center of screen
+	end.y = 0.5f; // Center of screen
 
 	originalStamp.curve_path.push_back(start);
 	originalStamp.curve_path.push_back(end);
