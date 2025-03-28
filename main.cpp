@@ -1783,7 +1783,7 @@ void main() {
     }
     
     // Combine with existing blackening (use max to ensure we don't reduce blackening)
-    FragColor = max(current, vec4(maxBlackening, maxBlackening, maxBlackening, 1.0));
+    FragColor = vec4(maxBlackening * 0.5, maxBlackening * 0.5, maxBlackening * 0.5, 0.5);
 }
 )";
 
@@ -1803,7 +1803,9 @@ in vec2 TexCoord;
 void main() {
     // Get current blackening value
     vec4 current = texture(currentBlackening, TexCoord);
+
     
+
     // Calculate distance from this fragment to collision point (in pixels)
     vec2 pixelPos = TexCoord * texSize;
     vec2 collisionPixel = collisionPos * texSize;
@@ -5080,6 +5082,17 @@ void updateDynamicTexture(Stamp& stamp) {
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
 
+				//for (size_t j = 0; j < stamp.width; j++)
+				//{
+				//	for (size_t k = 0; k < stamp.height; k++)
+				//	{
+				//		size_t index = 4 * (j * stamp.height + k);
+
+				//		stamp.backupData[i][index + 3] = stamp.pixelData[i][index + 3];
+				//	}
+				//}
+
+
 				// Create a texture from the backup data
 				GLuint originalTexture;
 				glGenTextures(1, &originalTexture);
@@ -5088,10 +5101,12 @@ void updateDynamicTexture(Stamp& stamp) {
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.backupData[i].data());
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, stamp.pixelData[i].data());
+
+
 
 				// Apply dilation directly to the blackening texture
-				applyDilationGPU(stamp.blackeningTexture, tempTexture1, stamp.width, stamp.height, 10);
+				applyDilationGPU(stamp.blackeningTexture, tempTexture1, stamp.width, stamp.height, 1);
 
 				// Apply Gaussian blur to the dilated mask
 				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
