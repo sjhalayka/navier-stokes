@@ -612,32 +612,25 @@ bool isChunkFullyTransparent(const std::vector<unsigned char>& pixelData, int wi
 
 
 
-
-// Function to create chunked stamps from a large foreground stamp with arbitrary dimensions
-std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize) {
+std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize, float scaleFactor = 1.0f) {
 	std::vector<Stamp> chunks;
 
-	// Skip if the stamp is not valid
 	if (originalStamp.width <= 0 || originalStamp.height <= 0 ||
 		originalStamp.pixelData.empty() || originalStamp.textureIDs.empty()) {
 		return chunks;
 	}
 
-	// Calculate the number of chunks needed (ceiling division to handle non-divisible dimensions)
 	int numChunksX = (originalStamp.width + chunkSize - 1) / chunkSize;
 	int numChunksY = (originalStamp.height + chunkSize - 1) / chunkSize;
 
 	for (int chunkY = 0; chunkY < numChunksY; chunkY++) {
 		for (int chunkX = 0; chunkX < numChunksX; chunkX++) {
-			// Calculate the starting position of this chunk in the original image
 			int startX = chunkX * chunkSize;
 			int startY = chunkY * chunkSize;
 
-			// Calculate actual chunk dimensions (handle edge chunks that might be smaller)
 			int actualChunkWidth = std::min(chunkSize, originalStamp.width - startX);
 			int actualChunkHeight = std::min(chunkSize, originalStamp.height - startY);
 
-			// Skip fully transparent chunks to optimize
 			if (isChunkFullyTransparent(originalStamp.pixelData[originalStamp.currentVariationIndex],
 				originalStamp.width, originalStamp.height,
 				originalStamp.channels, startX, startY,
@@ -645,49 +638,43 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 				continue;
 			}
 
-			// Create a new stamp for this chunk
 			Stamp chunkStamp;
-			chunkStamp.width = actualChunkWidth;
-			chunkStamp.height = actualChunkHeight;
+			chunkStamp.width = static_cast<int>(actualChunkWidth * scaleFactor);  // Scale width
+			chunkStamp.height = static_cast<int>(actualChunkHeight * scaleFactor); // Scale height
 			chunkStamp.channels = originalStamp.channels;
 			chunkStamp.baseFilename = originalStamp.baseFilename + "_chunk_" +
 				std::to_string(chunkX) + "_" + std::to_string(chunkY);
 			chunkStamp.textureNames = { chunkStamp.baseFilename };
 			chunkStamp.is_foreground = true;
 
-			// Copy the path and other properties from the original stamp
 			chunkStamp.curve_path = originalStamp.curve_path;
 			chunkStamp.birth_time = originalStamp.birth_time;
 			chunkStamp.death_time = originalStamp.death_time;
 			chunkStamp.health = originalStamp.health;
 			chunkStamp.currentVariationIndex = 0;
 
-			// Calculate positioning offset for this chunk relative to the original stamp
-			// These values will be used to maintain proper positioning of each chunk
+			// Scale the offsets proportionally
+			float offsetX = (float)startX / originalStamp.width / 1.35f * scaleFactor;
+			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT)) * scaleFactor;
 
+			std::vector<unsigned char> chunkPixelData(chunkStamp.width * chunkStamp.height * originalStamp.channels);
 
+			// Resample pixel data to the new scaled size
+			for (int y = 0; y < chunkStamp.height; y++) {
+				for (int x = 0; x < chunkStamp.width; x++) {
+					int srcX = static_cast<int>(x / scaleFactor);
+					int srcY = static_cast<int>(y / scaleFactor);
+					int srcIdx = ((startY + srcY) * originalStamp.width + (startX + srcX)) * originalStamp.channels;
+					int dstIdx = (y * chunkStamp.width + x) * originalStamp.channels;
 
-			// why is this necessary to divide by 1.35?
-			float offsetX = (float)startX / originalStamp.width / 1.35;
-			float offsetY = (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
-
-			// Extract pixel data for this chunk
-			std::vector<unsigned char> chunkPixelData(actualChunkWidth * actualChunkHeight * originalStamp.channels);
-
-			for (int y = 0; y < actualChunkHeight; y++) {
-				for (int x = 0; x < actualChunkWidth; x++) {
-					// Calculate source and destination indices
-					int srcIdx = ((startY + y) * originalStamp.width + (startX + x)) * originalStamp.channels;
-					int dstIdx = (y * actualChunkWidth + x) * originalStamp.channels;
-
-					// Copy all channels
 					for (int c = 0; c < originalStamp.channels; c++) {
-						chunkPixelData[dstIdx + c] = originalStamp.pixelData[originalStamp.currentVariationIndex][srcIdx + c];
+						if (srcIdx + c < originalStamp.pixelData[originalStamp.currentVariationIndex].size()) {
+							chunkPixelData[dstIdx + c] = originalStamp.pixelData[originalStamp.currentVariationIndex][srcIdx + c];
+						}
 					}
 				}
 			}
 
-			// Create texture for this chunk
 			GLuint textureID;
 			glGenTextures(1, &textureID);
 			glBindTexture(GL_TEXTURE_2D, textureID);
@@ -699,27 +686,23 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			GLenum format = (originalStamp.channels == 1) ? GL_RED :
 				(originalStamp.channels == 3) ? GL_RGB : GL_RGBA;
 
-			glTexImage2D(GL_TEXTURE_2D, 0, format, actualChunkWidth, actualChunkHeight,
+			glTexImage2D(GL_TEXTURE_2D, 0, format, chunkStamp.width, chunkStamp.height,
 				0, format, GL_UNSIGNED_BYTE, chunkPixelData.data());
 
-			// Store texture and pixel data
 			chunkStamp.textureIDs.push_back(textureID);
 			chunkStamp.pixelData.push_back(chunkPixelData);
 
-			// Store the chunk's metadata for positioning
 			chunkStamp.data_offsetX = offsetX;
 			chunkStamp.data_offsetY = offsetY;
 			chunkStamp.data_original_width = originalStamp.width;
 			chunkStamp.data_original_height = originalStamp.height;
 
-			// Add to our chunks vector
 			chunks.push_back(chunkStamp);
 		}
 	}
 
 	return chunks;
 }
-
 
 
 
@@ -6460,31 +6443,28 @@ void keyboardup(unsigned char key, int x, int y) {
 }
 
 
-
-// Test function for foreground chunking
 void testForegroundChunking() {
 	if (foregroundTemplates.empty()) {
 		std::cout << "No foreground templates loaded. Cannot run test." << std::endl;
 		return;
 	}
 
-	// Choose a foreground template
 	Stamp originalStamp = deepCopyStamp(foregroundTemplates[0]);
 
 	std::cout << "Testing foreground chunking with stamp: " << originalStamp.baseFilename << std::endl;
 	std::cout << "Original dimensions: " << originalStamp.width << "x" << originalStamp.height << std::endl;
 
-	// Set up path for the original
 	float normalized_stamp_width = originalStamp.width / float(WIDTH);
 	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
 
+	// to do: tinker with these to get perfect scale and translation
 	vec2 start;
 	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.81f; // Center of screen
+	start.y = 0.775f;
 
 	vec2 end;
 	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.81f; // Center of screen
+	end.y = 0.775f;
 
 	originalStamp.curve_path.push_back(start);
 	originalStamp.curve_path.push_back(end);
@@ -6492,22 +6472,17 @@ void testForegroundChunking() {
 	originalStamp.posX = start.x;
 	originalStamp.posY = start.y;
 	originalStamp.birth_time = GLOBAL_TIME;
-	originalStamp.death_time = GLOBAL_TIME + 10.0f; // 10 seconds
+	originalStamp.death_time = GLOBAL_TIME + 10.0f;
 	originalStamp.is_foreground = true;
 
+	// to do: tinker with this to get perfect scale and translation
+	float scaleFactor = 1.1f;
 
-	// must be divisible by 120 along both axes
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120);
+	// foreground width and height must be evenly divisible by 120
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor);
 
-	std::cout << "Generated " << chunks.size() << " chunks." << std::endl;
+	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
 
-	// Check chunk coverage
-	if (chunks.empty()) {
-		std::cout << "Error: No chunks generated!" << std::endl;
-		return;
-	}
-
-	// Calculate coverage
 	int totalChunkPixels = 0;
 	for (const auto& chunk : chunks) {
 		totalChunkPixels += chunk.width * chunk.height;
@@ -6526,10 +6501,9 @@ void testForegroundChunking() {
 
 	std::cout << "Test complete. Adding chunks to game..." << std::endl;
 
-	// Add chunks to the game
 	for (Stamp& chunkStamp : chunks) {
-		float normalizedOrigWidth = originalStamp.width / float(WIDTH);
-		float normalizedOrigHeight = originalStamp.height / float(HEIGHT);
+		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
+		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
 		float normalizedChunkWidth = chunkStamp.width / float(WIDTH);
 		float normalizedChunkHeight = chunkStamp.height / float(HEIGHT);
 
@@ -6541,13 +6515,9 @@ void testForegroundChunking() {
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
 
-
-
 		enemyShips.push_back(chunkStamp);
 	}
 }
-
-
 
 
 
