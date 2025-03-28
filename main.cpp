@@ -207,7 +207,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
