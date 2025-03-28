@@ -3549,8 +3549,6 @@ void processCollectedBlackeningPoints() {
 	}
 
 	// Clear the map for the next frame
-	
-	
 	stampCollisionMap.clear();
 }
 
@@ -5077,9 +5075,6 @@ void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
 			// Only process blackening if the texture actually exists
-
-			stamp.initBlackeningTexture();
-
 			if (stamp.blackeningTexture != 0) {
 				// Ensure the temporary textures are ready
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
@@ -5758,7 +5753,7 @@ void mark_dying_ships(void)
 
 
 
-bool isPixelPerfectCollision(const Stamp& a, const Stamp& b, vec2& avg_out) {
+bool isPixelPerfectCollision_AvgOut(const Stamp& a, const Stamp& b, vec2& avg_out) {
 	float aMinX, aMinY, aMaxX, aMaxY;
 	float bMinX, bMinY, bMaxX, bMaxY;
 
@@ -5838,7 +5833,7 @@ void mark_colliding_ships(void)
 					{
 						vec2 avg_out;
 
-						if (false == isPixelPerfectCollision(allyShips[i], enemyShips[j], avg_out))
+						if (false == isPixelPerfectCollision_AvgOut(allyShips[i], enemyShips[j], avg_out))
 						{
 							found_non_collision = true;
 							break;
