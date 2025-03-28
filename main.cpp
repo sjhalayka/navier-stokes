@@ -667,7 +667,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 			// why is this necessary to divide by 1.35?
 			float offsetX = (float)startX / originalStamp.width / 1.35;
-			float offsetY = 0.2 + (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
+			float offsetY = (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
 
 			// Extract pixel data for this chunk
 			std::vector<unsigned char> chunkPixelData(actualChunkWidth * actualChunkHeight * originalStamp.channels);
