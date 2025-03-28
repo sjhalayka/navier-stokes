@@ -6460,11 +6460,11 @@ void testForegroundChunking() {
 	// to do: tinker with these to get perfect scale and translation
 	vec2 start;
 	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.775f;
+	start.y = 0.7825f;
 
 	vec2 end;
 	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.775f;
+	end.y = 0.7825f;
 
 	originalStamp.curve_path.push_back(start);
 	originalStamp.curve_path.push_back(end);
@@ -6476,7 +6476,7 @@ void testForegroundChunking() {
 	originalStamp.is_foreground = true;
 
 	// to do: tinker with this to get perfect scale and translation
-	float scaleFactor = 1.1f;
+	float scaleFactor = 1.095f;
 
 	// foreground width and height must be evenly divisible by 120
 	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor);
