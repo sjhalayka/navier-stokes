@@ -665,6 +665,8 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			// Calculate positioning offset for this chunk relative to the original stamp
 			// These values will be used to maintain proper positioning of each chunk
 
+
+
 			// why is this necessary to divide by 1.35?
 			float offsetX = (float)startX / originalStamp.width / 1.35;
 			float offsetY = (float)startY / originalStamp.height / 1.35 / (WIDTH / float(HEIGHT));
@@ -1101,7 +1103,7 @@ bool loadBulletTemplates() {
 
 
 				newStamp.pixelData.push_back((pixelData));
-			
+
 
 
 				std::cout << "Loaded bullet template: " << filename << " (" << width << "x" << height << ")" << std::endl;
@@ -1111,7 +1113,7 @@ bool loadBulletTemplates() {
 				newStamp.textureIDs.push_back(0);
 
 				newStamp.pixelData.push_back(std::vector<unsigned char>());
-				
+
 			}
 		}
 
@@ -6478,11 +6480,11 @@ void testForegroundChunking() {
 
 	vec2 start;
 	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.5f; // Center of screen
+	start.y = 0.785f; // Center of screen
 
 	vec2 end;
 	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.5f; // Center of screen
+	end.y = 0.785f; // Center of screen
 
 	originalStamp.curve_path.push_back(start);
 	originalStamp.curve_path.push_back(end);
@@ -6490,7 +6492,7 @@ void testForegroundChunking() {
 	originalStamp.posX = start.x;
 	originalStamp.posY = start.y;
 	originalStamp.birth_time = GLOBAL_TIME;
-	originalStamp.death_time = GLOBAL_TIME + 20.0f; // 10 seconds
+	originalStamp.death_time = GLOBAL_TIME + 10.0f; // 10 seconds
 	originalStamp.is_foreground = true;
 
 
@@ -6538,6 +6540,8 @@ void testForegroundChunking() {
 		chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f +
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
+
+
 
 		enemyShips.push_back(chunkStamp);
 	}
