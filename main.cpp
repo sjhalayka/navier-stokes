@@ -1760,7 +1760,7 @@ void main() {
     }
     
     // Combine with existing blackening (use max to ensure we don't reduce blackening)
-    FragColor = vec4(maxBlackening * 0.5, maxBlackening * 0.5, maxBlackening * 0.5, 0.5);
+    FragColor = vec4(maxBlackening, maxBlackening, maxBlackening, 1.0);
 }
 )";
 
@@ -6537,7 +6537,7 @@ void testForegroundChunking() {
 	originalStamp.posX = start.x;
 	originalStamp.posY = start.y;
 	originalStamp.birth_time = GLOBAL_TIME;
-	originalStamp.death_time = GLOBAL_TIME + 10.0f;
+	originalStamp.death_time = GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
 
 	// to do: tinker with this to get perfect scale and translation
