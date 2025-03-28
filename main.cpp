@@ -6480,11 +6480,11 @@ void testForegroundChunking() {
 
 	vec2 start;
 	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.785f; // Center of screen
+	start.y = 0.81f; // Center of screen
 
 	vec2 end;
 	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.785f; // Center of screen
+	end.y = 0.81f; // Center of screen
 
 	originalStamp.curve_path.push_back(start);
 	originalStamp.curve_path.push_back(end);
