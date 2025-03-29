@@ -295,12 +295,11 @@ enum fire_type ally_fire = STRAIGHT;
 enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
 
-// Set these to false after debugging
-bool has_sinusoidal_fire = true;
-bool has_random_fire = true;
-bool has_homing_fire = true;
-bool x3_fire = true;
-bool x5_fire = true;
+bool has_sinusoidal_fire = false;
+bool has_random_fire = false;
+bool has_homing_fire = false;
+bool x3_fire = false;
+bool x5_fire = false;
 
 
 float eddyIntensity = 1.0;
@@ -1127,12 +1126,15 @@ std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::hig
 
 
 
-void fireBullet() 
-{
+
+void fireBullet() {
 	// Only fire if we have ally ships and bullet templates
 	if (allyShips.empty() || bulletTemplates.empty()) {
 		return;
 	}
+
+
+	cout << "firing bullet" << endl;
 
 	// No more firing while dying
 	if (allyShips[0].to_be_culled)
@@ -1146,10 +1148,16 @@ void fireBullet()
 
 	lastBulletTime = currentTime;
 
+	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+	//std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
+
 	// Use the first bullet template
-	Stamp bulletTemplate = bulletTemplates[0];
+	Stamp bulletTemplate = deepCopyStamp(bulletTemplates[0]);
+
+	float aspect = WIDTH / float(HEIGHT);
 
 	// Get the ally ship position to fire from
+
 	if (ally_fire == RANDOM)
 	{
 		bulletTemplate.posX = allyShips[0].posX;
@@ -1157,8 +1165,8 @@ void fireBullet()
 	}
 	else
 	{
-		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / 2.0f;
-		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / 2.0f;
+		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / float(WIDTH) / 2.0f;
+		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / (float(HEIGHT) * aspect) / 8.0f;
 	}
 
 	static const float pi = 4.0f * atanf(1.0f);
@@ -1191,11 +1199,13 @@ void fireBullet()
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 20.0f * cos(angle); // 500 pixels per second
-			newBullet.velY = 20.0f * sin(angle);
+			newBullet.velX = 0.025f * cos(angle);
+			newBullet.velY = 0.025f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
-			newBullet.birth_time = GLOBAL_TIME;
+			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
+
+			cout << "Added new bullet" << endl;
 			allyBullets.push_back(newBullet);
 		}
 		break;
@@ -1203,14 +1213,18 @@ void fireBullet()
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 20.0 * cos(angle); // 400 pixels per second
-			newBullet.velY = 20.0f * sin(angle);
+			newBullet.velX = 0.02f * cos(angle);
+			newBullet.velY = 0.02f * sin(angle);
 			newBullet.sinusoidal_shift = false;
-			newBullet.sinusoidal_amplitude = 10.0f; // 10 pixels amplitude
-			newBullet.birth_time = GLOBAL_TIME;
+			newBullet.sinusoidal_amplitude = 0.005f;
+			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
-			allyBullets.push_back(newBullet);
 
+			cout << "Added new bullet" << endl;
+			allyBullets.push_back(newBullet);
+			
+
+			cout << "Added new bullet" << endl;
 			newBullet.sinusoidal_shift = true;
 			allyBullets.push_back(newBullet);
 		}
@@ -1222,11 +1236,11 @@ void fireBullet()
 
 		Stamp newCentralStamp = bulletTemplate;
 
-		bulletTemplate.posX = allyShips[0].posX;
-		bulletTemplate.posY = allyShips[0].posY;
+		bulletTemplate.posX = allyShips[0].posX;// +allyShips[0].width / float(WIDTH) / 2.0;
+		bulletTemplate.posY = allyShips[0].posY;// +allyShips[0].height / (float(HEIGHT) * aspect) / 8.0;
 
-		float x_rad = allyShips[0].width / 2.0f;
-		float y_rad = allyShips[0].height / 2.0f;
+		float x_rad = allyShips[0].width / float(WIDTH) / 2.0f;
+		float y_rad = allyShips[0].height / float(HEIGHT) / 2.0f;
 		float avg_rad = max(x_rad, y_rad);
 
 		newCentralStamp.colour_radius = avg_rad / 2.0f;
@@ -1243,13 +1257,14 @@ void fireBullet()
 			newStamp.velX *= WIDTH / float(HEIGHT);
 			newStamp.velX *= 2.0f;
 
-			// Scale velocities
-			newStamp.velX *= 300.0f / (rand() / float(RAND_MAX));
-			newStamp.velY *= 300.0f / (rand() / float(RAND_MAX));
-			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 10.0f; // 10px random movement
+			newStamp.velX /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
 			newStamp.random_forking = 0.001f;
+
+			cout << "Added new bullet" << endl;
 			allyBullets.push_back(newStamp);
 		}
 
@@ -1264,13 +1279,13 @@ void fireBullet()
 			newStamp.velX *= WIDTH / float(HEIGHT);
 			newStamp.velX *= 2.0f;
 
-			// Scale velocities
-			newStamp.velX *= 200.0f / (rand() / float(RAND_MAX));
-			newStamp.velY *= 200.0f / (rand() / float(RAND_MAX));
-			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 10.0f; // 10px random movement
+			newStamp.velX /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.velY /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
 			newStamp.random_forking = 0.01f;
+			cout << "Added new bullet" << endl;
 			allyBullets.push_back(newStamp);
 		}
 	}
@@ -1279,16 +1294,22 @@ void fireBullet()
 	case HOMING:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 200.0f * cos(angle); // 200 pixels per second
-			newBullet.velY = 200.0f * sin(angle);
+			newBullet.velX = 0.01f * cos(angle);
+			newBullet.velY = 0.01f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;
 			newBullet.death_time = -1;
+
+			cout << "Added new bullet" << endl;
 			allyBullets.push_back(newBullet);
 		}
 		break;
+
+
 	}
 }
+
+
 
 bool spacePressed = false;
 
@@ -1296,31 +1317,54 @@ bool spacePressed = false;
 
 
 
-void calculateBoundingBox(const Stamp& stamp, float& minX, float& minY, float& maxX, float& maxY) {
-	// In screen space, this is much simpler
-	float halfWidth = stamp.width / 2.0f;
-	float halfHeight = stamp.height / 2.0f;
 
-	// Set the bounding box coordinates in screen space
-	minX = stamp.posX - halfWidth;
-	minY = stamp.posY - halfHeight;
-	maxX = stamp.posX + halfWidth;
-	maxY = stamp.posY + halfHeight;
+void calculateBoundingBox(const Stamp& stamp, float& minX, float& minY, float& maxX, float& maxY) {
+	// Calculate aspect ratio
+	float aspect = WIDTH / static_cast<float>(HEIGHT);
+
+	// For the stamp positioning, we need to match how the stamp is rendered
+	// The stamp is rendered with the same scaling as in the stampTextureFragmentShader
+	float scale = 2.0f;
+
+	// Calculate the actual width and height in normalized coordinates
+	float halfWidthNorm = (stamp.width / 2.0f) / WIDTH;
+	float halfHeightNorm = (stamp.height / 2.0f) / HEIGHT;
+
+	// Apply the same aspect ratio adjustments as in the shader
+	float stampY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+	// Apply the scaling factor to match the shader
+	halfWidthNorm /= scale;
+	halfHeightNorm /= scale;
+
+	// Set the bounding box coordinates
+	minX = stamp.posX - halfWidthNorm;
+	minY = stampY - halfHeightNorm;
+	maxX = stamp.posX + halfWidthNorm * scale;
+	maxY = stampY + halfHeightNorm * scale;
 }
+
+
+
 
 
 
 void drawBoundingBox(float minX, float minY, float maxX, float maxY) {
+	// Convert normalized coordinates to NDC coordinates (-1 to 1)
+	float ndcMinX = minX * 2.0f - 1.0f;
+	float ndcMinY = minY * 2.0f - 1.0f;
+	float ndcMaxX = maxX * 2.0f - 1.0f;
+	float ndcMaxY = maxY * 2.0f - 1.0f;
+
 	glColor3f(1.0f, 0.0f, 0.0f); // Red for bounding box
 
 	glBegin(GL_LINE_LOOP);
-	glVertex2f(minX, minY); // Bottom-left
-	glVertex2f(maxX, minY); // Bottom-right
-	glVertex2f(maxX, maxY); // Top-right
-	glVertex2f(minX, maxY); // Top-left
+	glVertex2f(ndcMinX, ndcMinY); // Bottom-left
+	glVertex2f(ndcMaxX, ndcMinY); // Bottom-right
+	glVertex2f(ndcMaxX, ndcMaxY); // Top-right
+	glVertex2f(ndcMinX, ndcMaxY); // Top-left
 	glEnd();
 }
-
 
 // 5. Modified drawBoundingBox for stamp to use our improved calculation
 void drawBoundingBox(const Stamp& stamp) {
@@ -1406,8 +1450,8 @@ bool isPixelPerfectCollision(const Stamp& a, const Stamp& b) {
 	float overlapMaxY = std::min(aMaxY, bMaxY);
 
 	// Convert to pixel coordinates for both stamps
-	for (float y = overlapMinY; y < overlapMaxY; y += 1) {
-		for (float x = overlapMinX; x < overlapMaxX; x += 1) {
+	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
+		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
 			// Map to texture space for both stamps
 			int texAx = int((x - aMinX) / (aMaxX - aMinX) * a.width);
 			int texAy = int((y - aMinY) / (aMaxY - aMinY) * a.height);
@@ -2070,11 +2114,12 @@ void main() {
 )";
 
 
+
 const char* stampTextureFragmentShader = R"(
 #version 330 core
 uniform sampler2D stampTexture;
-uniform vec2 position; // Now in screen space
-uniform vec2 stampSize; // Now in pixels
+uniform vec2 position;
+uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize;
 uniform float stamp_opacity;
@@ -2087,36 +2132,46 @@ void main()
 {
     // Get dimensions
     vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
+    float windowAspect = screenSize.x / screenSize.y;
     
-    // Convert TexCoord to screen space
-    vec2 screenPos = TexCoord * screenSize;
+    // Calculate coordinates in stamp texture - use the same approach as the obstacle shader
+    vec2 stampCoord = (TexCoord - position) * screenSize / (stampTexSize/2.0) + vec2(0.5);
     
-    // Calculate coordinates in stamp texture
-    // Map screen position relative to stamp position to texture coordinates
-    vec2 stampCoord = (screenPos - position) / stampSize;
+    //// Apply aspect ratio correction
+    //if (windowAspect > 1.0) {
+    //    // Wide window - adjust x coordinate
+    //    stampCoord.x = (stampCoord.x - 0.5) / windowAspect + 0.5;
+    //} else if (windowAspect < 1.0) {
+    //    // Tall window - adjust y coordinate
+    //    stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
+    //}
     
+	// why is this necessary?
+	stampCoord /= 1.5;//sqrt(2.0);
+
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) 
-    {
+	{
         // Sample stamp texture (use all channels for RGBA output)
         vec4 stampColor = texture(stampTexture, stampCoord);
 
-        // Do alternating colour / white blinking when under fire
-        if(under_fire == 1)
-        {
-            const float timeslice = 0.25;
-            float m = mod(time, timeslice);
-        
-            if(m < timeslice/2.0)
-            stampColor.rgb = vec3(1.0, 1.0, 1.0);
-        }
+		// Do alternating colour / white blinking when under fire
+		if(under_fire == 1)
+		{
+			const float timeslice = 0.25;
+			float m = mod(time, timeslice);
+		
+			if(m < timeslice/2.0)
+			stampColor.rgb = vec3(1.0, 1.0, 1.0);
+		}
 
-        stampColor.a *= stamp_opacity;      
+
+		stampColor.a *= stamp_opacity;      
         FragColor = stampColor;
     } 
-    else
-    {
+	else
+	{
         // Outside stamp bounds - transparent
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     }
@@ -2126,16 +2181,14 @@ void main()
 
 
 
-
-
 const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
 uniform sampler2D stampTexture;
-uniform vec2 position; // Now in screen space
-uniform vec2 stampSize; // Now in pixels
+uniform vec2 position;
+uniform vec2 stampSize;
 uniform float threshold;
-uniform vec2 screenSize;
+uniform vec2 screenSize; // Add this uniform to match texture shader
 
 out float FragColor;
 
@@ -2148,13 +2201,19 @@ void main()
     
     // Get dimensions
     vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
+    vec2 obstacleTexSize = vec2(textureSize(obstacleTexture, 0));
+    float windowAspect = obstacleTexSize.x / obstacleTexSize.y; // Or use screenSize if passed
     
-    // Convert TexCoord to screen space
-    vec2 screenPos = TexCoord * screenSize;
+    // Calculate coordinates in stamp texture - use the same approach as the texture shader
+    vec2 stampCoord = (TexCoord - position) * obstacleTexSize / (stampTexSize/2.0) + vec2(0.5);
     
-    // Calculate coordinates in stamp texture
-    vec2 stampCoord = (screenPos - position) / stampSize;
-    
+	if(windowAspect > 1.0)
+	stampCoord.y = (stampCoord.y - 0.5) * windowAspect + 0.5;
+
+	// why is this necessary?
+	stampCoord /= 1.5;//sqrt(2.0);
+
+
     // Check if we're within stamp bounds
     if (stampCoord.x >= 0.0 && stampCoord.x <= 1.0 && 
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
@@ -2234,14 +2293,15 @@ void main() {
 
 
 
+
+// Inline GLSL shaders
 const char* vertexShaderSource = R"(
 #version 330 core
 
-layout(location = 0) in vec3 aPos; // Vertex position in screen space
+layout(location = 0) in vec3 aPos; // Vertex position
 layout(location = 1) in vec2 aTexCoord; // Texture coordinates
 
 uniform mat4 projection;
-uniform vec2 screenSize; // Width and height of the screen
 
 out vec2 TexCoord;
 
@@ -2250,7 +2310,6 @@ void main() {
     TexCoord = aTexCoord;
 }
 )";
-
 
 
 
@@ -2536,46 +2595,43 @@ const char* addColorFragmentShader = R"(
 #version 330 core
 uniform sampler2D colorTexture;
 uniform sampler2D obstacleTexture;
-uniform vec2 point; // Point in 0-1 texture space
-uniform float radius; // Radius in 0-1 texture space
-uniform vec2 screenSize; // Width and height of the screen
+uniform vec2 point;
+uniform float radius;
 
 out float FragColor;
 
 in vec2 TexCoord;
 
+
 void main()
 {
-    // Calculate distance in texture space
-    float distance = length(TexCoord - point);
-    float color = texture(colorTexture, TexCoord).r;
+	float distance = length(TexCoord - point);
+	float color = texture(colorTexture, TexCoord).r;
 
-    // Abort early
-    if(distance >= radius)
-    {
-        FragColor = color;
-        return;
-    }
+	// Abort early
+	if(distance >= radius)
+	{
+		FragColor = color;
+		return;
+	}
 
-    // Apply falloff based on distance
-    float falloff = 1.0 - (distance / radius);
-    falloff = falloff * falloff;
-    color += falloff;
+	float falloff = 1.0 - (distance / radius);
+	falloff = falloff * falloff;
+	color += falloff;
     FragColor = color;
 }
+
+
+
 )";
-
-
-
-
 
 const char* addForceFragmentShader = R"(
 #version 330 core
 uniform sampler2D velocityTexture;
 uniform sampler2D obstacleTexture;
-uniform vec2 point; // In 0-1 range
+uniform vec2 point;
 uniform vec2 direction;
-uniform float radius; // In 0-1 range
+uniform float radius;
 uniform float strength;
 uniform float WIDTH;
 uniform float HEIGHT;
@@ -2586,13 +2642,13 @@ in vec2 TexCoord;
 
 void main()
 {
-    float distance = length(TexCoord - point);
+	float distance = length(TexCoord - point);
 
-    // Abort early
-    if(distance >= radius)
-        discard;
+	// Abort early
+	if(distance >= radius)
+		discard;
 
-    float aspect_ratio = WIDTH/HEIGHT;
+	float aspect_ratio = WIDTH/HEIGHT;
 
     vec2 adjustedCoord = TexCoord;
     
@@ -2605,23 +2661,28 @@ void main()
 
     // Check if we're in an obstacle
     float obstacle = texture(obstacleTexture, adjustedCoord).r;
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
 
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
     
-    // Apply force based on radius
-    float falloff = 1.0 - (distance / radius);
-    falloff = falloff * falloff;
+    // Calculate distance to force application point
     
-    // Add force to velocity
-    velocity += direction * strength * falloff;
+    
+    // Apply force based on radius
+
+     float falloff = 1.0 - (distance / radius);
+        falloff = falloff * falloff;
+        
+        // Add force to velocity
+        velocity += direction * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
 )";
-
-
-
 
 
 const char* detectCollisionFragmentShader = R"(
@@ -3242,7 +3303,6 @@ void reapplyAllStamps() {
 
 			GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 			glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-			glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
@@ -3269,7 +3329,7 @@ void reapplyAllStamps() {
 
 	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+
 
 	processStamps(allyShips);
 	processStamps(enemyShips);
@@ -3303,7 +3363,6 @@ void updateBlackeningMark(Stamp& stamp, float texX, float texY, float intensity 
 
 	GLuint projectionLocation = glGetUniformLocation(blackeningMarkProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(blackeningMarkProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind the current blackening texture
 	glActiveTexture(GL_TEXTURE0);
@@ -3463,7 +3522,6 @@ void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const
 
 		GLuint projectionLocation = glGetUniformLocation(batchBlackeningProgram, "projection");
 		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-		glUniform2f(glGetUniformLocation(batchBlackeningProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 		// Bind the current blackening texture
 		glActiveTexture(GL_TEXTURE0);
@@ -3591,7 +3649,6 @@ void applyBitmapObstacle() {
 
 	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 
 	float mousePosX = mouseX / (float)WIDTH;
@@ -3645,7 +3702,6 @@ void applyBitmapObstacle() {
 
 	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 
 	glActiveTexture(GL_TEXTURE0);
@@ -3672,7 +3728,6 @@ void diffuseVelocity() {
 
 	GLuint projectionLocation = glGetUniformLocation(diffuseVelocityProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(diffuseVelocityProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseVelocityProgram, "velocityTexture"), 0);
@@ -3705,7 +3760,6 @@ void diffuseColor() {
 
 	GLuint projectionLocation = glGetUniformLocation(diffuseColorProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(diffuseColorProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
@@ -3738,7 +3792,6 @@ void diffuseFriendlyColor() {
 
 	GLuint projectionLocation = glGetUniformLocation(diffuseColorProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(diffuseColorProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(diffuseColorProgram, "colorTexture"), 0);
@@ -3775,7 +3828,6 @@ void detectCollisions()
 
 	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(detectCollisionProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
@@ -4218,7 +4270,6 @@ void applyDilationGPU(GLuint inputTexture, GLuint outputTexture, int width, int 
 
 	GLuint projectionLocation = glGetUniformLocation(dilationProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(dilationProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind input texture
 	glActiveTexture(GL_TEXTURE0);
@@ -4245,7 +4296,6 @@ void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, 
 
 	GLuint projectionLocation = glGetUniformLocation(gaussianBlurHorizontalProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(gaussianBlurHorizontalProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, inputTexture);
@@ -4263,7 +4313,6 @@ void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, 
 
 	projectionLocation = glGetUniformLocation(gaussianBlurVerticalProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(gaussianBlurVerticalProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tempTexture1);
@@ -4285,7 +4334,6 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 
 	GLuint projectionLocation = glGetUniformLocation(blackeningProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(blackeningProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, originalTexture);
@@ -4442,8 +4490,7 @@ void initGL() {
 
 
 
-	orthoMatrix = glm::ortho(0.0f, (float)WIDTH, (float)HEIGHT, 0.0f, -10.0f, 10.0f); 
-	//orthoMatrix = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -10.0f, 10.0f);
+	orthoMatrix = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -10.0f, 10.0f);
 
 	glm::vec3 pos = glm::vec3(0.0, 0.0, 1.0);
 	glm::vec3 target = glm::vec3(0.0, 0.0, -1.0);
@@ -4464,11 +4511,11 @@ void initGL() {
 
 	// Create a full-screen quad for rendering
 	float vertices[] = {
-		// Position (x, y, z)            // Texture coords (u, v)
-		0.0f, (float)HEIGHT, 0.0f,       0.0f, 0.0f,
-		(float)WIDTH, (float)HEIGHT, 0.0f, 1.0f, 0.0f,
-		(float)WIDTH, 0.0f, 0.0f,        1.0f, 1.0f,
-		0.0f, 0.0f, 0.0f,                0.0f, 1.0f
+		// Position (x, y, z)    // Texture coords (u, v)
+		-1.0f, -1.0f, 0.0f,      0.0f, 0.0f,
+		 1.0f, -1.0f, 0.0f,      1.0f, 0.0f,
+		 1.0f,  1.0f, 0.0f,      1.0f, 1.0f,
+		-1.0f,  1.0f, 0.0f,      0.0f, 1.0f
 	};
 
 	glGenVertexArrays(1, &vao);
@@ -4527,7 +4574,6 @@ void advectColor() {
 
 	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(advectProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms for the shader
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
@@ -4543,7 +4589,6 @@ void advectColor() {
 
 	projectionLocation = glGetUniformLocation(advectProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(advectProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	//std::chrono::duration<float, std::milli> elapsed;
@@ -4575,7 +4620,6 @@ void advectFriendlyColor() {
 
 	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(advectProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms for the shader
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
@@ -4624,7 +4668,6 @@ void advectVelocity() {
 
 	GLuint projectionLocation = glGetUniformLocation(advectProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(advectProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(advectProgram, "velocityTexture"), 0);
@@ -4674,7 +4717,6 @@ void computeDivergence() {
 
 	GLuint projectionLocation = glGetUniformLocation(divergenceProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(divergenceProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(divergenceProgram, "velocityTexture"), 0);
@@ -4714,7 +4756,6 @@ void solvePressure(int iterations) {
 
 		GLuint projectionLocation = glGetUniformLocation(pressureProgram, "projection");
 		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-		glUniform2f(glGetUniformLocation(pressureProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 		// Set uniforms
 		float alpha = -1.0f;  // Central coefficient
@@ -4753,7 +4794,6 @@ void subtractPressureGradient() {
 
 	GLuint projectionLocation = glGetUniformLocation(gradientSubtractProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(gradientSubtractProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(gradientSubtractProgram, "pressureTexture"), 0);
@@ -4778,6 +4818,8 @@ void subtractPressureGradient() {
 	velocityIndex = 1 - velocityIndex;
 }
 
+
+
 // Add force to the velocity field
 void addForce(float posX, float posY, float velX, float velY, float radius, float strength)
 {
@@ -4789,7 +4831,6 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 
 	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(addForceProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	//float x_shift = 0.01 * rand() / float(RAND_MAX);
 	//float y_shift = 0.01 * rand() / float(RAND_MAX);
@@ -4812,7 +4853,6 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length * strength);
 	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
 	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
-	glUniform2f(glGetUniformLocation(addForceProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -4840,7 +4880,6 @@ void addMouseForce() {
 
 	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(addForceProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 
 	float aspect = HEIGHT / float(WIDTH);
@@ -4863,7 +4902,6 @@ void addMouseForce() {
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
 	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 5000);
-	glUniform2f(glGetUniformLocation(addForceProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -4906,11 +4944,12 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float aspect = HEIGHT / float(WIDTH);
+	float x_shift = 0.01f * rand() / float(RAND_MAX);
+	float y_shift = 0.01f * rand() / float(RAND_MAX);
 
-	// Get normalized mouse position (0 to 1 range)
-	float mousePosX = posX / (float)WIDTH;
-	float mousePosY = posY / (float)HEIGHT;
+	float mousePosX = posX;// +x_shift;
+	float mousePosY = posY;// +y_shift;
+
 
 	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -4920,7 +4959,6 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
 	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), radius);
-	glUniform2f(glGetUniformLocation(addColorProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
@@ -4951,8 +4989,6 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 		friendlyColorIndex = 1 - friendlyColorIndex;
 	}
 }
-
-
 
 
 void addMouseColor()
@@ -5028,6 +5064,9 @@ void addMouseColor()
 	}
 }
 
+
+
+
 void updateDynamicTexture(Stamp& stamp) {
 	for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
 		if (stamp.textureIDs[i] != 0 && i < stamp.pixelData.size() && !stamp.pixelData[i].empty()) {
@@ -5089,13 +5128,16 @@ void updateDynamicTexture(Stamp& stamp) {
 }
 
 
+
+
 void updateObstacle() {
 	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty() && powerUpTemplates.empty())) return;
 
 	if (rightMouseDown && !lastRightMouseDown) {
-		// Get mouse position in screen coordinates
-		float mousePosX = mouseX;
-		float mousePosY = mouseY;
+		float aspect = HEIGHT / float(WIDTH);
+		float mousePosX = mouseX / (float)WIDTH;
+		float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
+		mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
 		// Create new stamp from the current template based on type
 		Stamp newStamp;
@@ -5178,20 +5220,19 @@ void updateObstacle() {
 			size_t num_powerup_tempates = powerUpTemplates.size();
 			size_t index = rand() % num_powerup_tempates;
 
-			newStamp = deepCopyStamp(powerUpTemplates[SINUSOIDAL_POWERUP + index]);
+			newStamp = powerUpTemplates[SINUSOIDAL_POWERUP + index];
 			// Explicitly ensure blackeningTexture is 0
 			newStamp.blackeningTexture = 0;
 
 			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
 
-			// Position at right edge of screen
-			newStamp.posX = WIDTH / 2;// -10;
-			newStamp.posY = HEIGHT / 2;// rand() % HEIGHT;
+			newStamp.posX = 1.0f;
+			newStamp.posY = rand() / float(RAND_MAX);
 
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = -1.0f;
-			newStamp.velX = -5.0f; // Pixels per second
-			newStamp.velY = 0.0f;// 5.0f;
+			newStamp.velX = -0.001f;
+			newStamp.velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -5209,6 +5250,8 @@ void updateObstacle() {
 
 	lastRightMouseDown = rightMouseDown;
 }
+
+
 
 
 
@@ -5332,22 +5375,22 @@ void move_and_fork_bullets(void)
 
 				// Split the lightning
 				// to do: make the forked lightning smaller
-				if (r < stamp.random_forking)
-				{
-					Stamp newBullet = stamp;
+				//if (r < stamp.random_forking)
+				//{
+				//	Stamp newBullet = stamp;
 
-					float rand_x = 0, rand_y = 0;
-					RandomUnitVector(rand_x, rand_y);
-					newBullet.velX += rand_x * r;
-					newBullet.velY += rand_y * r;
+				//	float rand_x = 0, rand_y = 0;
+				//	RandomUnitVector(rand_x, rand_y);
+				//	newBullet.velX += rand_x * r;
+				//	newBullet.velY += rand_y * r;
 
-					if (type == "ally")
-						allyBullets.push_back(newBullet);
+				//	if (type == "ally")
+				//		allyBullets.push_back(newBullet);
 
-					if (type == "enemy")
-						enemyBullets.push_back(newBullet);
+				//	if (type == "enemy")
+				//		enemyBullets.push_back(newBullet);
 
-				}
+				//}
 			}
 		}
 	};
@@ -5420,8 +5463,8 @@ void mark_offscreen_bullets(void)
 
 			// Check if the stamp is outside the visible area
 			// The bullet stamp is 1x1 pixels, so this is an easy calculation
-			if (stamp.posX < 0 || stamp.posX > WIDTH ||
-				adjustedPosY < 0 || adjustedPosY > HEIGHT)
+			if (stamp.posX < 0 || stamp.posX > 1 ||
+				adjustedPosY < 0 || adjustedPosY > 1)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -5492,30 +5535,34 @@ void move_ships(void) {
 		}
 	}
 
-	// Process ally ships
+	// Process ally ships as before
 	for (auto& stamp : allyShips) {
 		if (stamp.to_be_culled) continue;
 
+		const float aspect = WIDTH / float(HEIGHT);
 		stamp.prevPosX = stamp.posX;
 		stamp.prevPosY = stamp.posY;
 
-		stamp.posX += stamp.velX;
+		stamp.posX += stamp.velX / aspect;
 		stamp.posY += stamp.velY;
+
+		// Calculate adjusted Y coordinate that accounts for aspect ratio
+		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 		// Constrain X position
 		if (stamp.posX < 0)
 			stamp.posX = 0;
-		if (stamp.posX > WIDTH)
-			stamp.posX = WIDTH;
+		if (stamp.posX > 1)
+			stamp.posX = 1;
 
-		// Constrain Y position
-		if (stamp.posY < 0)
-			stamp.posY = 0;
-		if (stamp.posY > HEIGHT)
-			stamp.posY = HEIGHT;
+		// Constrain Y position, accounting for aspect ratio
+		if (adjustedPosY < 0)
+			stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+		if (adjustedPosY > 1)
+			stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
 	}
 
-	// Process non-chunked enemy ships
+	// Process non-chunked enemy ships as before
 	for (size_t i = 0; i < enemyShips.size(); i++) {
 		// Skip if this is part of a chunked foreground (we'll process these separately)
 		if (chunkedIndices.find(i) != chunkedIndices.end()) {
@@ -5525,6 +5572,7 @@ void move_ships(void) {
 		Stamp& stamp = enemyShips[i];
 		if (stamp.to_be_culled) continue;
 
+		const float aspect = WIDTH / float(HEIGHT);
 		stamp.prevPosX = stamp.posX;
 		stamp.prevPosY = stamp.posY;
 
@@ -5537,9 +5585,8 @@ void move_ships(void) {
 		vd.x = lerp(vd.x, vd2.x, 0.15f);
 		vd.y = lerp(vd.y, vd2.y, 0.15f);
 
-		// Convert from normalized coordinates to screen coordinates
-		stamp.posX = vd.x * WIDTH;
-		stamp.posY = vd.y * HEIGHT;
+		stamp.posX = vd.x;
+		stamp.posY = vd.y;
 
 		const float vel_y = stamp.posY - stamp.prevPosY;
 		const float vel_x = stamp.posX - stamp.prevPosX;
@@ -5550,9 +5597,9 @@ void move_ships(void) {
 			stamp.currentVariationIndex = 0;
 		}
 		else {
-			if (vel_y > 1.0)
+			if (vel_y > 0.001)
 				stamp.currentVariationIndex = 1;
-			else if (vel_y < -1.0)
+			else if (vel_y < -0.001)
 				stamp.currentVariationIndex = 2;
 			else
 				stamp.currentVariationIndex = 0;
@@ -5580,13 +5627,9 @@ void move_ships(void) {
 		vd.x = lerp(vd.x, vd2.x, 0.15f);
 		vd.y = lerp(vd.y, vd2.y, 0.15f);
 
-		// Convert normalized coordinates to screen space
-		vd.x *= WIDTH;
-		vd.y *= HEIGHT;
-
-		// Calculate original stamp width and height in pixels
-		float originalWidth = referenceChunk.data_original_width;
-		float originalHeight = referenceChunk.data_original_height;
+		// Calculate original stamp width and height in normalized coordinates
+		float originalWidth = referenceChunk.data_original_width / float(WIDTH);
+		float originalHeight = referenceChunk.data_original_height / float(HEIGHT);
 
 		// Now update all chunks based on where the original would be
 		for (size_t idx : indices) {
@@ -5596,14 +5639,18 @@ void move_ships(void) {
 			chunk.prevPosX = chunk.posX;
 			chunk.prevPosY = chunk.posY;
 
+			// Calculate normalized chunk size
+			float chunkWidth = chunk.width / float(WIDTH);
+			float chunkHeight = chunk.height / float(HEIGHT);
+
 			// Calculate the chunk's position relative to the original
 			chunk.posX = vd.x - originalWidth / 2.0f +
 				chunk.data_offsetX * originalWidth +
-				chunk.width / 2.0f;
+				chunkWidth / 2.0f;
 
 			chunk.posY = vd.y - originalHeight / 2.0f +
 				chunk.data_offsetY * originalHeight +
-				chunk.height / 2.0f;
+				chunkHeight / 2.0f;
 
 			// Calculate velocity
 			chunk.velX = chunk.posX - chunk.prevPosX;
@@ -5613,10 +5660,12 @@ void move_ships(void) {
 }
 
 
-
-
 void make_dying_bullets(const Stamp& stamp, const bool enemy)
 {
+
+
+
+
 	if (stamp.to_be_culled)
 		return;
 
@@ -5624,7 +5673,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	//std::chrono::duration<float, std::milli> elapsed;
 	//elapsed = global_time_end - app_start_time;
 
-	Stamp newCentralStamp = bulletTemplates[0];
+	Stamp newCentralStamp = deepCopyStamp(bulletTemplates[0]);
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0f;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0f;
@@ -5639,6 +5688,9 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	newCentralStamp.birth_time = GLOBAL_TIME;
 	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
+
+	cout << "MAKE DYING BULLETS " << enemy << " " << allyShips.size() << endl;
+
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -5659,6 +5711,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
+
+		cout << "Added dying bullet " << enemy << endl;
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -5681,6 +5735,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
 
+		cout << "Added dying bullet " << enemy << endl;
+
 		if (enemy)
 			enemyBullets.push_back(newStamp);
 		else
@@ -5694,10 +5750,17 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 void mark_dying_ships(void)
 {
+
+
 	for (size_t i = 0; i < allyShips.size(); ++i)
 	{
+		if (allyShips[i].to_be_culled)
+			continue;
+
 		if (allyShips[i].health <= 0)
 		{
+			cout << "mark_dying_ships" << endl;
+
 			make_dying_bullets(allyShips[i], false);
 			allyShips[i].to_be_culled = true;
 		}
@@ -5705,6 +5768,9 @@ void mark_dying_ships(void)
 
 	for (size_t i = 0; i < enemyShips.size(); ++i)
 	{
+		if (enemyShips[i].to_be_culled)
+			continue;
+
 		if (enemyShips[i].health <= 0)
 		{
 			make_dying_bullets(enemyShips[i], true);
@@ -5741,8 +5807,8 @@ bool isPixelPerfectCollision_AvgOut(const Stamp& a, const Stamp& b, vec2& avg_ou
 	size_t pixel_count = 0;
 
 	// Convert to pixel coordinates for both stamps
-	for (float y = overlapMinY; y < overlapMaxY; y += 1) {
-		for (float x = overlapMinX; x < overlapMaxX; x += 1) {
+	for (float y = overlapMinY; y < overlapMaxY; y += 1.0f / HEIGHT) {
+		for (float x = overlapMinX; x < overlapMaxX; x += 1.0f / WIDTH) {
 			// Map to texture space for both stamps
 			int texAx = int((x - aMinX) / (aMaxX - aMinX) * a.width);
 			int texAy = int((y - aMinY) / (aMaxY - aMinY) * a.height);
@@ -5783,8 +5849,12 @@ void mark_colliding_ships(void)
 	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 		{
+			
+
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
+				cout << "mark_colliding_ships" << endl;
+
 				if (enemyShips[j].is_foreground)
 				{
 					// For foreground objects, we want to push the ship away
@@ -5818,6 +5888,7 @@ void mark_colliding_ships(void)
 					// In case the player gets stuck between a foreground object and the edge of the screen
 					if (found_non_collision == false)
 					{
+						cout << "mark_colliding_ships no backward pos found" << endl;
 						make_dying_bullets(allyShips[i], false);
 						allyShips[i].health = 0;
 						allyShips[i].to_be_culled = true;
@@ -5827,6 +5898,7 @@ void mark_colliding_ships(void)
 				else
 				{
 					// For regular enemies, destroy the ship immediately
+					cout << "enemy collision" << endl;
 					make_dying_bullets(allyShips[i], false);
 					allyShips[i].health = 0;
 					allyShips[i].to_be_culled = true;
@@ -6064,9 +6136,6 @@ void mark_colliding_powerups(void)
 	{
 		for (size_t j = 0; j < allyPowerUps.size(); ++j)
 		{
-			if (allyPowerUps[j].to_be_culled)
-				continue;
-
 			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
 			{
 				allyPowerUps[j].to_be_culled = true;
@@ -6107,7 +6176,7 @@ void mark_offscreen_powerups(void)
 		{
 			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 
-			if (stamp.posX < 0)
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)
 				stamp.to_be_culled = true;
 		}
 	};
@@ -6179,7 +6248,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
@@ -6187,7 +6256,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 5000);
+		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
 	}
 
@@ -6253,7 +6322,6 @@ void renderToScreen()
 
 	GLuint projectionLocation = glGetUniformLocation(renderProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(renderProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
@@ -6297,7 +6365,6 @@ void renderToScreen()
 
 	projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-	glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
@@ -6663,7 +6730,6 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 	}
 
-
 	case '8':
 	{
 		size_t num_powerup_tempates = powerUpTemplates.size();
@@ -6676,19 +6742,18 @@ void keyboard(unsigned char key, int x, int y) {
 		newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
 
 		// Position at right edge of screen
-		newStamp.posX = WIDTH;// -10;
-		newStamp.posY = rand() % HEIGHT;
+		newStamp.posX = 1.0;// -10;
+		newStamp.posY = rand()/float(RAND_MAX);
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1.0f;
-		newStamp.velX = -5.0f; // Pixels per second
+		newStamp.velX = -0.0025f; // Pixels per second
 		newStamp.velY = 0.0f;// 5.0f;
 		allyPowerUps.push_back(newStamp);
 
 		std::cout << "Added new power up";
 		break;
 	}
-
 
 	case '0':
 	{
@@ -6700,14 +6765,14 @@ void keyboard(unsigned char key, int x, int y) {
 		float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
 		vec2 start;
-		start.x = WIDTH;// 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-		start.y = HEIGHT / 2;
+		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		start.y = rand() / float(RAND_MAX);
 
 		newStamp.curve_path.push_back(start);
 
 		vec2 end;
-		end.x = 0;// -normalized_stamp_width / 2.0f;
-		end.y = HEIGHT / 2;// rand() / float(RAND_MAX);
+		end.x = -normalized_stamp_width / 2.0f;
+		end.y = rand() / float(RAND_MAX);
 		newStamp.curve_path.push_back(end);
 
 		newStamp.posX = start.x;
@@ -6719,7 +6784,6 @@ void keyboard(unsigned char key, int x, int y) {
 		enemyShips.push_back(newStamp);
 		break;
 	}
-
 
 
 	case ' ': // Space bar
@@ -6879,9 +6943,6 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
 
-			allyShips[0].velX *= 200;// vel_length;
-			allyShips[0].velY *= 200;// vel_length;
-
 			allyShips[0].velX *= 0.025f * (WIDTH / 1920.0f);
 			allyShips[0].velY *= 0.025f * (HEIGHT / 1080.0f);
 		}
@@ -6937,9 +6998,6 @@ void specialKeyboardUp(int key, int x, int y) {
 		{
 			allyShips[0].velX /= vel_length;
 			allyShips[0].velY /= vel_length;
-
-			allyShips[0].velX *= 200;// vel_length;
-			allyShips[0].velY *= 200;// vel_length;
 
 			allyShips[0].velX *= 0.025f * (WIDTH / 1920.0f);
 			allyShips[0].velY *= 0.025f * (HEIGHT / 1080.0f);
@@ -7110,7 +7168,7 @@ int main(int argc, char** argv) {
 	glutSpecialFunc(specialKeyboard);
 	glutSpecialUpFunc(specialKeyboardUp);
 
-	glutFullScreen();
+	//glutFullScreen();
 
 	// Print instructions
 	printInstructions();
