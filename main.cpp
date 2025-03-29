@@ -7052,7 +7052,53 @@ void printInstructions() {
 }
 
 
+std::vector<std::tuple<int, int, float>> calculateAllSimilarities(
+	const unsigned char* mainImage, int mainWidth, int mainHeight,
+	const unsigned char* subImage, int subWidth, int subHeight,
+	int colorTolerance = 10) {
 
+	std::vector<std::tuple<int, int, float>> similarities;
+
+	// Make sure the subimage can fit inside the main image
+	if (subWidth > mainWidth || subHeight > mainHeight) {
+		return similarities;  // Return empty vector
+	}
+
+	int maxX = mainWidth - subWidth + 1;
+	int maxY = mainHeight - subHeight + 1;
+	int totalPixels = subWidth * subHeight;
+
+	for (int y = 0; y < maxY; ++y) {
+		for (int x = 0; x < maxX; ++x) {
+			int matchedPixels = 0;
+
+			for (int sy = 0; sy < subHeight; ++sy) {
+				for (int sx = 0; sx < subWidth; ++sx) {
+					int mainPos = ((y + sy) * mainWidth + (x + sx)) * 4;
+					int subPos = (sy * subWidth + sx) * 4;
+
+					bool pixelMatch = true;
+					for (int c = 0; c < 4; ++c) {
+						if (std::abs(static_cast<int>(mainImage[mainPos + c]) -
+							static_cast<int>(subImage[subPos + c])) > colorTolerance) {
+							pixelMatch = false;
+							break;
+						}
+					}
+
+					if (pixelMatch) {
+						matchedPixels++;
+					}
+				}
+			}
+
+			float similarity = static_cast<float>(matchedPixels) / totalPixels;
+			similarities.push_back(std::make_tuple(x, y, similarity));
+		}
+	}
+
+	return similarities;
+}
 
 // Then update the main function to call this instead of printing directly
 int main(int argc, char** argv) {
@@ -7064,25 +7110,25 @@ int main(int argc, char** argv) {
 	
 
 
-	//int width = 0, height = 0, channels = 0;
-	//stbi_set_flip_vertically_on_load(true);
-	//unsigned char* data = stbi_load("level_1_enemies.png", &width, &height, &channels, 0);
+	int width = 0, height = 0, channels = 0;
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* data = stbi_load("level_1_enemies.png", &width, &height, &channels, 0);
 
-	//if (!data) {
-	//	std::cerr << "Failed to load stamp texture: " << "level_1_enemies.png" << std::endl;
-	//	std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-	//	return false;
-	//}
-
-
+	if (!data) {
+		std::cerr << "Failed to load stamp texture: " << "level_1_enemies.png" << std::endl;
+		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+		return false;
+	}
 
 
 
-	//stbi_image_free(data);
+
+
+	stbi_image_free(data);
 
 
 
-	//return 0;
+	return 0;
 
 
 
