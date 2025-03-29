@@ -6377,7 +6377,7 @@ void renderToScreen()
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-	//renderStamps(allyBullets);
+	renderStamps(allyBullets);
 	//renderStamps(enemyBullets);
 	renderStamps(allyPowerUps);
 
