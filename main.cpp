@@ -295,11 +295,12 @@ enum fire_type ally_fire = STRAIGHT;
 enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
 
-bool has_sinusoidal_fire = false;
-bool has_random_fire = false;
-bool has_homing_fire = false;
-bool x3_fire = false;
-bool x5_fire = false;
+// Set these to false after debugging
+bool has_sinusoidal_fire = true;
+bool has_random_fire = true;
+bool has_homing_fire = true;
+bool x3_fire = true;
+bool x5_fire = true;
 
 
 float eddyIntensity = 1.0;
@@ -1126,7 +1127,8 @@ std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::hig
 
 
 
-void fireBullet() {
+void fireBullet() 
+{
 	// Only fire if we have ally ships and bullet templates
 	if (allyShips.empty() || bulletTemplates.empty()) {
 		return;
@@ -1156,7 +1158,7 @@ void fireBullet() {
 	else
 	{
 		bulletTemplate.posX = allyShips[0].posX + allyShips[0].width / 2.0f;
-		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / 8.0f;
+		bulletTemplate.posY = allyShips[0].posY + allyShips[0].height / 2.0f;
 	}
 
 	static const float pi = 4.0f * atanf(1.0f);
@@ -1189,8 +1191,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 200.0f * cos(angle); // 500 pixels per second
-			newBullet.velY = 200.0f * sin(angle);
+			newBullet.velX = 20.0f * cos(angle); // 500 pixels per second
+			newBullet.velY = 20.0f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -1201,8 +1203,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 400.0f * cos(angle); // 400 pixels per second
-			newBullet.velY = 400.0f * sin(angle);
+			newBullet.velX = 20.0 * cos(angle); // 400 pixels per second
+			newBullet.velY = 20.0f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 10.0f; // 10 pixels amplitude
 			newBullet.birth_time = GLOBAL_TIME;
@@ -2187,7 +2189,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.99;
+const float fake_dispersion = 0.75;
 
 void main() {
     // Check if we're in an obstacle
@@ -4885,6 +4887,9 @@ void addMouseForce() {
 	prevMouseY = mouseY;
 }
 
+
+
+
 void addColor(float posX, float posY, float velX, float velY, float radius)
 {
 	// Determine which color texture to modify based on the active mode
@@ -4907,14 +4912,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	// Add small random shift if desired
-	float x_shift = 0;// 5.0f * rand() / float(RAND_MAX);
-	float y_shift = 0;// 5.0f * rand() / float(RAND_MAX);
+	float x_shift = 0.01f * rand() / float(RAND_MAX);
+	float y_shift = 0.01f * rand() / float(RAND_MAX);
 
-	// Position is now in screen coordinates, but we need to convert to 0-1 texture space for the shader
-	float texPosX = (posX + x_shift) / WIDTH;
-	float texPosY = (posY + y_shift) / HEIGHT;
-
+	float mousePosX = posX / WIDTH;// +x_shift;
+	float mousePosY = posY / HEIGHT;// +y_shift;
 
 
 	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
@@ -4923,9 +4925,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addColorProgram, "colorTexture"), 0);
 	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addColorProgram, "point"), texPosX, texPosY);
-	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), 0.01); // Convert radius from pixels to 0-1 texture space
-	glUniform2f(glGetUniformLocation(addColorProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
+	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), radius);
 
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
@@ -4956,6 +4957,8 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 		friendlyColorIndex = 1 - friendlyColorIndex;
 	}
 }
+
+
 
 
 
@@ -5194,8 +5197,8 @@ void updateObstacle() {
 
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = -1.0f;
-			newStamp.velX = -5.0f; // Pixels per second
-			newStamp.velY = 0.0f;
+			newStamp.velX = -50.0f; // Pixels per second
+			newStamp.velY = 50.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -6108,7 +6111,7 @@ void mark_offscreen_powerups(void)
 		{
 			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)
+			if (stamp.posX > WIDTH)
 				stamp.to_be_culled = true;
 		}
 	};
@@ -6181,7 +6184,7 @@ void simulationStep()
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
-		addColor(allyBullets[i].posX/WIDTH, allyBullets[i].posY/HEIGHT, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
+		addColor(allyBullets[i].posX , allyBullets[i].posY , allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
