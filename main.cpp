@@ -528,7 +528,7 @@ public:
 	// Rest of the Stamp class members remain the same
 	int channels = 0;
 	bool to_be_culled = false;
-	float health = 10000.0;
+	float health = 10.0;
 	float birth_time = 0;
 	float death_time = -1;
 	float stamp_opacity = 1;
@@ -5375,22 +5375,22 @@ void move_and_fork_bullets(void)
 
 				// Split the lightning
 				// to do: make the forked lightning smaller
-				//if (r < stamp.random_forking)
-				//{
-				//	Stamp newBullet = stamp;
+				if (r < stamp.random_forking)
+				{
+					Stamp newBullet = stamp;
 
-				//	float rand_x = 0, rand_y = 0;
-				//	RandomUnitVector(rand_x, rand_y);
-				//	newBullet.velX += rand_x * r;
-				//	newBullet.velY += rand_y * r;
+					float rand_x = 0, rand_y = 0;
+					RandomUnitVector(rand_x, rand_y);
+					newBullet.velX += rand_x * r;
+					newBullet.velY += rand_y * r;
 
-				//	if (type == "ally")
-				//		allyBullets.push_back(newBullet);
+					if (type == "ally")
+						allyBullets.push_back(newBullet);
 
-				//	if (type == "enemy")
-				//		enemyBullets.push_back(newBullet);
+					if (type == "enemy")
+						enemyBullets.push_back(newBullet);
 
-				//}
+				}
 			}
 		}
 	};
@@ -5660,6 +5660,7 @@ void move_ships(void) {
 }
 
 
+
 void make_dying_bullets(const Stamp& stamp, const bool enemy)
 {
 	if (stamp.to_be_culled)
@@ -5669,7 +5670,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	//std::chrono::duration<float, std::milli> elapsed;
 	//elapsed = global_time_end - app_start_time;
 
-	Stamp newCentralStamp = deepCopyStamp(bulletTemplates[0]);
+	Stamp newCentralStamp = bulletTemplates[0];
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0f;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0f;
@@ -5684,9 +5685,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	newCentralStamp.birth_time = GLOBAL_TIME;
 	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
-
-	cout << "MAKE DYING BULLETS " << enemy << " " << allyShips.size() << endl;
-
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -5707,8 +5705,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
-
-		cout << "Added dying bullet " << enemy << endl;
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -5731,8 +5727,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
 
-		cout << "Added dying bullet " << enemy << endl;
-
 		if (enemy)
 			enemyBullets.push_back(newStamp);
 		else
@@ -5740,8 +5734,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	}
 
 }
-
-
 
 
 void mark_dying_ships(void)
@@ -7069,6 +7061,28 @@ int main(int argc, char** argv) {
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
+	
+
+
+	//int width = 0, height = 0, channels = 0;
+	//stbi_set_flip_vertically_on_load(true);
+	//unsigned char* data = stbi_load("level_1_enemies.png", &width, &height, &channels, 0);
+
+	//if (!data) {
+	//	std::cerr << "Failed to load stamp texture: " << "level_1_enemies.png" << std::endl;
+	//	std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
+	//	return false;
+	//}
+
+
+
+
+
+	//stbi_image_free(data);
+
+
+
+	//return 0;
 
 
 
