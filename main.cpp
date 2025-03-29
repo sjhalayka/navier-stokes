@@ -5662,10 +5662,6 @@ void move_ships(void) {
 
 void make_dying_bullets(const Stamp& stamp, const bool enemy)
 {
-
-
-
-
 	if (stamp.to_be_culled)
 		return;
 
@@ -5840,21 +5836,17 @@ bool isPixelPerfectCollision_AvgOut(const Stamp& a, const Stamp& b, vec2& avg_ou
 		return true;
 }
 
-
 void mark_colliding_ships(void)
 {
-
+	// to do: once this is complete and tested, then do enemy ship to enemy ship collisions,
+	// to do: so that enemy ships don't penetrate the foreground
 
 	for (size_t i = 0; i < allyShips.size(); ++i)
 	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 		{
-			
-
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				cout << "mark_colliding_ships" << endl;
-
 				if (enemyShips[j].is_foreground)
 				{
 					// For foreground objects, we want to push the ship away
@@ -5888,7 +5880,6 @@ void mark_colliding_ships(void)
 					// In case the player gets stuck between a foreground object and the edge of the screen
 					if (found_non_collision == false)
 					{
-						cout << "mark_colliding_ships no backward pos found" << endl;
 						make_dying_bullets(allyShips[i], false);
 						allyShips[i].health = 0;
 						allyShips[i].to_be_culled = true;
@@ -5898,7 +5889,6 @@ void mark_colliding_ships(void)
 				else
 				{
 					// For regular enemies, destroy the ship immediately
-					cout << "enemy collision" << endl;
 					make_dying_bullets(allyShips[i], false);
 					allyShips[i].health = 0;
 					allyShips[i].to_be_culled = true;
@@ -5906,77 +5896,7 @@ void mark_colliding_ships(void)
 			}
 		}
 	}
-
-
-
-
-
-
-	// to do: test this with enemies later
-	for (size_t i = 0; i < enemyShips.size(); ++i)
-	{
-		if (enemyShips[i].is_foreground)
-			continue;
-
-		for (size_t j = 0; j < enemyShips.size(); ++j)
-		{
-			if (isPixelPerfectCollision(enemyShips[i], enemyShips[j]))
-			{
-				if (enemyShips[j].is_foreground)
-				{
-					// For foreground objects, we want to push the ship away
-
-					bool found_non_collision = false;
-
-					for (size_t k = 0; k < 100; k++)
-					{
-						vec2 avg_out;
-
-						if (false == isPixelPerfectCollision_AvgOut(enemyShips[i], enemyShips[j], avg_out))
-						{
-							found_non_collision = true;
-							break;
-						}
-
-						avg_out.x /= enemyShips[i].width;
-						avg_out.y /= enemyShips[i].height;
-
-						if (avg_out.x < 0.45)
-							enemyShips[i].posX += 0.001;
-						else if (avg_out.x > 0.55)
-							enemyShips[i].posX -= 0.001;
-
-						if (avg_out.y < 0.45)
-							enemyShips[i].posY += 0.001;
-						else if (avg_out.y > 0.55)
-							enemyShips[i].posY -= 0.001;
-					}
-
-					// In case the player gets stuck between a foreground object and the edge of the screen
-					if (found_non_collision == false)
-					{
-						make_dying_bullets(enemyShips[i], false);
-						enemyShips[i].health = 0;
-						enemyShips[i].to_be_culled = true;
-					}
-
-				}
-				else
-				{
-					// For regular enemies, destroy the ship immediately
-					make_dying_bullets(enemyShips[i], false);
-					enemyShips[i].health = 0;
-					enemyShips[i].to_be_culled = true;
-				}
-			}
-		}
-	}
-
-
 }
-
-
-
 
 
 void mark_offscreen_ships(void)
@@ -6421,7 +6341,7 @@ void renderToScreen()
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
-	renderStamps(allyBullets);
+	//renderStamps(allyBullets);
 	//renderStamps(enemyBullets);
 	renderStamps(allyPowerUps);
 
