@@ -4906,12 +4906,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0;// 0.01f * rand() / float(RAND_MAX);
-	float y_shift = 0.225;// *rand() / float(RAND_MAX);
+	float aspect = HEIGHT / float(WIDTH);
 
-	float mousePosX = posX / WIDTH +x_shift;
-	float mousePosY = posY / HEIGHT +y_shift;
-
+	// Get normalized mouse position (0 to 1 range)
+	float mousePosX = posX / (float)WIDTH;
+	float mousePosY = posY / (float)HEIGHT;
 
 	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -6701,7 +6700,7 @@ void keyboard(unsigned char key, int x, int y) {
 		float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
 		vec2 start;
-		start.x = WIDTH / 2;// 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		start.x = WIDTH;// 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
 		start.y = HEIGHT / 2;
 
 		newStamp.curve_path.push_back(start);
