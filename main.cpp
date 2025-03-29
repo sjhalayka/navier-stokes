@@ -34,6 +34,9 @@ using namespace std;
 #pragma comment(lib, "glew32")
 
 // to do: move away from normalized device coords to screen space coords: https://claude.ai/chat/ccb28895-238a-4e10-a61e-d4b70d41fe28
+//	- make sure to set uniform vec2 screenSize every time a shader is used (look for glm::value_ptr(orthoMatrix))
+
+
 
 // to do: When checking enemy ship - enemy ship collision, make sure to skip where i == j
 
