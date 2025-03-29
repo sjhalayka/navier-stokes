@@ -4888,8 +4888,6 @@ void addMouseForce() {
 }
 
 
-
-
 void addColor(float posX, float posY, float velX, float velY, float radius)
 {
 	// Determine which color texture to modify based on the active mode
@@ -4912,11 +4910,11 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 
 	glUseProgram(addColorProgram);
 
-	float x_shift = 0.01f * rand() / float(RAND_MAX);
-	float y_shift = 0.01f * rand() / float(RAND_MAX);
+	float x_shift = 0;// 0.01f * rand() / float(RAND_MAX);
+	float y_shift = 0.225;// *rand() / float(RAND_MAX);
 
-	float mousePosX = posX / WIDTH;// +x_shift;
-	float mousePosY = posY / HEIGHT;// +y_shift;
+	float mousePosX = posX / WIDTH +x_shift;
+	float mousePosY = posY / HEIGHT +y_shift;
 
 
 	GLuint projectionLocation = glGetUniformLocation(addColorProgram, "projection");
@@ -4927,6 +4925,7 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 	glUniform1i(glGetUniformLocation(addColorProgram, "obstacleTexture"), 1);
 	glUniform2f(glGetUniformLocation(addColorProgram, "point"), mousePosX, mousePosY);
 	glUniform1f(glGetUniformLocation(addColorProgram, "radius"), radius);
+	glUniform2f(glGetUniformLocation(addColorProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
 
 	// Bind the appropriate texture based on mode
 	glActiveTexture(GL_TEXTURE0);
@@ -4957,7 +4956,6 @@ void addColor(float posX, float posY, float velX, float velY, float radius)
 		friendlyColorIndex = 1 - friendlyColorIndex;
 	}
 }
-
 
 
 
@@ -5192,13 +5190,13 @@ void updateObstacle() {
 			newStamp.powerup = powerup_type(SINUSOIDAL_POWERUP + index);
 
 			// Position at right edge of screen
-			newStamp.posX = WIDTH;
-			newStamp.posY = rand() % HEIGHT;
+			newStamp.posX = 0;// WIDTH / 2;// -10;
+			newStamp.posY = 0;// HEIGHT / 2;// rand() % HEIGHT;
 
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = -1.0f;
-			newStamp.velX = -50.0f; // Pixels per second
-			newStamp.velY = 50.0f;
+			newStamp.velX = -20.0f; // Pixels per second
+			newStamp.velY = 0.0f;// 5.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -6071,6 +6069,9 @@ void mark_colliding_powerups(void)
 	{
 		for (size_t j = 0; j < allyPowerUps.size(); ++j)
 		{
+			if (allyPowerUps[j].to_be_culled)
+				continue;
+
 			if (isPixelPerfectCollision(allyShips[i], allyPowerUps[j]))
 			{
 				allyPowerUps[j].to_be_culled = true;
@@ -6111,7 +6112,7 @@ void mark_offscreen_powerups(void)
 		{
 			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 
-			if (stamp.posX > WIDTH)
+			if (stamp.posX < 0)
 				stamp.to_be_culled = true;
 		}
 	};
@@ -6184,7 +6185,7 @@ void simulationStep()
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 5000);
-		addColor(allyBullets[i].posX , allyBullets[i].posY , allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
