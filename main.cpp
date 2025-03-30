@@ -7052,10 +7052,15 @@ void printInstructions() {
 }
 
 
+
+
+
+
 std::vector<std::tuple<int, int, float>> calculateAllSimilarities(
 	const unsigned char* mainImage, int mainWidth, int mainHeight,
 	const unsigned char* subImage, int subWidth, int subHeight,
-	int colorTolerance = 10) {
+	int colorTolerance = 10) 
+{
 
 	std::vector<std::tuple<int, int, float>> similarities;
 
@@ -7100,6 +7105,100 @@ std::vector<std::tuple<int, int, float>> calculateAllSimilarities(
 	return similarities;
 }
 
+
+
+
+
+
+struct MatchResult {
+	int x;
+	int y;
+	float score;
+};
+
+// Function to calculate similarity between subimage and template at given position
+float calculateSimilarity(const unsigned char* image, int imgWidth, int imgHeight,
+	const unsigned char* templ, int templWidth, int templHeight,
+	int x, int y) {
+	float sumImg = 0, sumTempl = 0, sumImgSq = 0, sumTemplSq = 0, sumProd = 0;
+	int channels = 4; // RGBA
+
+	// Calculate means and correlation
+	for (int j = 0; j < templHeight; j++) {
+		for (int i = 0; i < templWidth; i++) {
+			for (int c = 0; c < channels; c++) {
+				int imgIdx = ((y + j) * imgWidth + (x + i)) * channels + c;
+				int templIdx = (j * templWidth + i) * channels + c;
+
+				float imgPixel = image[imgIdx];
+				float templPixel = templ[templIdx];
+
+				sumImg += imgPixel;
+				sumTempl += templPixel;
+				sumImgSq += imgPixel * imgPixel;
+				sumTemplSq += templPixel * templPixel;
+				sumProd += imgPixel * templPixel;
+			}
+		}
+	}
+
+	int totalPixels = templWidth * templHeight * channels;
+	float meanImg = sumImg / totalPixels;
+	float meanTempl = sumTempl / totalPixels;
+
+	float numerator = sumProd - totalPixels * meanImg * meanTempl;
+	float denominator = std::sqrt((sumImgSq - totalPixels * meanImg * meanImg) *
+		(sumTemplSq - totalPixels * meanTempl * meanTempl));
+
+	if (denominator == 0) return 0;
+	return numerator / denominator;
+}
+
+// Main function to find subimage
+std::vector<MatchResult> findSubimage(const unsigned char* image, int imgWidth, int imgHeight,
+	const unsigned char* templ, int templWidth, int templHeight,
+	float threshold = 0.8f) {
+	std::vector<MatchResult> matches;
+
+	// Check if template is larger than image
+	if (templWidth > imgWidth || templHeight > imgHeight) {
+		return matches;
+	}
+
+	// Slide template over image
+	for (int y = 0; y <= imgHeight - templHeight; y++) {
+		for (int x = 0; x <= imgWidth - templWidth; x++) {
+			float score = calculateSimilarity(image, imgWidth, imgHeight,
+				templ, templWidth, templHeight,
+				x, y);
+
+			if (score >= threshold) {
+				matches.push_back({ x, y, score });
+			}
+		}
+	}
+
+	return matches;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+class image
+{
+public:
+	int width = 0, height = 0, channels = 0;
+	unsigned char* ptr;
+};
+
 // Then update the main function to call this instead of printing directly
 int main(int argc, char** argv) {
 	// Initialize GLUT
@@ -7109,26 +7208,72 @@ int main(int argc, char** argv) {
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 	
 
+	//vector<image> sub_images;
 
-	int width = 0, height = 0, channels = 0;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load("level_1_enemies.png", &width, &height, &channels, 0);
+	//size_t enemy_index = 0;
+	//int width = 0, height = 0, channels = 0;
 
-	if (!data) {
-		std::cerr << "Failed to load stamp texture: " << "level_1_enemies.png" << std::endl;
-		std::cerr << "STB Image error: " << stbi_failure_reason() << std::endl;
-		return false;
-	}
+	//while (1)
+	//{
+	//	stbi_set_flip_vertically_on_load(true);
+	//	string filename = "enemy" + to_string(enemy_index) + "_centre.png";
+	//	unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+
+	//	if (!data)
+	//		break;
+	//	else
+	//		cout << "Loaded " << filename << endl;
+
+	//	image i;
+	//	i.width = width;
+	//	i.height = height;
+	//	i.ptr = data;
+
+	//	sub_images.push_back(i);
+
+	//	enemy_index++;
+	//}
+
+
+
+	//unsigned char* level_enemy_data = stbi_load("level0_enemies.png", &width, &height, &channels, 0);
+
+	//if (!level_enemy_data)
+	//{
+	//	cout << "Could not load " << "level0_enemies.png" << endl;
+	//	return 0;
+	//}
+	//else
+	//	cout << "Loaded " << "level0_enemies.png" << endl;
 
 
 
 
 
-	stbi_image_free(data);
+	//for (size_t i = 0; i < sub_images.size(); i++)
+	//{
+	//	std::vector<MatchResult> matches = findSubimage(level_enemy_data, width, height,
+	//		sub_images[i].ptr, sub_images[i].width, sub_images[i].height,
+	//		0.9f);
+
+	//	// Print results
+	//	for (const auto& match : matches) {
+	//		printf("Match found at (%d, %d) with score %.3f\n",
+	//			match.x, match.y, match.score);
+	//	}
+	//}
 
 
 
-	return 0;
+
+
+
+	//stbi_image_free(level_enemy_data);
+
+	//for(size_t i = 0; i < sub_images.size(); i++)
+	//stbi_image_free(sub_images[i].ptr);
+
+	//return 0;
 
 
 
