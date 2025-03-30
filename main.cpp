@@ -657,8 +657,8 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			chunkStamp.currentVariationIndex = 0;
 
 			// Scale the offsets proportionally
-			float offsetX = (float)startX / originalStamp.width / 1.35f * scaleFactor;
-			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT)) * scaleFactor;
+			float offsetX = (float)startX / originalStamp.width / 1.35f;// *scaleFactor;
+			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));// *scaleFactor;
 
 			std::vector<unsigned char> chunkPixelData(chunkStamp.width * chunkStamp.height * originalStamp.channels);
 
@@ -5578,36 +5578,6 @@ void move_ships(void) {
 	}
 
 
-
-
-	//for (auto& stamp : enemyShips) {
-	//	if (stamp.to_be_culled) continue;
-
-	//	const float aspect = WIDTH / float(HEIGHT);
-	//	//stamp.prevPosX = stamp.posX;
-	//	//stamp.prevPosY = stamp.posY;
-
-	//	stamp.posX += stamp.velX;// / aspect;
-	//	stamp.posY += stamp.velY;
-
-	//	// Calculate adjusted Y coordinate that accounts for aspect ratio
-	//	float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-	//	// Constrain X position
-	//	if (stamp.posX < 0)
-	//		stamp.posX = 0;
-	//	if (stamp.posX > 1)
-	//		stamp.posX = 1;
-
-	//	// Constrain Y position, accounting for aspect ratio
-	//	if (adjustedPosY < 0)
-	//		stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
-	//	if (adjustedPosY > 1)
-	//		stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
-	//}
-
-
-
 	// Process non-chunked enemy ships as before
 //	for (size_t i = 0; i < enemyShips.size(); i++) {
 //		// Skip if this is part of a chunked foreground (we'll process these separately)
@@ -6557,19 +6527,9 @@ void testForegroundChunking() {
 	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
 
 	// to do: tinker with these to get perfect scale and translation
-	vec2 start;
-	start.x = 1.0f + normalized_stamp_width / 2.0f;
-	start.y = 0.7825f;
+	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
+	originalStamp.posY = 0.84f;// 1.0 - normalized_stamp_height / 2.0f;
 
-	vec2 end;
-	end.x = -normalized_stamp_width / 2.0f;
-	end.y = 0.7825f;
-
-//	originalStamp.curve_path.push_back(start);
-//	originalStamp.curve_path.push_back(end);
-
-	originalStamp.posX = start.x;
-	originalStamp.posY = start.y;
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
@@ -6613,6 +6573,9 @@ void testForegroundChunking() {
 		chunkStamp.posY = originalStamp.posY - normalizedOrigHeight / 2.0f +
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
+
+		chunkStamp.velX = -0.01;
+		chunkStamp.velY = 0;
 
 		enemyShips.push_back(chunkStamp);
 	}
@@ -7366,7 +7329,7 @@ int main(int argc, char** argv) {
 	glutSpecialFunc(specialKeyboard);
 	glutSpecialUpFunc(specialKeyboardUp);
 
-	//glutFullScreen();
+	glutFullScreen();
 
 	// Print instructions
 	printInstructions();
