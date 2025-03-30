@@ -6531,7 +6531,7 @@ void testForegroundChunking() {
 	originalStamp.posY = 0.84f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
-	originalStamp.death_time = GLOBAL_TIME + 30.0f;
+	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
 
 	// to do: tinker with this to get perfect scale and translation
