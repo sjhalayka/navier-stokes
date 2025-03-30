@@ -5274,7 +5274,7 @@ void move_and_fork_bullets(void)
 
 				for (size_t i = 0; i < enemyShips.size(); i++)
 				{
-					if (enemyShips[i].to_be_culled)
+					if (enemyShips[i].to_be_culled || enemyShips[i].is_foreground)
 						continue;
 
 					float x0 = stamp.posX;
@@ -6576,6 +6576,8 @@ void testForegroundChunking() {
 
 		chunkStamp.global_velX = foreground_vel;
 		chunkStamp.global_velY = 0;
+
+		chunkStamp.health = 1000000; // Practically infinite
 
 		enemyShips.push_back(chunkStamp);
 	}
