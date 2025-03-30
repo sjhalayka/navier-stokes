@@ -72,7 +72,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-
+float foreground_vel = -0.01;
 
 
 // Structure to hold collision point data
@@ -6574,7 +6574,7 @@ void testForegroundChunking() {
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
 
-		chunkStamp.global_velX = -0.01;
+		chunkStamp.global_velX = foreground_vel;
 		chunkStamp.global_velY = 0;
 
 		enemyShips.push_back(chunkStamp);
@@ -6723,7 +6723,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
-		newStamp.global_velX = -0.01;
+		newStamp.global_velX = foreground_vel;
 		newStamp.global_velY = 0;
 
 		newStamp.birth_time = GLOBAL_TIME;
