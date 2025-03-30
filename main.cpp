@@ -371,8 +371,8 @@ public:
 //		curve_path = other.curve_path;
 		posX = other.posX;
 		posY = other.posY;
-		velX = other.velX;
-		velY = other.velY;
+		global_velX = other.global_velX;
+		global_velY = other.global_velY;
 		currentVariationIndex = other.currentVariationIndex;
 		powerup = other.powerup;
 		under_fire = other.under_fire;
@@ -452,8 +452,8 @@ public:
 //			curve_path = other.curve_path;
 			posX = other.posX;
 			posY = other.posY;
-			velX = other.velX;
-			velY = other.velY;
+			global_velX = other.global_velX;
+			global_velY = other.global_velY;
 			currentVariationIndex = other.currentVariationIndex;
 			powerup = other.powerup;
 			under_fire = other.under_fire;
@@ -543,7 +543,7 @@ public:
 	float random_forking = 0.0f;
 //	vector<vec2> curve_path;
 	float posX = 0, posY = 0;
-	float velX = 0, velY = 0;
+	float global_velX = 0, global_velY = 0;
 	size_t currentVariationIndex = 0;
 	enum powerup_type powerup;
 	bool under_fire = false;
@@ -809,7 +809,7 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 //	}
 //
 //	// Check if the ally ship is moving
-//	if (allyShips[0].velX < 0 && allyShips[0].velY == 0) {
+//	if (allyShips[0].global_velX < 0 && allyShips[0].global_velY == 0) {
 //		return;  // Ship is stationary, don't create thruster fire
 //	}
 //
@@ -831,8 +831,8 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 //	float aspect = WIDTH / float(HEIGHT);
 //
 //	// Calculate position behind the ship (opposite direction of movement)
-//	float normalizedVelX = 1;// allyShips[0].velX;
-//	float normalizedVelY = 0;// allyShips[0].velY;
+//	float normalizedVelX = 1;// allyShips[0].global_velX;
+//	float normalizedVelY = 0;// allyShips[0].global_velY;
 //
 //	// Normalize if needed
 //	float velLength = sqrt(normalizedVelX * normalizedVelX + normalizedVelY * normalizedVelY);
@@ -856,12 +856,12 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 //	//thrusterParticle.posY += randOffsetY;
 //
 //	// Set velocity (opposite to ship movement, plus some randomness)
-//	thrusterParticle.velX = -normalizedVelX * 0.005f;
-//	thrusterParticle.velY = 0;// -normalizedVelY * 0;
+//	thrusterParticle.global_velX = -normalizedVelX * 0.005f;
+//	thrusterParticle.global_velY = 0;// -normalizedVelY * 0;
 //
 //	// Add some randomness to velocity
-//	//thrusterParticle.velX += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
-//	//thrusterParticle.velY += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
+//	//thrusterParticle.global_velX += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
+//	//thrusterParticle.global_velY += (rand() / float(RAND_MAX) - 0.5f) * 0.002f;
 //
 //	// Make smaller than normal bullets
 //	thrusterParticle.colour_radius = 0.01;// offsetMultiplier * 0.3f;
@@ -1199,8 +1199,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.025f * cos(angle);
-			newBullet.velY = 0.025f * sin(angle);
+			newBullet.global_velX = 0.025f * cos(angle);
+			newBullet.global_velY = 0.025f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -1213,8 +1213,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.02f * cos(angle);
-			newBullet.velY = 0.02f * sin(angle);
+			newBullet.global_velX = 0.02f * cos(angle);
+			newBullet.global_velY = 0.02f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
@@ -1253,12 +1253,12 @@ void fireBullet() {
 			newStamp.force_radius = avg_rad / 4.0f;
 
 			// Make elliptical fire
-			RandomUnitVector(newStamp.velX, newStamp.velY);
-			newStamp.velX *= WIDTH / float(HEIGHT);
-			newStamp.velX *= 2.0f;
+			RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
+			newStamp.global_velX *= WIDTH / float(HEIGHT);
+			newStamp.global_velX *= 2.0f;
 
-			newStamp.velX /= 250.0f / (rand() / float(RAND_MAX));
-			newStamp.velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.global_velX /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
@@ -1275,12 +1275,12 @@ void fireBullet() {
 			newStamp.force_radius = avg_rad / 8.0f;
 
 			// Make elliptical fire
-			RandomUnitVector(newStamp.velX, newStamp.velY);
-			newStamp.velX *= WIDTH / float(HEIGHT);
-			newStamp.velX *= 2.0f;
+			RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
+			newStamp.global_velX *= WIDTH / float(HEIGHT);
+			newStamp.global_velX *= 2.0f;
 
-			newStamp.velX /= 100.0f / (rand() / float(RAND_MAX));
-			newStamp.velY /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.global_velX /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
@@ -1294,8 +1294,8 @@ void fireBullet() {
 	case HOMING:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.velX = 0.01f * cos(angle);
-			newBullet.velY = 0.01f * sin(angle);
+			newBullet.global_velX = 0.01f * cos(angle);
+			newBullet.global_velY = 0.01f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -4821,7 +4821,7 @@ void subtractPressureGradient() {
 
 
 // Add force to the velocity field
-void addForce(float posX, float posY, float velX, float velY, float radius, float strength)
+void addForce(float posX, float posY, float global_velX, float global_velY, float radius, float strength)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
@@ -4838,10 +4838,10 @@ void addForce(float posX, float posY, float velX, float velY, float radius, floa
 	float mousePosX = posX;// +x_shift;
 	float mousePosY = posY;// +y_shift;
 
-	float mouseVelX = velX;
-	float mouseVelY = velY;
+	float mouseVelX = global_velX;
+	float mouseVelY = global_velY;
 
-	float mouse_vel_length = sqrt(velX * velX + velY * velY);
+	float mouse_vel_length = sqrt(global_velX * global_velX + global_velY * global_velY);
 
 
 	// Set uniforms
@@ -4922,7 +4922,7 @@ void addMouseForce() {
 }
 
 
-void addColor(float posX, float posY, float velX, float velY, float radius)
+void addColor(float posX, float posY, float global_velX, float global_velY, float radius)
 {
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
@@ -5231,8 +5231,8 @@ void updateObstacle() {
 
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = -1.0f;
-			newStamp.velX = -0.001f;
-			newStamp.velY = 0.0f;
+			newStamp.global_velX = -0.001f;
+			newStamp.global_velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -5293,8 +5293,8 @@ void move_and_fork_bullets(void)
 
 				if (closest_enemy == -1)
 				{
-					stamp.posX += stamp.velX;
-					stamp.posY += stamp.velY;
+					stamp.posX += stamp.global_velX;
+					stamp.posY += stamp.global_velY;
 				}
 				else
 				{
@@ -5313,11 +5313,11 @@ void move_and_fork_bullets(void)
 					float rand_x = 0, rand_y = 0;
 					RandomUnitVector(rand_x, rand_y);
 
-					stamp.velX = dir_x;
-					stamp.velY = dir_y;
+					stamp.global_velX = dir_x;
+					stamp.global_velY = dir_y;
 
-					stamp.posX += stamp.velX;
-					stamp.posY += stamp.velY;
+					stamp.posX += stamp.global_velX;
+					stamp.posY += stamp.global_velY;
 				}
 			}
 			else
@@ -5327,8 +5327,8 @@ void move_and_fork_bullets(void)
 				//elapsed = global_time_end - app_start_time;
 
 				// Store the original direction vector
-				float dirX = stamp.velX * aspect;
-				float dirY = stamp.velY;
+				float dirX = stamp.global_velX * aspect;
+				float dirY = stamp.global_velY;
 
 				// Normalize the direction vector
 				float dirLength = sqrt(dirX * dirX + dirY * dirY);
@@ -5381,8 +5381,8 @@ void move_and_fork_bullets(void)
 
 					float rand_x = 0, rand_y = 0;
 					RandomUnitVector(rand_x, rand_y);
-					newBullet.velX += rand_x * r;
-					newBullet.velY += rand_y * r;
+					newBullet.global_velX += rand_x * r;
+					newBullet.global_velY += rand_y * r;
 
 					if (type == "ally")
 						allyBullets.push_back(newBullet);
@@ -5541,8 +5541,8 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.velX;// / aspect;
-		stamp.posY += stamp.velY;
+		stamp.posX += stamp.global_velX;// / aspect;
+		stamp.posY += stamp.global_velY;
 
 		// Calculate adjusted Y coordinate that accounts for aspect ratio
 		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
@@ -5573,8 +5573,8 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.velX;// / aspect;
-		stamp.posY += stamp.velY;
+		stamp.posX += stamp.global_velX;// / aspect;
+		stamp.posY += stamp.global_velY;
 	}
 
 
@@ -5588,8 +5588,8 @@ void move_ships(void) {
 //		Stamp& stamp = enemyShips[i];
 //		if (stamp.to_be_culled) continue;
 //
-//		//	stamp.posX += stamp.velX;// / aspect;
-////	stamp.posY += stamp.velY;
+//		//	stamp.posX += stamp.global_velX;// / aspect;
+////	stamp.posY += stamp.global_velY;
 //
 //
 //		//const float aspect = WIDTH / float(HEIGHT);
@@ -5615,8 +5615,8 @@ void move_ships(void) {
 //
 //		const float aspect = WIDTH / float(HEIGHT);
 //
-//		stamp.posX += stamp.velX / aspect;
-//		stamp.posY += stamp.velY;
+//		stamp.posX += stamp.global_velX / aspect;
+//		stamp.posY += stamp.global_velY;
 //
 //		// Calculate adjusted Y coordinate that accounts for aspect ratio
 //		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
@@ -5639,16 +5639,16 @@ void move_ships(void) {
 //			stamp.currentVariationIndex = 0;
 //		}
 //		else {
-//			if (stamp.velY > 0.001)
+//			if (stamp.global_velY > 0.001)
 //				stamp.currentVariationIndex = 1;
-//			else if (stamp.velY < -0.001)
+//			else if (stamp.global_velY < -0.001)
 //				stamp.currentVariationIndex = 2;
 //			else
 //				stamp.currentVariationIndex = 0;
 //		}
 //
-//		//stamp.velX = vel_x;
-//		//stamp.velY = vel_y;
+//		//stamp.global_velX = vel_x;
+//		//stamp.global_velY = vel_y;
 //	}
 
 	// Process chunked foregrounds as groups
@@ -5698,13 +5698,13 @@ void move_ships(void) {
 			//	chunk.data_offsetY * originalHeight +
 			//	chunkHeight / 2.0f;
 
-			chunk.posX = chunk.posX + chunk.velX;
-			chunk.posY = chunk.posY + chunk.velY;
+			chunk.posX = chunk.posX + chunk.global_velX;
+			chunk.posY = chunk.posY + chunk.global_velY;
 
 
 			//// Calculate velocity
-			//chunk.velX = chunk.posX - chunk.prevPosX;
-			//chunk.velY = chunk.posY - chunk.prevPosY;
+			//chunk.global_velX = chunk.posX - chunk.prevPosX;
+			//chunk.global_velY = chunk.posY - chunk.prevPosY;
 		}
 	}
 }
@@ -5747,10 +5747,10 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.colour_radius = avg_rad / 4;
 		newStamp.force_radius = avg_rad / 4;
 
-		RandomUnitVector(newStamp.velX, newStamp.velY);
+		RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
 
-		newStamp.velX /= 250.0f / (rand() / float(RAND_MAX));
-		newStamp.velY /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.global_velX /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
@@ -5768,10 +5768,10 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.colour_radius = avg_rad / 8;
 		newStamp.force_radius = avg_rad / 8;
 
-		RandomUnitVector(newStamp.velX, newStamp.velY);
+		RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
 
-		newStamp.velX /= 100.0f / (rand() / float(RAND_MAX));
-		newStamp.velY /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.global_velX /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
@@ -6034,8 +6034,8 @@ void move_powerups(void)
 		//{
 		//	const float aspect = WIDTH / float(HEIGHT);
 
-		//	stamp.posX += stamp.velX / aspect;
-		//	stamp.posY += stamp.velY;
+		//	stamp.posX += stamp.global_velX / aspect;
+		//	stamp.posY += stamp.global_velY;
 		//}
 
 		for (auto& stamp : stamps)
@@ -6046,8 +6046,8 @@ void move_powerups(void)
 			//elapsed = global_time_end - app_start_time;
 
 			// Store the original direction vector
-			float dirX = stamp.velX * aspect;
-			float dirY = stamp.velY;
+			float dirX = stamp.global_velX * aspect;
+			float dirY = stamp.global_velY;
 
 			// Normalize the direction vector
 			float dirLength = sqrt(dirX * dirX + dirY * dirY);
@@ -6075,8 +6075,8 @@ void move_powerups(void)
 
 			// Move forward along original path
 			float forwardSpeed = dirLength; // Original velocity magnitude
-			stamp.posX += stamp.velX * aspect;
-			stamp.posY += stamp.velY;
+			stamp.posX += stamp.global_velX * aspect;
+			stamp.posY += stamp.global_velY;
 
 			// Add sinusoidal motion perpendicular to the path
 			stamp.posX += perpX * sinValue * amplitude;
@@ -6208,16 +6208,16 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].force_radius, 1);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].velX, allyBullets[i].velY, allyBullets[i].colour_radius);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].global_velX, allyBullets[i].global_velY, allyBullets[i].force_radius, 1);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].global_velX, allyBullets[i].global_velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].force_radius, 1);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].velX, enemyBullets[i].velY, enemyBullets[i].colour_radius);
+		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].global_velX, enemyBullets[i].global_velY, enemyBullets[i].force_radius, 1);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].global_velX, enemyBullets[i].global_velY, enemyBullets[i].colour_radius);
 	}
 
 	red_mode = old_red_mode;
@@ -6528,7 +6528,7 @@ void testForegroundChunking() {
 
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.84f;// 1.0 - normalized_stamp_height / 2.0f;
+	originalStamp.posY = 0.84f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = GLOBAL_TIME + 30.0f;
@@ -6574,8 +6574,8 @@ void testForegroundChunking() {
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
 
-		chunkStamp.velX = -0.01;
-		chunkStamp.velY = 0;
+		chunkStamp.global_velX = -0.01;
+		chunkStamp.global_velY = 0;
 
 		enemyShips.push_back(chunkStamp);
 	}
@@ -6700,8 +6700,8 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1.0f;
-		newStamp.velX = -0.0025f; // Pixels per second
-		newStamp.velY = 0.0f;// 5.0f;
+		newStamp.global_velX = -0.0025f; // Pixels per second
+		newStamp.global_velY = 0.0f;// 5.0f;
 		allyPowerUps.push_back(newStamp);
 
 		std::cout << "Added new power up";
@@ -6723,8 +6723,8 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
-		newStamp.velX = -0.01;
-		newStamp.velY = 0;
+		newStamp.global_velX = -0.01;
+		newStamp.global_velY = 0;
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1;
@@ -6867,32 +6867,32 @@ void specialKeyboard(int key, int x, int y) {
 
 	if (allyShips.size() > 0) {
 		// Reset velocity
-		allyShips[0].velX = 0.0;
-		allyShips[0].velY = 0.0;
+		allyShips[0].global_velX = 0.0;
+		allyShips[0].global_velY = 0.0;
 
 		// Combine key states to allow diagonal movement
 		if (upKeyPressed) {
-			allyShips[0].velY = 1;
+			allyShips[0].global_velY = 1;
 		}
 		if (downKeyPressed) {
-			allyShips[0].velY = -1;
+			allyShips[0].global_velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].velX = -1;
+			allyShips[0].global_velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].velX = 1;
+			allyShips[0].global_velX = 1;
 		}
 
-		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+		float vel_length = sqrt(allyShips[0].global_velX * allyShips[0].global_velX + allyShips[0].global_velY * allyShips[0].global_velY);
 
 		if (vel_length > 0)
 		{
-			allyShips[0].velX /= vel_length;
-			allyShips[0].velY /= vel_length;
+			allyShips[0].global_velX /= vel_length;
+			allyShips[0].global_velY /= vel_length;
 
-			allyShips[0].velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
+			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
 		}
 	}
 }
@@ -6924,31 +6924,31 @@ void specialKeyboardUp(int key, int x, int y) {
 
 	if (allyShips.size() > 0) {
 		// Reset velocity if no keys are pressed
-		allyShips[0].velX = 0.0;
-		allyShips[0].velY = 0.0;
+		allyShips[0].global_velX = 0.0;
+		allyShips[0].global_velY = 0.0;
 
 		if (upKeyPressed) {
-			allyShips[0].velY = 1;
+			allyShips[0].global_velY = 1;
 		}
 		if (downKeyPressed) {
-			allyShips[0].velY = -1;
+			allyShips[0].global_velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].velX = -1;
+			allyShips[0].global_velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].velX = 1;
+			allyShips[0].global_velX = 1;
 		}
 
-		float vel_length = sqrt(allyShips[0].velX * allyShips[0].velX + allyShips[0].velY * allyShips[0].velY);
+		float vel_length = sqrt(allyShips[0].global_velX * allyShips[0].global_velX + allyShips[0].global_velY * allyShips[0].global_velY);
 
 		if (vel_length > 0)
 		{
-			allyShips[0].velX /= vel_length;
-			allyShips[0].velY /= vel_length;
+			allyShips[0].global_velX /= vel_length;
+			allyShips[0].global_velY /= vel_length;
 
-			allyShips[0].velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
+			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
 		}
 	}
 }
@@ -7243,6 +7243,8 @@ int main(int argc, char** argv) {
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 	
+
+
 
 	//vector<image> sub_images;
 
