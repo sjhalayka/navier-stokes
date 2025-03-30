@@ -368,7 +368,7 @@ public:
 		sinusoidal_amplitude = other.sinusoidal_amplitude;
 		sinusoidal_shift = other.sinusoidal_shift;
 		random_forking = other.random_forking;
-		curve_path = other.curve_path;
+//		curve_path = other.curve_path;
 		posX = other.posX;
 		posY = other.posY;
 		velX = other.velX;
@@ -378,8 +378,8 @@ public:
 		under_fire = other.under_fire;
 		cannons = other.cannons;
 		is_foreground = other.is_foreground;
-		prevPosX = other.prevPosX;
-		prevPosY = other.prevPosY;
+//		prevPosX = other.prevPosX;
+//		prevPosY = other.prevPosY;
 
 		// Copy chunking data
 		data_offsetX = other.data_offsetX;
@@ -449,7 +449,7 @@ public:
 			sinusoidal_amplitude = other.sinusoidal_amplitude;
 			sinusoidal_shift = other.sinusoidal_shift;
 			random_forking = other.random_forking;
-			curve_path = other.curve_path;
+//			curve_path = other.curve_path;
 			posX = other.posX;
 			posY = other.posY;
 			velX = other.velX;
@@ -459,8 +459,8 @@ public:
 			under_fire = other.under_fire;
 			cannons = other.cannons;
 			is_foreground = other.is_foreground;
-			prevPosX = other.prevPosX;
-			prevPosY = other.prevPosY;
+//			prevPosX = other.prevPosX;
+//			prevPosY = other.prevPosY;
 
 			// Copy chunking data
 			data_offsetX = other.data_offsetX;
@@ -541,7 +541,7 @@ public:
 	float sinusoidal_amplitude = 0.001f;
 	bool sinusoidal_shift = false;
 	float random_forking = 0.0f;
-	vector<vec2> curve_path;
+//	vector<vec2> curve_path;
 	float posX = 0, posY = 0;
 	float velX = 0, velY = 0;
 	size_t currentVariationIndex = 0;
@@ -549,7 +549,7 @@ public:
 	bool under_fire = false;
 	vector<Cannon> cannons;
 	bool is_foreground = false;
-	float prevPosX = 0, prevPosY = 0;
+//	float prevPosX = 0, prevPosY = 0;
 
 	// New parameters for chunking
 	float data_offsetX = 0.0f;
@@ -650,7 +650,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			chunkStamp.textureNames = { chunkStamp.baseFilename };
 			chunkStamp.is_foreground = true;
 
-			chunkStamp.curve_path = originalStamp.curve_path;
+			//chunkStamp.curve_path = originalStamp.curve_path;
 			chunkStamp.birth_time = originalStamp.birth_time;
 			chunkStamp.death_time = originalStamp.death_time;
 			chunkStamp.health = originalStamp.health;
@@ -5540,10 +5540,8 @@ void move_ships(void) {
 		if (stamp.to_be_culled) continue;
 
 		const float aspect = WIDTH / float(HEIGHT);
-		stamp.prevPosX = stamp.posX;
-		stamp.prevPosY = stamp.posY;
 
-		stamp.posX += stamp.velX / aspect;
+		stamp.posX += stamp.velX;// / aspect;
 		stamp.posY += stamp.velY;
 
 		// Calculate adjusted Y coordinate that accounts for aspect ratio
@@ -5562,52 +5560,126 @@ void move_ships(void) {
 			stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
 	}
 
-	// Process non-chunked enemy ships as before
-	for (size_t i = 0; i < enemyShips.size(); i++) {
-		// Skip if this is part of a chunked foreground (we'll process these separately)
-		if (chunkedIndices.find(i) != chunkedIndices.end()) {
-			continue;
-		}
 
-		Stamp& stamp = enemyShips[i];
-		if (stamp.to_be_culled) continue;
+
+
+
+
+
+	for (auto& stamp : enemyShips) 
+	{
+		if (stamp.is_foreground || stamp.to_be_culled)
+			continue;
 
 		const float aspect = WIDTH / float(HEIGHT);
-		stamp.prevPosX = stamp.posX;
-		stamp.prevPosY = stamp.posY;
 
-		float t = GLOBAL_TIME - stamp.birth_time;
-		t /= stamp.death_time - stamp.birth_time;
-
-		vec2 vd = get_curve_point(stamp.curve_path, t);
-		vec2 vd2 = get_straight_point(stamp.curve_path, t);
-
-		vd.x = lerp(vd.x, vd2.x, 0.15f);
-		vd.y = lerp(vd.y, vd2.y, 0.15f);
-
-		stamp.posX = vd.x;
-		stamp.posY = vd.y;
-
-		const float vel_y = stamp.posY - stamp.prevPosY;
-		const float vel_x = stamp.posX - stamp.prevPosX;
-
-		stamp.currentVariationIndex = 0;
-
-		if (stamp.is_foreground) {
-			stamp.currentVariationIndex = 0;
-		}
-		else {
-			if (vel_y > 0.001)
-				stamp.currentVariationIndex = 1;
-			else if (vel_y < -0.001)
-				stamp.currentVariationIndex = 2;
-			else
-				stamp.currentVariationIndex = 0;
-		}
-
-		stamp.velX = vel_x;
-		stamp.velY = vel_y;
+		stamp.posX += stamp.velX;// / aspect;
+		stamp.posY += stamp.velY;
 	}
+
+
+
+
+	//for (auto& stamp : enemyShips) {
+	//	if (stamp.to_be_culled) continue;
+
+	//	const float aspect = WIDTH / float(HEIGHT);
+	//	//stamp.prevPosX = stamp.posX;
+	//	//stamp.prevPosY = stamp.posY;
+
+	//	stamp.posX += stamp.velX;// / aspect;
+	//	stamp.posY += stamp.velY;
+
+	//	// Calculate adjusted Y coordinate that accounts for aspect ratio
+	//	float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+	//	// Constrain X position
+	//	if (stamp.posX < 0)
+	//		stamp.posX = 0;
+	//	if (stamp.posX > 1)
+	//		stamp.posX = 1;
+
+	//	// Constrain Y position, accounting for aspect ratio
+	//	if (adjustedPosY < 0)
+	//		stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+	//	if (adjustedPosY > 1)
+	//		stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+	//}
+
+
+
+	// Process non-chunked enemy ships as before
+//	for (size_t i = 0; i < enemyShips.size(); i++) {
+//		// Skip if this is part of a chunked foreground (we'll process these separately)
+//		if (chunkedIndices.find(i) != chunkedIndices.end()) {
+//			continue;
+//		}
+//
+//		Stamp& stamp = enemyShips[i];
+//		if (stamp.to_be_culled) continue;
+//
+//		//	stamp.posX += stamp.velX;// / aspect;
+////	stamp.posY += stamp.velY;
+//
+//
+//		//const float aspect = WIDTH / float(HEIGHT);
+//		//stamp.prevPosX = stamp.posX;
+//		//stamp.prevPosY = stamp.posY;
+//
+//		//float t = GLOBAL_TIME - stamp.birth_time;
+//		//t /= stamp.death_time - stamp.birth_time;
+//
+//		//vec2 vd = get_curve_point(stamp.curve_path, t);
+//		//vec2 vd2 = get_straight_point(stamp.curve_path, t);
+//
+//		//vd.x = lerp(vd.x, vd2.x, 0.15f);
+//		//vd.y = lerp(vd.y, vd2.y, 0.15f);
+//
+//		//stamp.posX = vd.x;
+//		//stamp.posY = vd.y;
+//
+//		//const float vel_y = stamp.posY - stamp.prevPosY;
+//		//const float vel_x = stamp.posX - stamp.prevPosX;
+//
+//
+//
+//		const float aspect = WIDTH / float(HEIGHT);
+//
+//		stamp.posX += stamp.velX / aspect;
+//		stamp.posY += stamp.velY;
+//
+//		// Calculate adjusted Y coordinate that accounts for aspect ratio
+//		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+//
+//		// Constrain X position
+//		if (stamp.posX < 0)
+//			stamp.posX = 0;
+//		if (stamp.posX > 1)
+//			stamp.posX = 1;
+//
+//		// Constrain Y position, accounting for aspect ratio
+//		if (adjustedPosY < 0)
+//			stamp.posY = 0.5f - 0.5f / aspect; // Convert back from adjusted to original
+//		if (adjustedPosY > 1)
+//			stamp.posY = 0.5f + 0.5f / aspect; // Convert back from adjusted to original
+//
+//		stamp.currentVariationIndex = 0;
+//
+//		if (stamp.is_foreground) {
+//			stamp.currentVariationIndex = 0;
+//		}
+//		else {
+//			if (stamp.velY > 0.001)
+//				stamp.currentVariationIndex = 1;
+//			else if (stamp.velY < -0.001)
+//				stamp.currentVariationIndex = 2;
+//			else
+//				stamp.currentVariationIndex = 0;
+//		}
+//
+//		//stamp.velX = vel_x;
+//		//stamp.velY = vel_y;
+//	}
 
 	// Process chunked foregrounds as groups
 	for (const auto& [baseFilename, indices] : chunkedForegrounds) {
@@ -5621,11 +5693,11 @@ void move_ships(void) {
 		t /= referenceChunk.death_time - referenceChunk.birth_time;
 
 		// Get position for original full-sized foreground
-		vec2 vd = get_curve_point(referenceChunk.curve_path, t);
-		vec2 vd2 = get_straight_point(referenceChunk.curve_path, t);
+		//vec2 vd = get_curve_point(referenceChunk.curve_path, t);
+		//vec2 vd2 = get_straight_point(referenceChunk.curve_path, t);
 
-		vd.x = lerp(vd.x, vd2.x, 0.15f);
-		vd.y = lerp(vd.y, vd2.y, 0.15f);
+		//vd.x = lerp(vd.x, vd2.x, 0.15f);
+		//vd.y = lerp(vd.y, vd2.y, 0.15f);
 
 		// Calculate original stamp width and height in normalized coordinates
 		float originalWidth = referenceChunk.data_original_width / float(WIDTH);
@@ -5635,30 +5707,37 @@ void move_ships(void) {
 		for (size_t idx : indices) {
 			Stamp& chunk = enemyShips[idx];
 
+
+
 			// Store previous position
-			chunk.prevPosX = chunk.posX;
-			chunk.prevPosY = chunk.posY;
+			//chunk.prevPosX = chunk.posX;
+			//chunk.prevPosY = chunk.posY;
+
+
 
 			// Calculate normalized chunk size
 			float chunkWidth = chunk.width / float(WIDTH);
 			float chunkHeight = chunk.height / float(HEIGHT);
 
-			// Calculate the chunk's position relative to the original
-			chunk.posX = vd.x - originalWidth / 2.0f +
-				chunk.data_offsetX * originalWidth +
-				chunkWidth / 2.0f;
+			//// Calculate the chunk's position relative to the original
+			//chunk.posX = vd.x - originalWidth / 2.0f +
+			//	chunk.data_offsetX * originalWidth +
+			//	chunkWidth / 2.0f;
 
-			chunk.posY = vd.y - originalHeight / 2.0f +
-				chunk.data_offsetY * originalHeight +
-				chunkHeight / 2.0f;
+			//chunk.posY = vd.y - originalHeight / 2.0f +
+			//	chunk.data_offsetY * originalHeight +
+			//	chunkHeight / 2.0f;
 
-			// Calculate velocity
-			chunk.velX = chunk.posX - chunk.prevPosX;
-			chunk.velY = chunk.posY - chunk.prevPosY;
+			chunk.posX = chunk.posX + chunk.velX;
+			chunk.posY = chunk.posY + chunk.velY;
+
+
+			//// Calculate velocity
+			//chunk.velX = chunk.posX - chunk.prevPosX;
+			//chunk.velY = chunk.posY - chunk.prevPosY;
 		}
 	}
 }
-
 
 
 void make_dying_bullets(const Stamp& stamp, const bool enemy)
@@ -5732,7 +5811,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		else
 			allyBullets.push_back(newStamp);
 	}
-
 }
 
 
@@ -6487,8 +6565,8 @@ void testForegroundChunking() {
 	end.x = -normalized_stamp_width / 2.0f;
 	end.y = 0.7825f;
 
-	originalStamp.curve_path.push_back(start);
-	originalStamp.curve_path.push_back(end);
+//	originalStamp.curve_path.push_back(start);
+//	originalStamp.curve_path.push_back(end);
 
 	originalStamp.posX = start.x;
 	originalStamp.posY = start.y;
@@ -6528,7 +6606,7 @@ void testForegroundChunking() {
 		float normalizedChunkWidth = chunkStamp.width / float(WIDTH);
 		float normalizedChunkHeight = chunkStamp.height / float(HEIGHT);
 
-		chunkStamp.curve_path = originalStamp.curve_path;
+		//chunkStamp.curve_path = originalStamp.curve_path;
 		chunkStamp.posX = originalStamp.posX - normalizedOrigWidth / 2.0f +
 			chunkStamp.data_offsetX * normalizedOrigWidth +
 			normalizedChunkWidth / 2.0f;
@@ -6680,18 +6758,13 @@ void keyboard(unsigned char key, int x, int y) {
 		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
 		start.y = rand() / float(RAND_MAX);
 
-		newStamp.curve_path.push_back(start);
-
-		vec2 end;
-		end.x = -normalized_stamp_width / 2.0f;
-		end.y = rand() / float(RAND_MAX);
-		newStamp.curve_path.push_back(end);
-
 		newStamp.posX = start.x;
 		newStamp.posY = start.y;
+		newStamp.velX = -0.01;
+		newStamp.velY = 0;
 
 		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = GLOBAL_TIME + 15.0f;
+		newStamp.death_time = -1;
 
 		enemyShips.push_back(newStamp);
 		break;
