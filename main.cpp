@@ -5719,7 +5719,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	//std::chrono::duration<float, std::milli> elapsed;
 	//elapsed = global_time_end - app_start_time;
 
-	Stamp newCentralStamp = bulletTemplates[0];
+	Stamp newCentralStamp = deepCopyStamp(bulletTemplates[0]);
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0f;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0f;
@@ -5742,7 +5742,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	for (size_t j = 0; j < 3; j++)
 	{
-		Stamp newStamp = newCentralStamp;
+		Stamp newStamp = deepCopyStamp(newCentralStamp);
 
 		newStamp.colour_radius = avg_rad / 4;
 		newStamp.force_radius = avg_rad / 4;
@@ -5763,7 +5763,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	for (size_t j = 0; j < 5; j++)
 	{
-		Stamp newStamp = newCentralStamp;
+		Stamp newStamp = deepCopyStamp(newCentralStamp);
 
 		newStamp.colour_radius = avg_rad / 8;
 		newStamp.force_radius = avg_rad / 8;
