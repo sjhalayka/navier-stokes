@@ -203,8 +203,8 @@ vec2 get_curve_point(vector<vec2> points, float t)
 
 
 // Simulation parameters
-int WIDTH = 960;
-int HEIGHT = 540;
+int WIDTH = 1920;
+int HEIGHT = 1080;
 
 glm::mat4 orthoMatrix;
 
@@ -718,7 +718,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 		// Calculate normalized position within the original stamp with the special scaling
 		// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
 		float offsetX = pixelX / originalStamp.width / 1.35f;
-		float offsetY = pixelY / originalStamp.height / 1.35f;// / (WIDTH / float(HEIGHT));
+		float offsetY = pixelY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));
 
 		// Calculate normalized dimensions of original stamp in screen space
 		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
@@ -6598,7 +6598,7 @@ void testForegroundChunking() {
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
-
+		
 	// to do: tinker with this to get perfect scale and translation
 	float scaleFactor = 1.095f;
 
@@ -6606,11 +6606,11 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 100;
+	iv.y = 1080;// *scaleFactor;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = 100;
+	iv.y = (100);// *scaleFactor;
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6660,6 +6660,9 @@ void testForegroundChunking() {
 		enemyShips.push_back(chunkStamp);
 	}
 
+		
+	cout << WIDTH << "x" << HEIGHT << endl;
+
 	for (size_t i = 0; i < output_screen_locations.size(); i++)
 	{
 
@@ -6676,7 +6679,7 @@ void testForegroundChunking() {
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y;
+		newStamp.posY = output_screen_locations[i].y*scaleFactor;
 		newStamp.global_velX = foreground_vel;
 		newStamp.global_velY = 0;
 
@@ -7352,8 +7355,6 @@ int main(int argc, char** argv) {
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
 
-
-
 	//vector<image> sub_images;
 
 	//size_t enemy_index = 0;
@@ -7439,6 +7440,8 @@ int main(int argc, char** argv) {
 	glutSpecialFunc(specialKeyboard);
 	glutSpecialUpFunc(specialKeyboardUp);
 
+
+	cout << WIDTH << "X" << HEIGHT << endl;
 	glutFullScreen();
 
 	// Print instructions
