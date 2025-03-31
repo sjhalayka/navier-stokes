@@ -613,6 +613,8 @@ bool isChunkFullyTransparent(const std::vector<unsigned char>& pixelData, int wi
 	return true;
 }
 
+
+
 std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize, float scaleFactor, const vector<ivec2>& input_pixel_locations, vector<vec2>& output_screen_locations)
 {
 	output_screen_locations.clear();
@@ -627,34 +629,6 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 	int numChunksX = (originalStamp.width + chunkSize - 1) / chunkSize;
 	int numChunksY = (originalStamp.height + chunkSize - 1) / chunkSize;
-
-	// Calculate transformation for pixel coordinates to screen coordinates
-	float originalWidth = originalStamp.width;
-	float originalHeight = originalStamp.height;
-	float aspectRatio = WIDTH / float(HEIGHT);
-
-	// Transform each input pixel location to screen space coordinates
-	for (size_t i = 0; i < input_pixel_locations.size(); i++) {
-		// Convert pixel position to normalized coordinates within the original texture [0,1]
-		float normalizedX = input_pixel_locations[i].x / float(originalWidth);
-		float normalizedY = input_pixel_locations[i].y / float(originalHeight);
-
-		// Apply scaling factor
-		normalizedX *= scaleFactor;
-		normalizedY *= scaleFactor;
-
-		// Convert to screen coordinates, accounting for the stamp's position and scaling
-		float screenX = originalStamp.posX - (scaleFactor * originalWidth / float(WIDTH) / 2.0f) +
-			normalizedX * originalWidth / float(WIDTH);
-
-		// Apply aspect ratio adjustment for Y coordinate
-		float screenY = originalStamp.posY - (scaleFactor * originalHeight / float(HEIGHT) / 2.0f) +
-			normalizedY * originalHeight / float(HEIGHT) / aspectRatio;
-
-		// Store the screen coordinates
-		output_screen_locations[i].x = screenX;
-		output_screen_locations[i].y = screenY;
-	}
 
 	for (int chunkY = 0; chunkY < numChunksY; chunkY++) {
 		for (int chunkX = 0; chunkX < numChunksX; chunkX++) {
@@ -680,14 +654,15 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			chunkStamp.textureNames = { chunkStamp.baseFilename };
 			chunkStamp.is_foreground = true;
 
+			//chunkStamp.curve_path = originalStamp.curve_path;
 			chunkStamp.birth_time = originalStamp.birth_time;
 			chunkStamp.death_time = originalStamp.death_time;
 			chunkStamp.health = originalStamp.health;
 			chunkStamp.currentVariationIndex = 0;
 
 			// Scale the offsets proportionally
-			float offsetX = (float)startX / originalStamp.width / 1.35f;
-			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));
+			float offsetX = (float)startX / originalStamp.width / 1.35f;// *scaleFactor;
+			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));// *scaleFactor;
 
 			std::vector<unsigned char> chunkPixelData(chunkStamp.width * chunkStamp.height * originalStamp.channels);
 
@@ -735,6 +710,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 	return chunks;
 }
+
 
 
 //
@@ -6573,17 +6549,17 @@ void testForegroundChunking() {
 
 	// to do: tinker with this to get perfect scale and translation
 	float scaleFactor = 1.095f;
-		
+
 	vector<ivec2> input_pixel_locations;
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 0;
+	iv.y = 1080 / 2;
 	input_pixel_locations.push_back(iv);
 
-	//iv.x = 200;
-	//iv.y = 1080 / 4;
-	//input_pixel_locations.push_back(iv);
+	iv.x = 200;
+	iv.y = 1080 / 4;
+	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
 
@@ -6631,35 +6607,6 @@ void testForegroundChunking() {
 
 		enemyShips.push_back(chunkStamp);
 	}
-
-	for (size_t i = 0; i < output_screen_locations.size(); i++)
-	{
-		cout << "ADDING ENEMY" << endl;
-
-		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
-		// Explicitly ensure blackeningTexture is 0
-		newStamp.blackeningTexture = 0;
-
-		float normalized_stamp_width = newStamp.width / float(WIDTH);
-		float normalized_stamp_height = newStamp.height / float(HEIGHT);
-
-		vec2 start;
-		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-		start.y = rand() / float(RAND_MAX);
-
-		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y;
-		newStamp.global_velX = foreground_vel;
-		newStamp.global_velY = 0;
-
-		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = -1;
-
-		enemyShips.push_back(newStamp);
-	}
-
-
-
 }
 
 
@@ -7422,6 +7369,9 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
+
+
 
 
 
