@@ -5416,11 +5416,18 @@ void mark_colliding_bullets(void)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = GLOBAL_TIME;
 
-	// get rid of enemy bullets that hit enemy ships too (especially background obstacles)
-	for (size_t i = 0; i < enemyBullets.size(); ++i)
-		for (size_t j = 0; j < enemyShips.size(); ++j)
-			if (isPixelPerfectCollision(enemyBullets[i], enemyShips[j]))
-				enemyBullets[i].death_time = GLOBAL_TIME;
+	//// get rid of enemy bullets that hit enemy ships too (especially foreground obstacles)
+	//for (size_t i = 0; i < enemyBullets.size(); ++i)
+	//{
+	//	for (size_t j = 0; j < enemyShips.size(); ++j)
+	//	{
+	//		if (false == enemyShips[j].is_foreground)
+	//			continue;
+
+	//		if (isPixelPerfectCollision(enemyBullets[i], enemyShips[j]))
+	//			enemyBullets[i].death_time = GLOBAL_TIME;
+	//	}
+	//}
 }
 
 void mark_old_bullets(void)
@@ -5733,7 +5740,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	newCentralStamp.posY = stamp.posY;
 
 	newCentralStamp.birth_time = GLOBAL_TIME;
-	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
+	newCentralStamp.death_time = GLOBAL_TIME + 1.0f;
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -5753,7 +5760,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
+		newStamp.death_time = GLOBAL_TIME + 1.0f;// *rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -5774,7 +5781,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
+		newStamp.death_time = GLOBAL_TIME + 3.0f;// *rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -7245,7 +7252,7 @@ int main(int argc, char** argv) {
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
-
+	srand(time(0));
 
 
 	//vector<image> sub_images;
