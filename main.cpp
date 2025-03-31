@@ -718,7 +718,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 		// Calculate normalized position within the original stamp with the special scaling
 		// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
 		float offsetX = pixelX / originalStamp.width / 1.35f;
-		float offsetY = pixelY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));
+		float offsetY = pixelY / originalStamp.height / 1.35f;// / (WIDTH / float(HEIGHT));
 
 		// Calculate normalized dimensions of original stamp in screen space
 		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
@@ -733,7 +733,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 		// Store the result
 		output_screen_locations[i].x = screenX;
-		output_screen_locations[i].y = input_pixel_locations[i].y / 1080.0f;// screenY;
+		output_screen_locations[i].y = screenY;
 	}
 
 
