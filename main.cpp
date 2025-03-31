@@ -708,6 +708,36 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 		}
 	}
 
+
+
+	for (size_t i = 0; i < input_pixel_locations.size(); i++) {
+		// Get pixel coordinates in original stamp space
+		float pixelX = static_cast<float>(input_pixel_locations[i].x);
+		float pixelY = static_cast<float>(input_pixel_locations[i].y);
+
+		// Calculate normalized position within the original stamp with the special scaling
+		// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
+		float offsetX = pixelX / originalStamp.width / 1.35f;
+		float offsetY = pixelY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));
+
+		// Calculate normalized dimensions of original stamp in screen space
+		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
+		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
+
+		// Calculate screen coordinates using the same positioning logic as chunks
+		float screenX = originalStamp.posX - normalizedOrigWidth / 2.0f +
+			offsetX * normalizedOrigWidth;
+
+		float screenY = originalStamp.posY - normalizedOrigHeight / 2.0f +
+			offsetY * normalizedOrigHeight;
+
+		// Store the result
+		output_screen_locations[i].x = screenX;
+		output_screen_locations[i].y = input_pixel_locations[i].y / 1080.0f;// screenY;
+	}
+
+
+
 	return chunks;
 }
 
@@ -6554,11 +6584,11 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 1080 / 2;
+	iv.y = 100;
 	input_pixel_locations.push_back(iv);
 
-	iv.x = 200;
-	iv.y = 1080 / 4;
+	iv.x = 3000;
+	iv.y = 1080/2;
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6606,6 +6636,32 @@ void testForegroundChunking() {
 		chunkStamp.health = 1000000; // Practically infinite
 
 		enemyShips.push_back(chunkStamp);
+	}
+
+	for (size_t i = 0; i < output_screen_locations.size(); i++)
+	{
+		cout << "ADDING ENEMY" << endl;
+
+		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+		// Explicitly ensure blackeningTexture is 0
+		newStamp.blackeningTexture = 0;
+
+		float normalized_stamp_width = newStamp.width / float(WIDTH);
+		float normalized_stamp_height = newStamp.height / float(HEIGHT);
+
+		vec2 start;
+		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		start.y = rand() / float(RAND_MAX);
+
+		newStamp.posX = output_screen_locations[i].x;
+		newStamp.posY = output_screen_locations[i].y;
+		newStamp.global_velX = foreground_vel;
+		newStamp.global_velY = 0;
+
+		newStamp.birth_time = GLOBAL_TIME;
+		newStamp.death_time = -1;
+
+		enemyShips.push_back(newStamp);
 	}
 }
 
