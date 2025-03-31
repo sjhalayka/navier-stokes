@@ -708,6 +708,11 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 		}
 	}
 
+
+
+
+
+
 	return chunks;
 }
 
@@ -6549,7 +6554,7 @@ void testForegroundChunking() {
 
 	// to do: tinker with this to get perfect scale and translation
 	float scaleFactor = 1.095f;
-
+		
 	vector<ivec2> input_pixel_locations;
 
 	ivec2 iv;
@@ -6607,6 +6612,35 @@ void testForegroundChunking() {
 
 		enemyShips.push_back(chunkStamp);
 	}
+
+	for (size_t i = 0; i < output_screen_locations.size(); i++)
+	{
+		cout << "ADDING ENEMY" << endl;
+
+		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+		// Explicitly ensure blackeningTexture is 0
+		newStamp.blackeningTexture = 0;
+
+		float normalized_stamp_width = newStamp.width / float(WIDTH);
+		float normalized_stamp_height = newStamp.height / float(HEIGHT);
+
+		vec2 start;
+		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		start.y = rand() / float(RAND_MAX);
+
+		newStamp.posX = output_screen_locations[i].x;
+		newStamp.posY = output_screen_locations[i].y;
+		newStamp.global_velX = foreground_vel;
+		newStamp.global_velY = 0;
+
+		newStamp.birth_time = GLOBAL_TIME;
+		newStamp.death_time = -1;
+
+		enemyShips.push_back(newStamp);
+	}
+
+
+
 }
 
 
