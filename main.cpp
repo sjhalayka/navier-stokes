@@ -73,7 +73,7 @@ using namespace std;
 
 
 float foreground_vel = -0.01;
-float foreground_birth_time = 0;
+
 
 // Structure to hold collision point data
 struct BlackeningPoint {
@@ -6528,7 +6528,7 @@ void testForegroundChunking() {
 
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.84f;
+	originalStamp.posY = 0.4f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
@@ -6538,7 +6538,7 @@ void testForegroundChunking() {
 	float scaleFactor = 1.095f;
 
 	// foreground width and height must be evenly divisible by 120
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor);
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 1080, scaleFactor);
 
 	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
 
@@ -6585,80 +6585,12 @@ void testForegroundChunking() {
 
 
 
-
-vec2 convertForegroundPixelToGameCoords(
-	int pixelX, int pixelY,                 // Pixel coordinates in the original foreground
-	int foregroundWidth, int foregroundHeight, // Dimensions of the original foreground
-	float initialPosX, float initialPosY,   // Initial position of the foreground in game coordinates (center)
-	float scaleFactor,                      // Scaling factor applied to the foreground
-	float elapsedTime,                      // Time elapsed since foreground creation
-	float velocityX                         // Foreground velocity along the x-axis
-) {
-	// Calculate normalized dimensions after scaling
-	float normalizedWidth = foregroundWidth / static_cast<float>(WIDTH) * scaleFactor;
-	float normalizedHeight = foregroundHeight / static_cast<float>(HEIGHT) * scaleFactor;
-
-	// Calculate normalized pixel offsets
-	float normalizedOffsetX = static_cast<float>(pixelX) / foregroundWidth;
-	float normalizedOffsetY = static_cast<float>(pixelY) / foregroundHeight;
-
-	// Adjust offset for coordinate range (0, 1)
-	normalizedOffsetX /= 1.35f;  // Adjust for scaling ratio in `testForegroundChunking`
-	normalizedOffsetY /= 1.35f * (WIDTH / static_cast<float>(HEIGHT));
-
-	// Calculate the game coordinates of the pixel
-	vec2 gameCoords;
-	gameCoords.x = initialPosX - normalizedWidth / 2.0f +
-		normalizedOffsetX * normalizedWidth +
-		velocityX * elapsedTime; // Adjust for x-axis velocity
-
-	gameCoords.y = initialPosY - normalizedHeight / 2.0f +
-		normalizedOffsetY * normalizedHeight;
-
-	return gameCoords;
-}
-
-
-void placeEnemyInForeground(int pixelX, int pixelY, Stamp& enemyTemplate) {
-	// Original foreground dimensions and parameters
-	int foregroundWidth = foregroundTemplates[0].width;
-	int foregroundHeight = foregroundTemplates[0].height;
-	float initialPosX = 1.0f + (foregroundTemplates[0].width / float(WIDTH)) / 2.0f; // Off-screen to the right
-	float initialPosY = 0.84f; // Example vertical position
-	float scaleFactor = 1.095f; // Foreground scaling factor
-
-	// Convert pixel coordinates to game coordinates
-	vec2 gamePos = convertForegroundPixelToGameCoords(
-		pixelX, pixelY,
-		foregroundWidth, foregroundHeight,
-		initialPosX, initialPosY,
-		scaleFactor,
-		GLOBAL_TIME - foreground_birth_time, // Elapsed time for movement adjustment
-		foreground_vel
-	);
-
-	// Create an enemy at the calculated position
-	Stamp newEnemy = deepCopyStamp(enemyTemplate);
-	newEnemy.posX = gamePos.x;
-	newEnemy.posY = gamePos.y;
-	newEnemy.global_velX = foreground_vel; // Match foreground velocity on x-axis
-	newEnemy.global_velY = 0.0f;
-
-	// Add the enemy to the active enemies list
-	enemyShips.push_back(newEnemy);
-}
-
-
-
-
-
 // GLUT keyboard callback
 void keyboard(unsigned char key, int x, int y) {
 	switch (key)
 	{
 	case '9':
 	{
-		foreground_birth_time = GLOBAL_TIME;
 		testForegroundChunking();
 		break;
 		//if (foregroundTemplates.empty()) {
@@ -6778,52 +6710,28 @@ void keyboard(unsigned char key, int x, int y) {
 		break;
 	}
 
-	//case '0':
-	//{
-	//	Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
-	//	// Explicitly ensure blackeningTexture is 0
-	//	newStamp.blackeningTexture = 0;
+	case '0':
+	{
+		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+		// Explicitly ensure blackeningTexture is 0
+		newStamp.blackeningTexture = 0;
 
-	//	float normalized_stamp_width = newStamp.width / float(WIDTH);
-	//	float normalized_stamp_height = newStamp.height / float(HEIGHT);
+		float normalized_stamp_width = newStamp.width / float(WIDTH);
+		float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
-	//	vec2 start;
-	//	start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-	//	start.y = rand() / float(RAND_MAX);
+		vec2 start;
+		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		start.y = rand() / float(RAND_MAX);
 
-	//	newStamp.posX = start.x;
-	//	newStamp.posY = start.y;
-	//	newStamp.global_velX = foreground_vel;
-	//	newStamp.global_velY = 0;
+		newStamp.posX = start.x;
+		newStamp.posY = start.y;
+		newStamp.global_velX = foreground_vel;
+		newStamp.global_velY = 0;
 
-	//	newStamp.birth_time = GLOBAL_TIME;
-	//	newStamp.death_time = -1;
+		newStamp.birth_time = GLOBAL_TIME;
+		newStamp.death_time = -1;
 
-	//	enemyShips.push_back(newStamp);
-	//	break;
-	//}
-
-
-
-	case '0': {
-		// Use case '0' to generate an enemy at a specific pixel location in the foreground
-		if (!foregroundTemplates.empty() && !enemyTemplates.empty()) {
-			// Define the pixel location where the enemy should appear
-			int pixelX = 150; // Example pixel X location in foreground
-			int pixelY = 100; // Example pixel Y location in foreground
-
-			// Ensure the foreground template and enemy template are available
-			if (foregroundTemplates[0].width > 0 && foregroundTemplates[0].height > 0) {
-				// Use the first enemy template as an example
-				placeEnemyInForeground(pixelX, pixelY, enemyTemplates[0]);
-			}
-			else {
-				std::cerr << "Foreground or enemy template is invalid!" << std::endl;
-			}
-		}
-		else {
-			std::cerr << "No foreground or enemy templates loaded!" << std::endl;
-		}
+		enemyShips.push_back(newStamp);
 		break;
 	}
 
@@ -7439,4 +7347,3 @@ int main(int argc, char** argv) {
 
 
 
-	
