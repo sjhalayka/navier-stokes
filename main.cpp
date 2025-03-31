@@ -6578,12 +6578,12 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 1080 / 2;
+	iv.y = 0;
 	input_pixel_locations.push_back(iv);
 
-	iv.x = 200;
-	iv.y = 1080 / 4;
-	input_pixel_locations.push_back(iv);
+	//iv.x = 200;
+	//iv.y = 1080 / 4;
+	//input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
 
