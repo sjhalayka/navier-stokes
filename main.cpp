@@ -5416,18 +5416,11 @@ void mark_colliding_bullets(void)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = GLOBAL_TIME;
 
-	// get rid of enemy bullets that hit the foreground
+	// get rid of enemy bullets that hit enemy ships too (especially background obstacles)
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
-	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
-		{
-			if (false == enemyShips[j].is_foreground)
-				continue;
-
 			if (isPixelPerfectCollision(enemyBullets[i], enemyShips[j]))
 				enemyBullets[i].death_time = GLOBAL_TIME;
-		}
-	}
 }
 
 void mark_old_bullets(void)
@@ -5726,7 +5719,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	//std::chrono::duration<float, std::milli> elapsed;
 	//elapsed = global_time_end - app_start_time;
 
-	Stamp newCentralStamp = deepCopyStamp(bulletTemplates[0]);
+	Stamp newCentralStamp = bulletTemplates[0];
 
 	float x_rad = stamp.width / float(WIDTH) / 2.0f;
 	float y_rad = stamp.height / float(HEIGHT) / 2.0f;
@@ -5740,7 +5733,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	newCentralStamp.posY = stamp.posY;
 
 	newCentralStamp.birth_time = GLOBAL_TIME;
-	newCentralStamp.death_time = GLOBAL_TIME + 1.0f;
+	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
 
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
@@ -5749,7 +5742,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	for (size_t j = 0; j < 3; j++)
 	{
-		Stamp newStamp = deepCopyStamp(newCentralStamp);
+		Stamp newStamp = newCentralStamp;
 
 		newStamp.colour_radius = avg_rad / 4;
 		newStamp.force_radius = avg_rad / 4;
@@ -5760,7 +5753,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = GLOBAL_TIME + 1.0f;// *rand() / float(RAND_MAX);
+		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -5770,7 +5763,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 
 	for (size_t j = 0; j < 5; j++)
 	{
-		Stamp newStamp = deepCopyStamp(newCentralStamp);
+		Stamp newStamp = newCentralStamp;
 
 		newStamp.colour_radius = avg_rad / 8;
 		newStamp.force_radius = avg_rad / 8;
@@ -5781,7 +5774,7 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = GLOBAL_TIME + 3.0f;// *rand() / float(RAND_MAX);
+		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
 
 		if (enemy)
 			enemyBullets.push_back(newStamp);
@@ -6525,6 +6518,8 @@ void testForegroundChunking() {
 		return;
 	}
 
+
+
 	Stamp originalStamp = deepCopyStamp(foregroundTemplates[0]);
 
 	std::cout << "Testing foreground chunking with stamp: " << originalStamp.baseFilename << std::endl;
@@ -6535,7 +6530,7 @@ void testForegroundChunking() {
 
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.4f;
+	originalStamp.posY = 0.84f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
@@ -6545,7 +6540,7 @@ void testForegroundChunking() {
 	float scaleFactor = 1.095f;
 
 	// foreground width and height must be evenly divisible by 120
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 1080, scaleFactor);
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor);
 
 	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
 
@@ -7252,7 +7247,7 @@ int main(int argc, char** argv) {
 	glutInitWindowSize(WIDTH, HEIGHT);
 	glutCreateWindow("GPU-Accelerated Navier-Stokes Solver");
 
-	srand(time(0));
+
 
 
 	//vector<image> sub_images;
