@@ -615,7 +615,11 @@ bool isChunkFullyTransparent(const std::vector<unsigned char>& pixelData, int wi
 
 
 
-std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize, float scaleFactor = 1.0f) {
+std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSize, float scaleFactor, const vector<ivec2> &input_pixel_locations, vector<vec2>& output_screen_locations)
+{
+	output_screen_locations.clear();
+	output_screen_locations.resize(input_pixel_locations.size());
+
 	std::vector<Stamp> chunks;
 
 	if (originalStamp.width <= 0 || originalStamp.height <= 0 ||
@@ -6546,8 +6550,21 @@ void testForegroundChunking() {
 	// to do: tinker with this to get perfect scale and translation
 	float scaleFactor = 1.095f;
 
+	vector<ivec2> input_pixel_locations;
+
+	ivec2 iv;
+	iv.x = 100;
+	iv.y = 1080 / 2;
+	input_pixel_locations.push_back(iv);
+
+	iv.x = 200;
+	iv.y = 1080 / 4;
+	input_pixel_locations.push_back(iv);
+
+	vector<vec2> output_screen_locations;
+
 	// foreground width and height must be evenly divisible by 120
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor);
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor, input_pixel_locations, output_screen_locations);
 
 	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
 
