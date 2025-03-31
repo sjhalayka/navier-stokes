@@ -5416,7 +5416,7 @@ void mark_colliding_bullets(void)
 			if (isPixelPerfectCollision(enemyBullets[i], allyShips[j]))
 				enemyBullets[i].death_time = GLOBAL_TIME;
 
-	// get rid of enemy bullets that hit enemy ships too (especially foreground obstacles)
+	// get rid of enemy bullets that hit the foreground
 	for (size_t i = 0; i < enemyBullets.size(); ++i)
 	{
 		for (size_t j = 0; j < enemyShips.size(); ++j)
