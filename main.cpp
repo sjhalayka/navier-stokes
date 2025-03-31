@@ -6368,8 +6368,30 @@ void renderToScreen()
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 
-	auto renderStamps = [&](const std::vector<Stamp>& stamps) {
+	auto renderStamps = [&](const std::vector<Stamp>& stamps)
+	{
 		for (const auto& stamp : stamps) {
+
+
+			// to do: do not draw if offscreen
+			const float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
+			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
+
+			// get rid of enemy ships that completely cross the left edge of the screen
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
+				stamp.posX > 1.0f + stamp_width_in_normalized_units / 2.0f ||
+				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+			{
+				continue;
+			}
+
+
 			size_t variationIndex = stamp.currentVariationIndex;
 			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
 				stamp.textureIDs[variationIndex] == 0) {
@@ -6385,7 +6407,7 @@ void renderToScreen()
 				}
 			}
 
-			float aspect = WIDTH / float(HEIGHT);
+			//float aspect = WIDTH / float(HEIGHT);
 			float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
 
 			glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
@@ -6588,7 +6610,7 @@ void testForegroundChunking() {
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = 1080/2;
+	iv.y = 100;
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6640,7 +6662,7 @@ void testForegroundChunking() {
 
 	for (size_t i = 0; i < output_screen_locations.size(); i++)
 	{
-		cout << "ADDING ENEMY" << endl;
+
 
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 		// Explicitly ensure blackeningTexture is 0
@@ -6660,6 +6682,8 @@ void testForegroundChunking() {
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1;
+
+		cout << "ADDING ENEMY " << newStamp.posY << endl;
 
 		enemyShips.push_back(newStamp);
 	}
