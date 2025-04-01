@@ -511,7 +511,7 @@ public:
 	// Rest of the Stamp class members remain the same
 	int channels = 0;
 	bool to_be_culled = false;
-	float health = 1000.0;
+	float health = 10.0;
 	float birth_time = 0;
 	float death_time = -1;
 	float stamp_opacity = 1;
@@ -5481,7 +5481,7 @@ void move_ships(void) {
 
 	// Process ally ships as before
 	for (auto& stamp : allyShips) {
-		if (stamp.to_be_culled) continue;
+		//if (stamp.to_be_culled) continue;
 
 		const float aspect = WIDTH / float(HEIGHT);
 
@@ -5512,7 +5512,7 @@ void move_ships(void) {
 
 	for (auto& stamp : enemyShips)
 	{
-		if (stamp.is_foreground || stamp.to_be_culled)
+		if (stamp.is_foreground)// || stamp.to_be_culled)
 			continue;
 
 		const float aspect = WIDTH / float(HEIGHT);
