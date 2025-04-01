@@ -261,8 +261,8 @@ GLuint blackeningProgram;
 GLuint curlProgram;
 GLuint vorticityForceProgram;
 GLuint applyForceProgram;
-GLuint blackeningMarkProgram;
-GLuint blackeningCopyProgram;
+//GLuint blackeningMarkProgram;
+//GLuint blackeningCopyProgram;
 
 GLuint batchBlackeningProgram;
 
@@ -1817,64 +1817,6 @@ void main() {
 
 
 
-const char* blackeningMarkFragmentShader = R"(
-#version 330 core
-uniform sampler2D currentBlackening;
-uniform vec2 collisionPos;        // Collision position in texture space (0-1)
-uniform float radius;             // Radius of the blackening mark in texture space
-uniform vec2 texSize;             // Texture dimensions
-uniform float collisionIntensity; // Intensity from the collision (r or b value)
-
-out vec4 FragColor;
-in vec2 TexCoord;
-
-void main() {
-    // Get current blackening value
-    vec4 current = texture(currentBlackening, TexCoord);
-
-    
-
-    // Calculate distance from this fragment to collision point (in pixels)
-    vec2 pixelPos = TexCoord * texSize;
-    vec2 collisionPixel = collisionPos * texSize;
-    float distance = length(pixelPos - collisionPixel);
-    
-    // Add blackening based on distance
-    if (distance <= radius) {
-        // Intensity decreases with distance (quadratic falloff)
-        float intensity = 1.0 - pow(distance / radius, 2.0);
-        
-        // Scale by collision intensity
-        intensity *= collisionIntensity;
-
-		intensity /= 0.01;
-        
-        // Combine with existing blackening (use max to ensure we don't reduce blackening)
-        FragColor = max(current, vec4(intensity, intensity, intensity, 1.0));
-    } else {
-        // Outside the radius, keep current value
-        FragColor = current;
-    }
-}
-)";
-
-
-
-
-// Simple texture copy shader - used for copying blackening textures
-const char* blackeningCopyFragmentShader = R"(
-#version 330 core
-uniform sampler2D sourceTexture;
-in vec2 TexCoord;
-out vec4 FragColor;
-
-void main() {
-    FragColor = texture(sourceTexture, TexCoord);
-}
-)";
-
-
-
 
 
 
@@ -3377,42 +3319,6 @@ void reapplyAllStamps() {
 
 
 
-void updateBlackeningMark(Stamp& stamp, float texX, float texY, float intensity = 1.0f) {
-	// Bind to the processing framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stamp.blackeningTexture, 0);
-
-	// Set viewport to texture dimensions
-	glViewport(0, 0, stamp.width, stamp.height);
-
-	// Use the blackening mark shader
-	glUseProgram(blackeningMarkProgram);
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(blackeningMarkProgram, "currentBlackening"), 0);
-	glUniform2f(glGetUniformLocation(blackeningMarkProgram, "collisionPos"), texX, texY);
-	glUniform1f(glGetUniformLocation(blackeningMarkProgram, "radius"), 0.05f); // 5% of texture size
-	glUniform2f(glGetUniformLocation(blackeningMarkProgram, "texSize"), stamp.width, stamp.height);
-	glUniform1f(glGetUniformLocation(blackeningMarkProgram, "collisionIntensity"), intensity);
-
-	GLuint projectionLocation = glGetUniformLocation(blackeningMarkProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Bind the current blackening texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, stamp.blackeningTexture);
-
-	// Draw a full-screen quad to update the texture
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Reset viewport
-	glViewport(0, 0, WIDTH, HEIGHT);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-
-
 
 bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t stamp_index, const string& stamp_type) {
 	// Skip if stamp is culled
@@ -4489,9 +4395,6 @@ void initGL() {
 	vorticityForceProgram = createShaderProgram(vertexShaderSource, vorticityForceFragmentShader);
 	applyForceProgram = createShaderProgram(vertexShaderSource, applyForceFragmentShader);
 
-	blackeningMarkProgram = createShaderProgram(vertexShaderSource, blackeningMarkFragmentShader);
-	blackeningCopyProgram = createShaderProgram(vertexShaderSource, blackeningCopyFragmentShader);
-
 	batchBlackeningProgram = createShaderProgram(vertexShaderSource, batchBlackeningFragmentShader);
 
 
@@ -5150,7 +5053,7 @@ void updateDynamicTexture(Stamp& stamp) {
 				applyDilationGPU(stamp.blackeningTexture, tempTexture1, stamp.width, stamp.height, 1);
 
 				// Apply Gaussian blur to the dilated mask
-				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 10.0);
+				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 5.0);
 
 				// Apply the blackening effect to the original texture using the blurred mask
 				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i], stamp.width, stamp.height);
@@ -7094,8 +6997,6 @@ void reshape(int w, int h) {
 	glDeleteProgram(curlProgram);
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
-	glDeleteProgram(blackeningMarkProgram);
-	glDeleteProgram(blackeningCopyProgram);
 	glDeleteProgram(batchBlackeningProgram);
 
 	// Delete OpenGL resources
