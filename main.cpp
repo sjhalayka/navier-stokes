@@ -52,6 +52,8 @@ using namespace std;
 
 // to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
 
+// to do: collision detection and response to collisions with foreground
+
 
 float foreground_vel = -0.001;
 
@@ -3901,6 +3903,10 @@ void initGPUImageProcessing() {
 
 
 void setupProcessingTexture(GLuint textureID, int width, int height) {
+
+	if (textureID != 0)
+		glDeleteTextures(1, &textureID);
+
 	glBindTexture(GL_TEXTURE_2D, textureID);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
