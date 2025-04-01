@@ -733,7 +733,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 		// Store the result
 		output_screen_locations[i].x = screenX;
-		output_screen_locations[i].y = screenY;
+		output_screen_locations[i].y = screenY * scaleFactor;
 	}
 
 
@@ -6606,7 +6606,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 1080;
+	iv.y = 0;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
@@ -6674,7 +6674,7 @@ void testForegroundChunking() {
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y *scaleFactor;
+		newStamp.posY = output_screen_locations[i].y;
 		newStamp.global_velX = foreground_vel;
 		newStamp.global_velY = 0;
 
