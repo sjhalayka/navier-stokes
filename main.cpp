@@ -6606,11 +6606,11 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 1080;// *scaleFactor;
+	iv.y = 1080;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = (100);// *scaleFactor;
+	iv.y = (100);
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6660,13 +6660,8 @@ void testForegroundChunking() {
 		enemyShips.push_back(chunkStamp);
 	}
 
-		
-	cout << WIDTH << "x" << HEIGHT << endl;
-
 	for (size_t i = 0; i < output_screen_locations.size(); i++)
 	{
-
-
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
@@ -6679,7 +6674,7 @@ void testForegroundChunking() {
 		start.y = rand() / float(RAND_MAX);
 
 		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y*scaleFactor;
+		newStamp.posY = output_screen_locations[i].y *scaleFactor;
 		newStamp.global_velX = foreground_vel;
 		newStamp.global_velY = 0;
 
