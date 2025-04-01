@@ -72,7 +72,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.01;
+float foreground_vel = -0.001;
 
 
 // Structure to hold collision point data
@@ -528,7 +528,7 @@ public:
 	// Rest of the Stamp class members remain the same
 	int channels = 0;
 	bool to_be_culled = false;
-	float health = 10.0;
+	float health = 1000.0;
 	float birth_time = 0;
 	float death_time = -1;
 	float stamp_opacity = 1;
@@ -3487,11 +3487,19 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 
 		// Calculate the intensity for the blackening based on collision values
 		float intensity = 0.0f;
-		if (stamp_type == "Ally Ship") {
-			intensity = point.b; // Use blue value for ally ships
+		if (stamp_type == "Ally Ship") 
+		{
+			// to do: test this... it makes blue fire do damage to the foreground too 
+
+			// intensity = point.b; // Use blue value for ally ships
+			intensity = max(point.r, point.b);
 		}
-		else {
-			intensity = point.r; // Use red value for enemy ships
+		else 
+		{
+			// to do: test this... it makes blue fire do damage to the foreground too 
+			
+			//intensity = point.r; // Use red value for enemy ships
+			intensity = max(point.r, point.b);
 		}
 
 		// Ensure the texture exists in the map
@@ -3615,19 +3623,23 @@ void generateFluidStampCollisionsDamage() {
 				if (collides) {
 					stampCollisions++;
 
-					if (point.r > 0) {
-						red_count += point.r;
-						redStampCollisions++;
-					}
+					red_count += point.r;
+					blue_count += point.b;
 
-					if (point.b > 0) {
-						blue_count += point.b;
-						blueStampCollisions++;
-					}
+					//if (point.r > 0) 
+					//{
+					//	red_count += point.r;
+					//	redStampCollisions++;
+					//}
 
-					if (point.r > 0 && point.b > 0) {
-						bothStampCollisions++;
-					}
+					//if (point.b > 0) {
+					//	blue_count += point.b;
+					//	blueStampCollisions++;
+					//}
+
+					//if (point.r > 0 && point.b > 0) {
+					//	bothStampCollisions++;
+					//}
 				}
 			}
 
@@ -3648,8 +3660,9 @@ void generateFluidStampCollisionsDamage() {
 				if (type == "Ally Ship") {
 					damage = blue_count;
 				}
-				else {
-					damage = red_count;
+				else 
+				{
+					damage = red_count;// max(blue_count, red_count);	
 				}
 
 				// This is matter of personal taste
@@ -6606,7 +6619,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 0;
+	iv.y = 64;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
@@ -6665,13 +6678,6 @@ void testForegroundChunking() {
 		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
-
-		float normalized_stamp_width = newStamp.width / float(WIDTH);
-		float normalized_stamp_height = newStamp.height / float(HEIGHT);
-
-		vec2 start;
-		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-		start.y = rand() / float(RAND_MAX);
 
 		newStamp.posX = output_screen_locations[i].x;
 		newStamp.posY = output_screen_locations[i].y;
