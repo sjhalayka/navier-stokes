@@ -33,24 +33,9 @@ using namespace std;
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
 
-// to do: move away from normalized device coords to screen space coords: https://claude.ai/chat/ccb28895-238a-4e10-a61e-d4b70d41fe28
-//	- make sure to set uniform vec2 screenSize every time a shader is used (look for glm::value_ptr(orthoMatrix))
-
-
-
-// to do: When checking enemy ship - enemy ship collision, make sure to skip where i == j
-
-// actually, do the foreground like thexder for the obstacles, just patterns of squares of different types
 
 // to do: calculate enemy path starting x location by using the normalized stamp width method done in the code that processes '0' key strokes
 
-// to do: if ship colliding with foreground 'enemy', move ship back one step in time. if it's still colliding, then kill it. this goes for enemy and ally ships. this way the foregorund is generally not dangerous to the touch
-
-// to do: Cull enemy ships only if right side of stamp is offscreen, not whether the middle of the stamp is Less than x = 1.5. Do this for all stamp types.
-
-// to do: Kill ship if last pos is still colliding. That way if the ship gets squished between the obstacle and the left hand side of the screen
-
-// to do: always remember to add new stamp member variables to stamp operators () and = 
 
 // to do: Enemy cannon type can be straight ahead, sideways, random single, circular spread
 
@@ -66,10 +51,6 @@ using namespace std;
 // to do: The key is to let the user choose the fire type once they have got it. User loses the fire type when they continue 
 
 // to do: Eric's idea: if the event ship takes a shot on the wing, the wing falls off. If it takes the shot on the cockpit the shop blows up... or see.thing like that
-
-// to do: chop up giant foreground images into many foregrounds. do not add to many foregrounds if completely transparent
-
-// to do: collision detection and response to collisions with foreground
 
 
 float foreground_vel = -0.001;
@@ -3393,17 +3374,17 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 
 		// Calculate the intensity for the blackening based on collision values
 		float intensity = 0.0f;
-		if (stamp_type == "Ally Ship") 
+		if (stamp_type == "Ally Ship")
 		{
 			// to do: test this... it makes blue fire do damage to the foreground too 
 
 			// intensity = point.b; // Use blue value for ally ships
 			intensity = max(point.r, point.b);
 		}
-		else 
+		else
 		{
 			// to do: test this... it makes blue fire do damage to the foreground too 
-			
+
 			//intensity = point.r; // Use red value for enemy ships
 			intensity = max(point.r, point.b);
 		}
@@ -3566,7 +3547,7 @@ void generateFluidStampCollisionsDamage() {
 				if (type == "Ally Ship") {
 					damage = blue_count;
 				}
-				else 
+				else
 				{
 					damage = red_count;// max(blue_count, red_count);	
 				}
@@ -5911,10 +5892,10 @@ void mark_offscreen_ships(void)
 			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
 
 			// get rid of enemy ships that completely cross the left edge of the screen
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
+			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
 				//stamp.posX > 1 + stamp_width_in_normalized_units / 2.0f ||
-				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
-				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+			//	adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+			//	adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
 			{
 				stamp.to_be_culled = true;
 			}
@@ -6514,7 +6495,7 @@ void testForegroundChunking() {
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
-		
+
 	// to do: tinker with this to get perfect scale and translation
 	float scaleFactor = 1.095f;
 
@@ -7343,8 +7324,11 @@ int main(int argc, char** argv) {
 	glutSpecialUpFunc(specialKeyboardUp);
 
 
-	cout << WIDTH << "X" << HEIGHT << endl;
 	glutFullScreen();
+
+	cout << WIDTH << "X" << HEIGHT << endl;
+
+
 
 	// Print instructions
 	printInstructions();
