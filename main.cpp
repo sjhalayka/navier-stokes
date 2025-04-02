@@ -55,7 +55,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.001;
+float foreground_vel = -0.01;
 
 
 // Structure to hold collision point data
@@ -201,6 +201,7 @@ const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collisio
 const float COLOR_DETECTION_THRESHOLD = 0.01f;  // How strict the color matching should be
 
 //std::chrono::high_resolution_clock::time_point app_start_time = std::chrono::high_resolution_clock::now();
+
 
 
 // OpenGL variables
@@ -3366,7 +3367,6 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
 
-	// don't do blackening if foreground
 	if (is_opaque_enough/* && stamp.is_foreground == false*/)
 	{
 		// Only initialize the blackening texture if we actually need it
@@ -3380,7 +3380,7 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 		{
 			// to do: test this... it makes blue fire do damage to the foreground too 
 
-			 intensity = point.b; // Use blue value for ally ships
+			intensity = point.b; // Use blue value for ally ships
 			//intensity = max(point.r, point.b);
 		}
 		else
@@ -3412,8 +3412,6 @@ void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const
 	if (points.empty() || textureID == 0) {
 		return;
 	}
-
-	cout << points.size() << endl;
 
 	// Limit number of points to shader array size
 	const int MAX_POINTS = 1024;  // Maximum points we can process in one batch
@@ -3487,11 +3485,14 @@ void generateFluidStampCollisionsDamage() {
 	auto generateFluidCollisionsForStamps = [&](std::vector<Stamp>& stamps, const std::string& type) {
 		int stampHitCount = 0;
 
-		for (size_t i = 0; i < stamps.size(); i++) {
-			stamps[i].under_fire = true;
+		for (size_t i = 0; i < stamps.size(); i++) 
+		{
+			//stamps[i].under_fire = true;
 
-			float minX, minY, maxX, maxY;
-			calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
+
+
+			//float minX, minY, maxX, maxY;
+			//calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
 
 			int stampCollisions = 0;
 			int redStampCollisions = 0;
