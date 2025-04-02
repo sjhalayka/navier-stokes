@@ -55,7 +55,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.001;
+float foreground_vel = -0.01;
 
 
 // Structure to hold collision point data
@@ -1138,7 +1138,7 @@ bool loadBulletTemplates() {
 const float MIN_BULLET_INTERVAL = 0.25f;
 
 // Add a variable to track the time of the last fired bullet
-std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::high_resolution_clock::now();
+float lastBulletTime = 0;
 
 
 
@@ -1157,13 +1157,15 @@ void fireBullet() {
 	if (allyShips[0].to_be_culled)
 		return;
 
-	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
+	//std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
+	//std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
 
-	if (timeSinceLastBullet.count() < MIN_BULLET_INTERVAL)
+	float timeSinceLastBullet = GLOBAL_TIME - lastBulletTime;
+
+	if (timeSinceLastBullet < MIN_BULLET_INTERVAL)
 		return;
 
-	lastBulletTime = currentTime;
+	lastBulletTime = GLOBAL_TIME;
 
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	//std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
@@ -1216,8 +1218,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.025f * cos(angle);
-			newBullet.global_velY = 0.025f * sin(angle);
+			newBullet.global_velX = 0.25f * cos(angle);
+			newBullet.global_velY = 0.25f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -1230,8 +1232,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.02f * cos(angle);
-			newBullet.global_velY = 0.02f * sin(angle);
+			newBullet.global_velX = 0.8f * cos(angle);
+			newBullet.global_velY = 0.8f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
@@ -1311,8 +1313,8 @@ void fireBullet() {
 	case HOMING:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.01f * cos(angle);
-			newBullet.global_velY = 0.01f * sin(angle);
+			newBullet.global_velX = 0.25f * cos(angle);
+			newBullet.global_velY = 0.25f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -3378,10 +3380,9 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 		float intensity = 0.0f;
 		if (stamp_type == "Ally Ship")
 		{
-			// to do: test this... it makes blue fire do damage to the foreground too 
+			// Only do blue damage to red 
+			 intensity = point.b; // Use blue value for ally ships
 
-			// intensity = point.b; // Use blue value for ally ships
-			intensity = max(point.r, point.b);
 		}
 		else
 		{
@@ -5230,8 +5231,8 @@ void move_and_fork_bullets(void)
 
 				if (closest_enemy == -1)
 				{
-					stamp.posX += stamp.global_velX;
-					stamp.posY += stamp.global_velY;
+					stamp.posX += stamp.global_velX * DT;
+					stamp.posY += stamp.global_velY * DT;
 				}
 				else
 				{
@@ -5253,8 +5254,8 @@ void move_and_fork_bullets(void)
 					stamp.global_velX = dir_x;
 					stamp.global_velY = dir_y;
 
-					stamp.posX += stamp.global_velX;
-					stamp.posY += stamp.global_velY;
+					stamp.posX += stamp.global_velX * DT;
+					stamp.posY += stamp.global_velY * DT;
 				}
 			}
 			else
@@ -5294,8 +5295,8 @@ void move_and_fork_bullets(void)
 
 				// Move forward along original path
 				float forwardSpeed = dirLength; // Original velocity magnitude
-				stamp.posX += dirX * forwardSpeed;
-				stamp.posY += dirY * forwardSpeed;
+				stamp.posX += dirX * forwardSpeed * DT;
+				stamp.posY += dirY * forwardSpeed * DT;
 
 				// Add sinusoidal motion perpendicular to the path
 				stamp.posX += perpX * sinValue * amplitude;
@@ -5339,10 +5340,6 @@ void move_and_fork_bullets(void)
 
 void mark_colliding_bullets(void)
 {
-	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-	//std::chrono::duration<float, std::milli> elapsed;
-	//elapsed = global_time_end - app_start_time;
-
 	for (size_t i = 0; i < allyBullets.size(); ++i)
 		for (size_t j = 0; j < enemyShips.size(); ++j)
 			if (isPixelPerfectCollision(allyBullets[i], enemyShips[j]))
@@ -5485,8 +5482,8 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.global_velX;// / aspect;
-		stamp.posY += stamp.global_velY;
+		stamp.posX += stamp.global_velX*DT;// / aspect;
+		stamp.posY += stamp.global_velY*DT;
 
 		// Calculate adjusted Y coordinate that accounts for aspect ratio
 		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
@@ -5517,8 +5514,8 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.global_velX;// / aspect;
-		stamp.posY += stamp.global_velY;
+		stamp.posX += stamp.global_velX * DT;// / aspect;
+		stamp.posY += stamp.global_velY * DT;
 	}
 
 
@@ -6019,8 +6016,8 @@ void move_powerups(void)
 
 			// Move forward along original path
 			float forwardSpeed = dirLength; // Original velocity magnitude
-			stamp.posX += stamp.global_velX * aspect;
-			stamp.posY += stamp.global_velY;
+			stamp.posX += stamp.global_velX * DT * aspect;
+			stamp.posY += stamp.global_velY * DT;
 
 			// Add sinusoidal motion perpendicular to the path
 			stamp.posX += perpX * sinValue * amplitude;
@@ -6702,7 +6699,7 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1.0f;
-		newStamp.global_velX = -0.0025f; // Pixels per second
+		newStamp.global_velX = -0.025f; // Pixels per second
 		newStamp.global_velY = 0.0f;// 5.0f;
 		allyPowerUps.push_back(newStamp);
 
@@ -6893,8 +6890,8 @@ void specialKeyboard(int key, int x, int y) {
 			allyShips[0].global_velX /= vel_length;
 			allyShips[0].global_velY /= vel_length;
 
-			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].global_velX *= 0.25f * (WIDTH / 1920.0f);
+			allyShips[0].global_velY *= 0.25f * (HEIGHT / 1080.0f);
 		}
 	}
 }
@@ -6949,8 +6946,8 @@ void specialKeyboardUp(int key, int x, int y) {
 			allyShips[0].global_velX /= vel_length;
 			allyShips[0].global_velY /= vel_length;
 
-			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].global_velX *= 0.25f * (WIDTH / 1920.0f);
+			allyShips[0].global_velY *= 0.25f * (HEIGHT / 1080.0f);
 		}
 	}
 }
