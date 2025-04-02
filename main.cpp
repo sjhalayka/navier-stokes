@@ -1136,11 +1136,9 @@ bool loadBulletTemplates() {
 
 
 
-const float MIN_BULLET_INTERVAL = 0.25f;
+const float MIN_BULLET_INTERVAL = 0.5f;
 
-// Add a variable to track the time of the last fired bullet
-std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::high_resolution_clock::now();
-
+float last_bullet_time = 0;
 
 
 
@@ -1158,13 +1156,10 @@ void fireBullet() {
 	if (allyShips[0].to_be_culled)
 		return;
 
-	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
-
-	if (timeSinceLastBullet.count() < MIN_BULLET_INTERVAL)
+	if (GLOBAL_TIME - last_bullet_time < MIN_BULLET_INTERVAL)
 		return;
 
-	lastBulletTime = currentTime;
+	last_bullet_time = GLOBAL_TIME;
 
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	//std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
