@@ -3380,8 +3380,8 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 		{
 			// to do: test this... it makes blue fire do damage to the foreground too 
 
-			// intensity = point.b; // Use blue value for ally ships
-			intensity = max(point.r, point.b);
+			 intensity = point.b; // Use blue value for ally ships
+			//intensity = max(point.r, point.b);
 		}
 		else
 		{
