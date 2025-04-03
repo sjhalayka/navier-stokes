@@ -56,7 +56,7 @@ using namespace std;
 
 
 float foreground_vel = -0.01;
-bool do_blackening = false;
+
 
 // Structure to hold collision point data
 struct BlackeningPoint {
@@ -1136,9 +1136,11 @@ bool loadBulletTemplates() {
 
 
 
-const float MIN_BULLET_INTERVAL = 0.5f;
+const float MIN_BULLET_INTERVAL = 0.25f;
 
-float last_bullet_time = 0;
+// Add a variable to track the time of the last fired bullet
+std::chrono::high_resolution_clock::time_point lastBulletTime = std::chrono::high_resolution_clock::now();
+
 
 
 
@@ -1156,10 +1158,13 @@ void fireBullet() {
 	if (allyShips[0].to_be_culled)
 		return;
 
-	if (GLOBAL_TIME - last_bullet_time < MIN_BULLET_INTERVAL)
+	std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float> timeSinceLastBullet = currentTime - lastBulletTime;
+
+	if (timeSinceLastBullet.count() < MIN_BULLET_INTERVAL)
 		return;
 
-	last_bullet_time = GLOBAL_TIME;
+	lastBulletTime = currentTime;
 
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	//std::chrono::duration<float, std::milli> elapsed = global_time_end - app_start_time;
@@ -3362,9 +3367,41 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
 
-	if (is_opaque_enough)
+	if (is_opaque_enough/* && stamp.is_foreground == false*/)
 	{
+		// Only initialize the blackening texture if we actually need it
+		if (stamp.blackeningTexture == 0) {
+			stamp.initBlackeningTexture();
+		}
 
+		// Calculate the intensity for the blackening based on collision values
+		float intensity = 0.0f;
+		if (stamp_type == "Ally Ship")
+		{
+			// to do: test this... it makes blue fire do damage to the foreground too 
+
+			intensity = point.b; // Use blue value for ally ships
+			//intensity = max(point.r, point.b);
+		}
+		else
+		{
+			// to do: test this... it makes blue fire do damage to the foreground too 
+
+			//intensity = point.r; // Use red value for enemy ships
+			intensity = max(point.r, point.b);
+		}
+
+		// Ensure the texture exists in the map
+		if (stampCollisionMap.find(stamp.blackeningTexture) == stampCollisionMap.end()) {
+			stampCollisionMap[stamp.blackeningTexture] = { {}, stamp.width, stamp.height };
+		}
+
+		// Store the collision point for batch processing
+		BlackeningPoint bp;
+		bp.x = texCoordX;
+		bp.y = texCoordY;
+		bp.intensity = intensity;
+		stampCollisionMap[stamp.blackeningTexture].points.push_back(bp);
 	}
 
 	return is_opaque_enough;
@@ -3473,62 +3510,7 @@ void generateFluidStampCollisionsDamage() {
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i], i, type);
 
-				if (collides) 
-				{
-					// Calculate the screen-space dimensions of the stamp
-					float aspect = HEIGHT / float(WIDTH);
-					float stampWidth = stamps[i].width / float(WIDTH);  // In normalized screen units
-					float stampHeight = (stamps[i].height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
-
-					// Convert collision point to normalized screen coordinates
-					float pointX = point.x / float(WIDTH);  // 0-1 range
-					float pointY = point.y / float(HEIGHT);  // 0-1 range
-
-					// SUPER IMPORTANT
-					pointY = (pointY - 0.5f) / aspect + 0.5f;
-
-					// Calculate bounding box
-					float minX, minY, maxX, maxY;
-					calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
-
-					// Map the collision point to texture coordinates
-					float texCoordX = (pointX - minX) / (maxX - minX);
-					float texCoordY = (pointY - minY) / (maxY - minY);
-
-					// Only initialize the blackening texture if we actually need it
-					if (stamps[i].blackeningTexture == 0) {
-						stamps[i].initBlackeningTexture();
-					}
-
-					// Calculate the intensity for the blackening based on collision values
-					float intensity = 0.0f;
-					if (type == "Ally Ship")
-					{
-						// to do: test this... it makes blue fire do damage to the foreground too 
-
-						intensity = point.b; // Use blue value for ally ships
-						//intensity = max(point.r, point.b);
-					}
-					else
-					{
-						// to do: test this... it makes blue fire do damage to the foreground too 
-
-						//intensity = point.r; // Use red value for enemy ships
-						intensity = max(point.r, point.b);
-					}
-
-					// Ensure the texture exists in the map
-					if (stampCollisionMap.find(stamps[i].blackeningTexture) == stampCollisionMap.end()) {
-						stampCollisionMap[stamps[i].blackeningTexture] = { {}, stamps[i].width, stamps[i].height };
-					}
-
-					// Store the collision point for batch processing
-					BlackeningPoint bp;
-					bp.x = texCoordX;
-					bp.y = texCoordY;
-					bp.intensity = intensity;
-					stampCollisionMap[stamps[i].blackeningTexture].points.push_back(bp);
-
+				if (collides) {
 					stampCollisions++;
 
 					red_count += point.r;
@@ -3876,8 +3858,7 @@ GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource)
 }
 
 // Create a texture for simulation
-GLuint createTexture(GLint internalFormat, GLenum format, bool filtering, int width, int height)
-{
+GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
 	GLuint texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -3898,7 +3879,7 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering, int wi
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	// Allocate texture memory
-	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, WIDTH, HEIGHT, 0, format, GL_FLOAT, nullptr);
 
 	return texture;
 }
@@ -4424,24 +4405,24 @@ void initGL() {
 
 
 	for (int i = 0; i < 2; i++) {
-		colorTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
+		colorTexture[i] = createTexture(GL_R32F, GL_RED, true);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		friendlyColorTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
+		friendlyColorTexture[i] = createTexture(GL_R32F, GL_RED, true);
 	}
 
 
 	// Create textures for simulation
 	for (int i = 0; i < 2; i++)
 	{
-		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true, WIDTH, HEIGHT);
-		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
+		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
+		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
 	}
 
-	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
-	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
-	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
+	divergenceTexture = createTexture(GL_R32F, GL_RED, true);
+	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
+	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false);
 	backgroundTexture = loadTexture("grid_wide.png");
 	backgroundTexture2 = loadTexture("grid_wide2.png");
 
