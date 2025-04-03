@@ -352,6 +352,9 @@ public:
 		sinusoidal_amplitude = other.sinusoidal_amplitude;
 		sinusoidal_shift = other.sinusoidal_shift;
 		random_forking = other.random_forking;
+
+		is_dying_bullet = other.is_dying_bullet;
+
 		//		curve_path = other.curve_path;
 		posX = other.posX;
 		posY = other.posY;
@@ -433,6 +436,9 @@ public:
 			sinusoidal_amplitude = other.sinusoidal_amplitude;
 			sinusoidal_shift = other.sinusoidal_shift;
 			random_forking = other.random_forking;
+
+			is_dying_bullet = other.is_dying_bullet;
+
 			//			curve_path = other.curve_path;
 			posX = other.posX;
 			posY = other.posY;
@@ -534,8 +540,8 @@ public:
 	vector<Cannon> cannons;
 	bool is_foreground = false;
 	//	float prevPosX = 0, prevPosY = 0;
+	bool is_dying_bullet = false;
 
-		// New parameters for chunking
 	float data_offsetX = 0.0f;
 	float data_offsetY = 0.0f;
 	int data_original_width = 0;
@@ -5311,24 +5317,30 @@ void move_and_fork_bullets(void)
 
 				float r = rand() / float(RAND_MAX);
 
+				//if (stamp.is_dying_bullet)
+				//{
+				//	stamp.posX += stamp.global_velX;
+				//	stamp.posY += stamp.global_velY;
+				//}
+
 				// Split the lightning
 				// to do: make the forked lightning smaller
-				if (r < stamp.random_forking)
-				{
-					Stamp newBullet = stamp;
+				//if (r < stamp.random_forking)
+				//{
+				//	Stamp newBullet = stamp;
 
-					float rand_x = 0, rand_y = 0;
-					RandomUnitVector(rand_x, rand_y);
-					newBullet.global_velX += rand_x * r;
-					newBullet.global_velY += rand_y * r;
+				//	float rand_x = 0, rand_y = 0;
+				//	RandomUnitVector(rand_x, rand_y);
+				//	newBullet.global_velX += rand_x * r;
+				//	newBullet.global_velY += rand_y * r;
 
-					if (type == "ally")
-						allyBullets.push_back(newBullet);
+				//	if (type == "ally")
+				//		allyBullets.push_back(newBullet);
 
-					if (type == "enemy")
-						enemyBullets.push_back(newBullet);
+				//	if (type == "enemy")
+				//		enemyBullets.push_back(newBullet);
 
-				}
+				//}
 			}
 		}
 	};
@@ -5680,6 +5692,10 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	newCentralStamp.birth_time = GLOBAL_TIME;
 	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
 
+	newCentralStamp.global_velX = foreground_vel;
+
+	newCentralStamp.is_dying_bullet = true;
+
 	if (enemy)
 		enemyBullets.push_back(newCentralStamp);
 	else
@@ -5931,7 +5947,7 @@ void proceed_stamp_opacity(void)
 		{
 			if (stamps[i].to_be_culled)
 			{
-				stamps[i].stamp_opacity -= DT;
+				stamps[i].stamp_opacity -= 0.25;
 			}
 		}
 	};
@@ -6510,7 +6526,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 64;
+	iv.y = 128;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
