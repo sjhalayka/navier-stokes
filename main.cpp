@@ -3484,7 +3484,58 @@ void processCollectedBlackeningPoints() {
 }
 
 
-void generateFluidStampCollisionsDamage() {
+void generateFluidStampCollisionsDamage() 
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+
+	glUseProgram(detectCollisionProgram);
+
+
+	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	// Set uniforms
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
+	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
+	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
+
+	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
+
+	// Render full-screen quad
+	glBindVertexArray(vao);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Allocate buffer for collision data - RGBA
+	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+
+	// Read back collision texture data from GPU
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+
+	// Clear previous collision locations
+	collisionPoints.clear();
+
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 4;
+			float r = collisionData[index];
+			float b = collisionData[index + 2];
+			float a = collisionData[index + 3];
+
+			if (a > 0.0) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
+			}
+		}
+	}
+
 	if (collisionPoints.empty())
 		return;
 
@@ -3763,55 +3814,7 @@ void diffuseFriendlyColor() {
 
 void detectCollisions()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
 
-	glUseProgram(detectCollisionProgram);
-
-
-	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "colorTexture"), 1);
-	glUniform1i(glGetUniformLocation(detectCollisionProgram, "friendlyColorTexture"), 2);
-	glUniform1f(glGetUniformLocation(detectCollisionProgram, "colorThreshold"), COLOR_DETECTION_THRESHOLD);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-
-	// Read back collision texture data from GPU
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
-	collisionPoints.clear();
-
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-			float r = collisionData[index];
-			float b = collisionData[index + 2];
-			float a = collisionData[index + 3];
-
-			if (a > 0.0) {
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
 }
 
 
@@ -6214,7 +6217,7 @@ void simulationStep()
 
 	if (1)//frameCount % 30 == 0)
 	{
-		detectCollisions();
+		//detectCollisions();
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
 	}
