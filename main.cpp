@@ -56,7 +56,7 @@ using namespace std;
 
 
 float foreground_vel = -0.01;
-
+bool do_blackening = false;
 
 // Structure to hold collision point data
 struct BlackeningPoint {
@@ -3362,41 +3362,9 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 	bool is_opaque_enough = opacity > COLOR_DETECTION_THRESHOLD;
 
 
-	if (is_opaque_enough/* && stamp.is_foreground == false*/)
+	if (is_opaque_enough)
 	{
-		// Only initialize the blackening texture if we actually need it
-		if (stamp.blackeningTexture == 0) {
-			stamp.initBlackeningTexture();
-		}
 
-		// Calculate the intensity for the blackening based on collision values
-		float intensity = 0.0f;
-		if (stamp_type == "Ally Ship")
-		{
-			// to do: test this... it makes blue fire do damage to the foreground too 
-
-			intensity = point.b; // Use blue value for ally ships
-			//intensity = max(point.r, point.b);
-		}
-		else
-		{
-			// to do: test this... it makes blue fire do damage to the foreground too 
-
-			//intensity = point.r; // Use red value for enemy ships
-			intensity = max(point.r, point.b);
-		}
-
-		// Ensure the texture exists in the map
-		if (stampCollisionMap.find(stamp.blackeningTexture) == stampCollisionMap.end()) {
-			stampCollisionMap[stamp.blackeningTexture] = { {}, stamp.width, stamp.height };
-		}
-
-		// Store the collision point for batch processing
-		BlackeningPoint bp;
-		bp.x = texCoordX;
-		bp.y = texCoordY;
-		bp.intensity = intensity;
-		stampCollisionMap[stamp.blackeningTexture].points.push_back(bp);
 	}
 
 	return is_opaque_enough;
@@ -3505,7 +3473,62 @@ void generateFluidStampCollisionsDamage() {
 				// Perform the actual collision check
 				bool collides = isCollisionInStamp(point, stamps[i], i, type);
 
-				if (collides) {
+				if (collides) 
+				{
+					// Calculate the screen-space dimensions of the stamp
+					float aspect = HEIGHT / float(WIDTH);
+					float stampWidth = stamps[i].width / float(WIDTH);  // In normalized screen units
+					float stampHeight = (stamps[i].height / float(HEIGHT)) * aspect;  // Adjust for aspect ratio
+
+					// Convert collision point to normalized screen coordinates
+					float pointX = point.x / float(WIDTH);  // 0-1 range
+					float pointY = point.y / float(HEIGHT);  // 0-1 range
+
+					// SUPER IMPORTANT
+					pointY = (pointY - 0.5f) / aspect + 0.5f;
+
+					// Calculate bounding box
+					float minX, minY, maxX, maxY;
+					calculateBoundingBox(stamps[i], minX, minY, maxX, maxY);
+
+					// Map the collision point to texture coordinates
+					float texCoordX = (pointX - minX) / (maxX - minX);
+					float texCoordY = (pointY - minY) / (maxY - minY);
+
+					// Only initialize the blackening texture if we actually need it
+					if (stamps[i].blackeningTexture == 0) {
+						stamps[i].initBlackeningTexture();
+					}
+
+					// Calculate the intensity for the blackening based on collision values
+					float intensity = 0.0f;
+					if (type == "Ally Ship")
+					{
+						// to do: test this... it makes blue fire do damage to the foreground too 
+
+						intensity = point.b; // Use blue value for ally ships
+						//intensity = max(point.r, point.b);
+					}
+					else
+					{
+						// to do: test this... it makes blue fire do damage to the foreground too 
+
+						//intensity = point.r; // Use red value for enemy ships
+						intensity = max(point.r, point.b);
+					}
+
+					// Ensure the texture exists in the map
+					if (stampCollisionMap.find(stamps[i].blackeningTexture) == stampCollisionMap.end()) {
+						stampCollisionMap[stamps[i].blackeningTexture] = { {}, stamps[i].width, stamps[i].height };
+					}
+
+					// Store the collision point for batch processing
+					BlackeningPoint bp;
+					bp.x = texCoordX;
+					bp.y = texCoordY;
+					bp.intensity = intensity;
+					stampCollisionMap[stamps[i].blackeningTexture].points.push_back(bp);
+
 					stampCollisions++;
 
 					red_count += point.r;
