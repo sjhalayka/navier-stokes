@@ -3491,7 +3491,6 @@ void generateFluidStampCollisionsDamage()
 
 	glUseProgram(detectCollisionProgram);
 
-
 	GLuint projectionLocation = glGetUniformLocation(detectCollisionProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
