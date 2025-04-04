@@ -3484,7 +3484,7 @@ void processCollectedBlackeningPoints() {
 }
 
 
-void generateFluidStampCollisionsDamage() 
+void generateFluidStampCollisionsDamage()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
@@ -3866,7 +3866,7 @@ GLuint createShaderProgram(const char* vertexSource, const char* fragmentSource)
 }
 
 // Create a texture for simulation
-GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
+GLuint createTexture(GLint internalFormat, GLenum format, bool filtering, int width, int height) {
 	GLuint texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -3887,7 +3887,7 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	// Allocate texture memory
-	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, WIDTH, HEIGHT, 0, format, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_FLOAT, nullptr);
 
 	return texture;
 }
@@ -4413,24 +4413,24 @@ void initGL() {
 
 
 	for (int i = 0; i < 2; i++) {
-		colorTexture[i] = createTexture(GL_R32F, GL_RED, true);
+		colorTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		friendlyColorTexture[i] = createTexture(GL_R32F, GL_RED, true);
+		friendlyColorTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
 	}
 
 
 	// Create textures for simulation
 	for (int i = 0; i < 2; i++)
 	{
-		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true);
-		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true);
+		velocityTexture[i] = createTexture(GL_RG32F, GL_RG, true, WIDTH, HEIGHT);
+		pressureTexture[i] = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
 	}
 
-	divergenceTexture = createTexture(GL_R32F, GL_RED, true);
-	obstacleTexture = createTexture(GL_R32F, GL_RED, false);
-	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false);
+	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
+	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
+	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	backgroundTexture = loadTexture("grid_wide.png");
 	backgroundTexture2 = loadTexture("grid_wide2.png");
 
