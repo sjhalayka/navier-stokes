@@ -2239,7 +2239,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.95;
+const float fake_dispersion = 0.85;
 
 void main() {
     // Check if we're in an obstacle
