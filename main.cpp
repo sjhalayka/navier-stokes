@@ -286,11 +286,11 @@ enum fire_type ally_fire = STRAIGHT;
 enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWERUP, X5_POWERUP };
 
 
-bool has_sinusoidal_fire = false;
-bool has_random_fire = false;
-bool has_homing_fire = false;
-bool x3_fire = false;
-bool x5_fire = false;
+bool has_sinusoidal_fire = true;
+bool has_random_fire = true;
+bool has_homing_fire = true;
+bool x3_fire = true;
+bool x5_fire = true;
 
 
 float eddyIntensity = 1.0;
@@ -365,8 +365,8 @@ public:
 		//		curve_path = other.curve_path;
 		posX = other.posX;
 		posY = other.posY;
-		global_velX = other.global_velX;
-		global_velY = other.global_velY;
+		local_velX = other.local_velX;
+		local_velY = other.local_velY;
 		currentVariationIndex = other.currentVariationIndex;
 		powerup = other.powerup;
 		under_fire = other.under_fire;
@@ -449,8 +449,8 @@ public:
 			//			curve_path = other.curve_path;
 			posX = other.posX;
 			posY = other.posY;
-			global_velX = other.global_velX;
-			global_velY = other.global_velY;
+			local_velX = other.local_velX;
+			local_velY = other.local_velY;
 			currentVariationIndex = other.currentVariationIndex;
 			powerup = other.powerup;
 			under_fire = other.under_fire;
@@ -540,7 +540,7 @@ public:
 	float random_forking = 0.0f;
 	//	vector<vec2> curve_path;
 	float posX = 0, posY = 0;
-	float global_velX = 0, global_velY = 0;
+	float local_velX = 0, local_velY = 0;
 	size_t currentVariationIndex = 0;
 	enum powerup_type powerup;
 	bool under_fire = false;
@@ -1233,8 +1233,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.025f * cos(angle);
-			newBullet.global_velY = 0.025f * sin(angle);
+			newBullet.local_velX = 0.25f * cos(angle);
+			newBullet.local_velY = 0.25f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -1247,8 +1247,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.02f * cos(angle);
-			newBullet.global_velY = 0.02f * sin(angle);
+			newBullet.local_velX = 1.0f * cos(angle);
+			newBullet.local_velY = 1.0f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
@@ -1287,12 +1287,12 @@ void fireBullet() {
 			newStamp.force_radius = avg_rad / 4.0f;
 
 			// Make elliptical fire
-			RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
-			newStamp.global_velX *= WIDTH / float(HEIGHT);
-			newStamp.global_velX *= 2.0f;
+			RandomUnitVector(newStamp.local_velX, newStamp.local_velY);
+			newStamp.local_velX *= WIDTH / float(HEIGHT);
+			newStamp.local_velX *= 2.0f;
 
-			newStamp.global_velX /= 250.0f / (rand() / float(RAND_MAX));
-			newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velX /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
@@ -1309,12 +1309,12 @@ void fireBullet() {
 			newStamp.force_radius = avg_rad / 8.0f;
 
 			// Make elliptical fire
-			RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
-			newStamp.global_velX *= WIDTH / float(HEIGHT);
-			newStamp.global_velX *= 2.0f;
+			RandomUnitVector(newStamp.local_velX, newStamp.local_velY);
+			newStamp.local_velX *= WIDTH / float(HEIGHT);
+			newStamp.local_velX *= 2.0f;
 
-			newStamp.global_velX /= 100.0f / (rand() / float(RAND_MAX));
-			newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velX /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velY /= 100.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
@@ -1328,8 +1328,8 @@ void fireBullet() {
 	case HOMING:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.global_velX = 0.01f * cos(angle);
-			newBullet.global_velY = 0.01f * sin(angle);
+			newBullet.local_velX = 0.1f * cos(angle);
+			newBullet.local_velY = 0.1f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -2239,7 +2239,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.75;
+const float fake_dispersion = 0.95;
 
 void main() {
     // Check if we're in an obstacle
@@ -5283,8 +5283,8 @@ void updateObstacle() {
 
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = -1.0f;
-			newStamp.global_velX = -0.001f;
-			newStamp.global_velY = 0.0f;
+			newStamp.local_velX = -0.001f;
+			newStamp.local_velY = 0.0f;
 			allyPowerUps.push_back(newStamp);
 
 			std::cout << "Added new power up";
@@ -5345,8 +5345,8 @@ void move_and_fork_bullets(void)
 
 				if (closest_enemy == -1)
 				{
-					stamp.posX += stamp.global_velX;
-					stamp.posY += stamp.global_velY;
+					stamp.posX += stamp.local_velX;
+					stamp.posY += stamp.local_velY;
 				}
 				else
 				{
@@ -5365,11 +5365,11 @@ void move_and_fork_bullets(void)
 					float rand_x = 0, rand_y = 0;
 					RandomUnitVector(rand_x, rand_y);
 
-					stamp.global_velX = dir_x;
-					stamp.global_velY = dir_y;
+					stamp.local_velX = dir_x;
+					stamp.local_velY = dir_y;
 
-					stamp.posX += stamp.global_velX;
-					stamp.posY += stamp.global_velY;
+					stamp.posX += stamp.local_velX;
+					stamp.posY += stamp.local_velY;
 				}
 			}
 			else
@@ -5379,8 +5379,8 @@ void move_and_fork_bullets(void)
 				//elapsed = global_time_end - app_start_time;
 
 				// Store the original direction vector
-				float dirX = stamp.global_velX * aspect;
-				float dirY = stamp.global_velY;
+				float dirX = stamp.local_velX * aspect * DT;
+				float dirY = stamp.local_velY * DT;
 
 				// Normalize the direction vector
 				float dirLength = sqrt(dirX * dirX + dirY * dirY);
@@ -5450,6 +5450,10 @@ void move_and_fork_bullets(void)
 
 				//}
 			}
+
+			// If a dying bullet, then move it along with the foreground
+			if (stamp.is_dying_bullet)
+				stamp.posX += foreground_vel * DT;
 		}
 	};
 
@@ -5606,8 +5610,8 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.global_velX;// / aspect;
-		stamp.posY += stamp.global_velY;
+		stamp.posX += stamp.local_velX*DT;// / aspect;
+		stamp.posY += stamp.local_velY * DT;
 
 		// Calculate adjusted Y coordinate that accounts for aspect ratio
 		float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
@@ -5638,8 +5642,10 @@ void move_ships(void) {
 
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.global_velX;// / aspect;
-		stamp.posY += stamp.global_velY;
+		stamp.posX += stamp.local_velX * DT;
+		stamp.posY += stamp.local_velY * DT;
+
+		stamp.posX += foreground_vel * DT;
 	}
 
 
@@ -5742,34 +5748,13 @@ void move_ships(void) {
 		for (size_t idx : indices) {
 			Stamp& chunk = enemyShips[idx];
 
-
-
-			// Store previous position
-			//chunk.prevPosX = chunk.posX;
-			//chunk.prevPosY = chunk.posY;
-
-
-
 			// Calculate normalized chunk size
 			float chunkWidth = chunk.width / float(WIDTH);
 			float chunkHeight = chunk.height / float(HEIGHT);
 
-			//// Calculate the chunk's position relative to the original
-			//chunk.posX = vd.x - originalWidth / 2.0f +
-			//	chunk.data_offsetX * originalWidth +
-			//	chunkWidth / 2.0f;
-
-			//chunk.posY = vd.y - originalHeight / 2.0f +
-			//	chunk.data_offsetY * originalHeight +
-			//	chunkHeight / 2.0f;
-
-			chunk.posX = chunk.posX + chunk.global_velX;
-			chunk.posY = chunk.posY + chunk.global_velY;
-
-
-			//// Calculate velocity
-			//chunk.global_velX = chunk.posX - chunk.prevPosX;
-			//chunk.global_velY = chunk.posY - chunk.prevPosY;
+			chunk.posX += chunk.local_velX * DT;
+			chunk.posY += chunk.local_velY * DT;
+			chunk.posX += foreground_vel * DT;
 		}
 	}
 }
@@ -5802,8 +5787,6 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	newCentralStamp.birth_time = GLOBAL_TIME;
 	newCentralStamp.death_time = GLOBAL_TIME + 0.1f;
 
-	newCentralStamp.global_velX = foreground_vel;
-
 	newCentralStamp.is_dying_bullet = true;
 
 	if (enemy)
@@ -5818,10 +5801,10 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.colour_radius = avg_rad / 4;
 		newStamp.force_radius = avg_rad / 4;
 
-		RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
+		RandomUnitVector(newStamp.local_velX, newStamp.local_velY);
 
-		newStamp.global_velX /= 250.0f / (rand() / float(RAND_MAX));
-		newStamp.global_velY /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.local_velX /= 250.0f / (rand() / float(RAND_MAX));
+		newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
@@ -5839,10 +5822,10 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 		newStamp.colour_radius = avg_rad / 8;
 		newStamp.force_radius = avg_rad / 8;
 
-		RandomUnitVector(newStamp.global_velX, newStamp.global_velY);
+		RandomUnitVector(newStamp.local_velX, newStamp.local_velY);
 
-		newStamp.global_velX /= 100.0f / (rand() / float(RAND_MAX));
-		newStamp.global_velY /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.local_velX /= 100.0f / (rand() / float(RAND_MAX));
+		newStamp.local_velY /= 100.0f / (rand() / float(RAND_MAX));
 		newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
@@ -5991,7 +5974,7 @@ void mark_colliding_ships(void)
 					// In case the player gets stuck between a foreground object and the edge of the screen
 					if (found_non_collision == false)
 					{
-						
+
 
 						make_dying_bullets(allyShips[i], false);
 						allyShips[i].health = 0;
@@ -6002,7 +5985,7 @@ void mark_colliding_ships(void)
 				else
 				{
 
-					
+
 
 					// For regular enemies, destroy the ship immediately
 					make_dying_bullets(allyShips[i], false);
@@ -6122,8 +6105,8 @@ void move_powerups(void)
 			//elapsed = global_time_end - app_start_time;
 
 			// Store the original direction vector
-			float dirX = stamp.global_velX * aspect;
-			float dirY = stamp.global_velY;
+			float dirX = stamp.local_velX * aspect;
+			float dirY = stamp.local_velY;
 
 			// Normalize the direction vector
 			float dirLength = sqrt(dirX * dirX + dirY * dirY);
@@ -6151,8 +6134,8 @@ void move_powerups(void)
 
 			// Move forward along original path
 			float forwardSpeed = dirLength; // Original velocity magnitude
-			stamp.posX += stamp.global_velX * aspect;
-			stamp.posY += stamp.global_velY;
+			stamp.posX += stamp.local_velX * aspect;
+			stamp.posY += stamp.local_velY;
 
 			// Add sinusoidal motion perpendicular to the path
 			stamp.posX += perpX * sinValue * amplitude;
@@ -6285,7 +6268,7 @@ void simulationStep()
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].global_velX, allyBullets[i].global_velY, allyBullets[i].force_radius, 1);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].global_velX, allyBullets[i].global_velY, allyBullets[i].colour_radius);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].local_velX, allyBullets[i].local_velY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
@@ -6293,7 +6276,7 @@ void simulationStep()
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
 		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].global_velX, enemyBullets[i].global_velY, enemyBullets[i].force_radius, 1);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].global_velX, enemyBullets[i].global_velY, enemyBullets[i].colour_radius);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].local_velX, enemyBullets[i].local_velY, enemyBullets[i].colour_radius);
 	}
 
 	red_mode = old_red_mode;
@@ -6505,7 +6488,7 @@ void displayFPS() {
 
 
 // GLUT display callback
-void display() 
+void display()
 {
 	// Render to screen
 	renderToScreen();
@@ -6680,9 +6663,6 @@ void testForegroundChunking() {
 			chunkStamp.data_offsetY * normalizedOrigHeight +
 			normalizedChunkHeight / 2.0f;
 
-		chunkStamp.global_velX = foreground_vel;
-		chunkStamp.global_velY = 0;
-
 		chunkStamp.health = 1000000; // Practically infinite
 
 		enemyShips.push_back(chunkStamp);
@@ -6696,8 +6676,8 @@ void testForegroundChunking() {
 
 		newStamp.posX = output_screen_locations[i].x;
 		newStamp.posY = output_screen_locations[i].y;
-		newStamp.global_velX = foreground_vel;
-		newStamp.global_velY = 0;
+		newStamp.local_velX = 0;// foreground_vel;
+		newStamp.local_velY = 0;
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1;
@@ -6827,8 +6807,8 @@ void keyboard(unsigned char key, int x, int y) {
 
 		newStamp.birth_time = GLOBAL_TIME;
 		newStamp.death_time = -1.0f;
-		newStamp.global_velX = -0.0025f; // Pixels per second
-		newStamp.global_velY = 0.0f;// 5.0f;
+		newStamp.local_velX = -0.0025f; // Pixels per second
+		newStamp.local_velY = 0.0f;// 5.0f;
 		allyPowerUps.push_back(newStamp);
 
 		std::cout << "Added new power up";
@@ -6837,26 +6817,26 @@ void keyboard(unsigned char key, int x, int y) {
 
 	case '0':
 	{
-		Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
-		// Explicitly ensure blackeningTexture is 0
-		newStamp.blackeningTexture = 0;
+		//Stamp newStamp = deepCopyStamp(enemyTemplates[currentEnemyTemplateIndex]);
+		//// Explicitly ensure blackeningTexture is 0
+		//newStamp.blackeningTexture = 0;
 
-		float normalized_stamp_width = newStamp.width / float(WIDTH);
-		float normalized_stamp_height = newStamp.height / float(HEIGHT);
+		//float normalized_stamp_width = newStamp.width / float(WIDTH);
+		//float normalized_stamp_height = newStamp.height / float(HEIGHT);
 
-		vec2 start;
-		start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
-		start.y = rand() / float(RAND_MAX);
+		//vec2 start;
+		//start.x = 1.0f + normalized_stamp_width / 2.0f; // just off the edge of the screen
+		//start.y = rand() / float(RAND_MAX);
 
-		newStamp.posX = start.x;
-		newStamp.posY = start.y;
-		newStamp.global_velX = foreground_vel;
-		newStamp.global_velY = 0;
+		//newStamp.posX = start.x;
+		//newStamp.posY = start.y;
+		//newStamp.local_velX = foreground_vel;
+		//newStamp.local_velY = 0;
 
-		newStamp.birth_time = GLOBAL_TIME;
-		newStamp.death_time = -1;
+		//newStamp.birth_time = GLOBAL_TIME;
+		//newStamp.death_time = -1;
 
-		enemyShips.push_back(newStamp);
+		//enemyShips.push_back(newStamp);
 		break;
 	}
 
@@ -6994,32 +6974,32 @@ void specialKeyboard(int key, int x, int y) {
 
 	if (allyShips.size() > 0) {
 		// Reset velocity
-		allyShips[0].global_velX = 0.0;
-		allyShips[0].global_velY = 0.0;
+		allyShips[0].local_velX = 0.0;
+		allyShips[0].local_velY = 0.0;
 
 		// Combine key states to allow diagonal movement
 		if (upKeyPressed) {
-			allyShips[0].global_velY = 1;
+			allyShips[0].local_velY = 1;
 		}
 		if (downKeyPressed) {
-			allyShips[0].global_velY = -1;
+			allyShips[0].local_velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].global_velX = -1;
+			allyShips[0].local_velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].global_velX = 1;
+			allyShips[0].local_velX = 1;
 		}
 
-		float vel_length = sqrt(allyShips[0].global_velX * allyShips[0].global_velX + allyShips[0].global_velY * allyShips[0].global_velY);
+		float vel_length = sqrt(allyShips[0].local_velX * allyShips[0].local_velX + allyShips[0].local_velY * allyShips[0].local_velY);
 
 		if (vel_length > 0)
 		{
-			allyShips[0].global_velX /= vel_length;
-			allyShips[0].global_velY /= vel_length;
+			allyShips[0].local_velX /= vel_length;
+			allyShips[0].local_velY /= vel_length;
 
-			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].local_velX *= 0.25f * (WIDTH / 1920.0f);
+			allyShips[0].local_velY *= 0.25f * (HEIGHT / 1080.0f);
 		}
 	}
 }
@@ -7051,31 +7031,31 @@ void specialKeyboardUp(int key, int x, int y) {
 
 	if (allyShips.size() > 0) {
 		// Reset velocity if no keys are pressed
-		allyShips[0].global_velX = 0.0;
-		allyShips[0].global_velY = 0.0;
+		allyShips[0].local_velX = 0.0;
+		allyShips[0].local_velY = 0.0;
 
 		if (upKeyPressed) {
-			allyShips[0].global_velY = 1;
+			allyShips[0].local_velY = 1;
 		}
-		if (downKeyPressed) {
-			allyShips[0].global_velY = -1;
+		if (downKeyPressed) { 
+			allyShips[0].local_velY = -1;
 		}
 		if (leftKeyPressed) {
-			allyShips[0].global_velX = -1;
+			allyShips[0].local_velX = -1;
 		}
 		if (rightKeyPressed) {
-			allyShips[0].global_velX = 1;
+			allyShips[0].local_velX = 1;
 		}
 
-		float vel_length = sqrt(allyShips[0].global_velX * allyShips[0].global_velX + allyShips[0].global_velY * allyShips[0].global_velY);
+		float vel_length = sqrt(allyShips[0].local_velX * allyShips[0].local_velX + allyShips[0].local_velY * allyShips[0].local_velY);
 
 		if (vel_length > 0)
 		{
-			allyShips[0].global_velX /= vel_length;
-			allyShips[0].global_velY /= vel_length;
+			allyShips[0].local_velX /= vel_length;
+			allyShips[0].local_velY /= vel_length;
 
-			allyShips[0].global_velX *= 0.025f * (WIDTH / 1920.0f);
-			allyShips[0].global_velY *= 0.025f * (HEIGHT / 1080.0f);
+			allyShips[0].local_velX *= 0.25f * (WIDTH / 1920.0f);
+			allyShips[0].local_velY *= 0.25f * (HEIGHT / 1080.0f);
 		}
 	}
 }
