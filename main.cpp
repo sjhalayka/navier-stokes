@@ -2818,15 +2818,29 @@ void main() {
     else
         color4 = vec4(1.0, 1.0, 1.0, 0.0);
 
+
+	// not toon shading:
+    //if (density < 0.25) {
+    //    FragColor = mix(color1, color2, density * 4.0);
+    //} else if (density < 0.5) {
+    //    FragColor = mix(color2, color3, (density - 0.25) * 4.0);
+    //} else if (density < 0.75) {
+    //    FragColor = mix(color3, color4, (density - 0.5) * 4.0);
+    //} else {
+    //   FragColor = color4;
+    //}
+
+	// toon shading:
     if (density < 0.25) {
-        FragColor = mix(color1, color2, density * 4.0);
+        FragColor = color1;//mix(color1, color2, density * 4.0);
     } else if (density < 0.5) {
-        FragColor = mix(color2, color3, (density - 0.25) * 4.0);
+        FragColor = color2;//mix(color2, color3, (density - 0.25) * 4.0);
     } else if (density < 0.75) {
-        FragColor = mix(color3, color4, (density - 0.5) * 4.0);
+        FragColor = color3;//mix(color3, color4, (density - 0.5) * 4.0);
     } else {
        FragColor = color4;
     }
+
 }
 )";
 
