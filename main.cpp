@@ -12,6 +12,8 @@
 #include <glm/gtc/type_ptr.hpp>
 
 
+#include <SFML/Audio.hpp>
+
 
 #include <iostream>
 #include <vector>
@@ -32,7 +34,7 @@ using namespace std;
 
 #pragma comment(lib, "freeglut")
 #pragma comment(lib, "glew32")
-
+#pragma comment(lib, "sfml-audio")
 
 // to do: calculate enemy path starting x location by using the normalized stamp width method done in the code that processes '0' key strokes
 
@@ -2832,11 +2834,11 @@ void main() {
 
 	// toon shading:
     if (density < 0.25) {
-        FragColor = color1;//mix(color1, color2, density * 4.0);
+        FragColor = color1;
     } else if (density < 0.5) {
-        FragColor = color2;//mix(color2, color3, (density - 0.25) * 4.0);
+        FragColor = color2;
     } else if (density < 0.75) {
-        FragColor = color3;//mix(color3, color4, (density - 0.5) * 4.0);
+        FragColor = color3;
     } else {
        FragColor = color4;
     }
