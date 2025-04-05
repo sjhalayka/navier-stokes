@@ -258,6 +258,9 @@ GLuint vao, vbo;
 GLuint fbo;
 
 
+sf::SoundBuffer explosion_buffer("level1/explosion.wav"); // Throws sf::Exception if an error occurs
+sf::Sound sound(explosion_buffer);
+
 
 
 bool red_mode = true;
@@ -5777,6 +5780,8 @@ void make_dying_bullets(const Stamp& stamp, const bool enemy)
 	if (stamp.to_be_culled)
 		return;
 
+	sound.play();
+
 	//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 	//std::chrono::duration<float, std::milli> elapsed;
 	//elapsed = global_time_end - app_start_time;
@@ -5953,39 +5958,41 @@ void mark_colliding_ships(void)
 		{
 			if (isPixelPerfectCollision(allyShips[i], enemyShips[j]))
 			{
-				if (enemyShips[j].is_foreground)
+				if (0)//enemyShips[j].is_foreground)
 				{
 					// For foreground objects, we want to push the ship away
 
 					bool found_non_collision = false;
 
-					for (size_t k = 0; k < 100; k++)
-					{
-						vec2 avg_out;
+					//for (size_t k = 0; k < 100; k++)
+					//{
+					//	vec2 avg_out;
 
-						if (false == isPixelPerfectCollision_AvgOut(allyShips[i], enemyShips[j], avg_out))
-						{
-							found_non_collision = true;
-							break;
-						}
+					//	if (false == isPixelPerfectCollision_AvgOut(allyShips[i], enemyShips[j], avg_out))
+					//	{
+					//		found_non_collision = true;
+					//		break;
+					//	}
 
-						avg_out.x /= allyShips[i].width;
-						avg_out.y /= allyShips[i].height;
+					//	avg_out.x /= allyShips[i].width;
+					//	avg_out.y /= allyShips[i].height;
 
-						if (avg_out.x < 0.45)
-							allyShips[i].posX += 0.001;
-						else if (avg_out.x > 0.55)
-							allyShips[i].posX -= 0.001;
+					//	if (avg_out.x < 0.45)
+					//		allyShips[i].posX += 0.001;
+					//	else if (avg_out.x > 0.55)
+					//		allyShips[i].posX -= 0.001;
 
-						if (avg_out.y < 0.45)
-							allyShips[i].posY += 0.001;
-						else if (avg_out.y > 0.55)
-							allyShips[i].posY -= 0.001;
-					}
+					//	if (avg_out.y < 0.45)
+					//		allyShips[i].posY += 0.001;
+					//	else if (avg_out.y > 0.55)
+					//		allyShips[i].posY -= 0.001;
+					//}
 
 					// In case the player gets stuck between a foreground object and the edge of the screen
 					if (found_non_collision == false)
 					{
+						
+
 						make_dying_bullets(allyShips[i], false);
 						allyShips[i].health = 0;
 						allyShips[i].to_be_culled = true;
@@ -5994,6 +6001,9 @@ void mark_colliding_ships(void)
 				}
 				else
 				{
+
+					
+
 					// For regular enemies, destroy the ship immediately
 					make_dying_bullets(allyShips[i], false);
 					allyShips[i].health = 0;
