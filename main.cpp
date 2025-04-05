@@ -36,6 +36,8 @@ using namespace std;
 
 // to do: calculate enemy path starting x location by using the normalized stamp width method done in the code that processes '0' key strokes
 
+// to do: do global vel movement multiplied by DT
+
 
 // to do: Enemy cannon type can be straight ahead, sideways, random single, circular spread
 
@@ -6214,14 +6216,8 @@ void simulationStep()
 	//solvePressure(20);
 	//subtractPressureGradient();
 
-	if (1)//frameCount % 30 == 0)
-	{
-		//detectCollisions();
-		generateFluidStampCollisionsDamage();
-		processCollectedBlackeningPoints();
-	}
-
-
+	generateFluidStampCollisionsDamage();
+	processCollectedBlackeningPoints();
 }
 
 
@@ -6378,17 +6374,17 @@ void renderToScreen()
 
 
 void displayFPS() {
-	static int frameCount = 0;
+	static int frame_count = 0;
 	static float lastTime = 0.0f;
 	static float fps = 0.0f;
 
-	frameCount++;
+	frame_count++;
 	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	float deltaTime = currentTime - lastTime;
 
 	if (deltaTime >= 1.0f) {
-		fps = frameCount / deltaTime;
-		frameCount = 0;
+		fps = frame_count / deltaTime;
+		frame_count = 0;
 		lastTime = currentTime;
 	}
 
@@ -6398,10 +6394,8 @@ void displayFPS() {
 
 
 // GLUT display callback
-void display() {
-	// Increment frame counter
-	frameCount++;
-
+void display() 
+{
 	// Render to screen
 	renderToScreen();
 
@@ -6419,7 +6413,6 @@ void display() {
 // GLUT idle callback
 void idle()
 {
-
 	// Use GLUT's elapsed time (in milliseconds) as the real-time source
 	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
 	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
@@ -6434,6 +6427,8 @@ void idle()
 	if (accumulator > MAX_ACCUMULATOR) {
 		accumulator = MAX_ACCUMULATOR;
 	}
+
+	frameCount++;
 
 	// Fixed time step loop
 	while (accumulator >= DT) {
