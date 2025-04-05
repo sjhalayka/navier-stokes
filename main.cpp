@@ -767,10 +767,13 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 //	glBindVertexArray(0);
 //}
 
-bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
+bool loadStampTextureFile(string filename, std::vector<unsigned char>& pixelData, GLuint& textureID, int& width, int& height, int& channels) {
 	// Load image using stb_image - Don't flip vertically for our pixel data
+
+	filename = "level1/" + filename;
+
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(filename, &width, &height, &channels, 0);
+	unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
 
 	if (!data) {
 		std::cerr << "Failed to load stamp texture: " << filename << std::endl;
@@ -785,7 +788,7 @@ bool loadStampTextureFile(const char* filename, std::vector<unsigned char>& pixe
 
 	// Now set flip for OpenGL texture loading
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char* glData = stbi_load(filename, &width, &height, &channels, 0);
+	unsigned char* glData = stbi_load(filename.c_str(), &width, &height, &channels, 0);
 
 	if (!glData) {
 		std::cerr << "Failed to reload texture for OpenGL: " << filename << std::endl;
@@ -1679,6 +1682,21 @@ bool reportCollisions = true;
 // Define a struct for collision data
 struct CollisionPoint {
 	int x, y;
+
+	bool operator<(const CollisionPoint& right) const
+	{
+		if (right.x > x)
+			return true;
+		else if (right.x < x)
+			return false;
+
+		if (right.y > y)
+			return true;
+		else if (right.y < y)
+			return false;
+
+		return false;
+	}
 
 	float r;
 	float b;
@@ -3530,6 +3548,38 @@ void generateFluidStampCollisionsDamage()
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
+
+
+
+
+
+	//map<CollisionPoint, vector<size_t>> ally_pixels_to_stamps;
+	//map<CollisionPoint, vector<size_t>> enemy_pixels_to_stamps;
+
+	//for (int y = 0; y < HEIGHT; ++y) 
+	//{
+	//	for (int x = 0; x < WIDTH; ++x)
+	//	{
+	//		CollisionPoint p(x, y, 0, 0);
+
+	//		for (size_t i = 0; i < allyShips.size(); i++)
+	//		{
+	//			if (isCollisionInStamp(p, allyShips[i], i, "Ally Ship"))
+	//			{
+	//				ally_pixels_to_stamps[p].push_back(i);
+	//			}
+	//		}
+
+	//		for (size_t i = 0; i < enemyShips.size(); i++)
+	//		{
+	//			if (isCollisionInStamp(p, enemyShips[i], i, "Enemy Ship"))
+	//			{
+	//				enemy_pixels_to_stamps[p].push_back(i);
+	//			}
+	//		}
+	//	}
+	//}
+
 	// Allocate buffer for collision data - RGBA
 	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
 
@@ -3539,6 +3589,41 @@ void generateFluidStampCollisionsDamage()
 	// Clear previous collision locations
 	collisionPoints.clear();
 
+	//for (map<CollisionPoint, vector<size_t>>::const_iterator ci = ally_pixels_to_stamps.begin(); ci != ally_pixels_to_stamps.end(); ci++)
+	//{
+	//	CollisionPoint p = ci->first;
+
+	//	for (size_t j = 0; j < ci->second.size(); j++)
+	//	{
+	//		int index = (p.y * WIDTH + p.x) * 4;
+	//		float r = collisionData[index];
+	//		float b = collisionData[index + 2];
+	//		float a = collisionData[index + 3];
+
+	//		if (a > 0.0)
+	//		{
+	//			collisionPoints.push_back(CollisionPoint(p.x, p.y, r, b));
+	//		}
+	//	}
+	//}
+
+	//for (map<CollisionPoint, vector<size_t>>::const_iterator ci = enemy_pixels_to_stamps.begin(); ci != enemy_pixels_to_stamps.end(); ci++)
+	//{
+	//	CollisionPoint p = ci->first;
+
+	//	for (size_t j = 0; j < ci->second.size(); j++)
+	//	{
+	//		int index = (p.y * WIDTH + p.x) * 4;
+	//		float r = collisionData[index];
+	//		float b = collisionData[index + 2];
+	//		float a = collisionData[index + 3];
+
+	//		if (a > 0.0)
+	//		{
+	//			collisionPoints.push_back(CollisionPoint(p.x, p.y, r, b));
+	//		}
+	//	}
+	//}
 	// Find collision locations and categorize them
 	for (int y = 0; y < HEIGHT; ++y) {
 		for (int x = 0; x < WIDTH; ++x) {
@@ -4449,8 +4534,8 @@ void initGL() {
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
 	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
-	backgroundTexture = loadTexture("grid_wide.png");
-	backgroundTexture2 = loadTexture("grid_wide2.png");
+	backgroundTexture = loadTexture("level1/grid_wide.png");
+	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
 
 
 
