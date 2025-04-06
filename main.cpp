@@ -59,7 +59,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.01;
+float foreground_vel = -0.05;
 
 
 // Structure to hold collision point data
@@ -1247,8 +1247,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.local_velX = 1.0f * cos(angle);
-			newBullet.local_velY = 1.0f * sin(angle);
+			newBullet.local_velX = 0.5f * cos(angle);
+			newBullet.local_velY = 0.5f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
@@ -2239,7 +2239,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.85;
+const float fake_dispersion = 0.75;
 
 void main() {
     // Check if we're in an obstacle
@@ -6300,7 +6300,7 @@ void simulationStep()
 
 	advectColor();
 	//applyVorticityConfinementColor();
-	diffuseColor();
+	diffuseColor(); 
 
 	advectFriendlyColor();
 	//applyVorticityConfinementFriendlyColor();
