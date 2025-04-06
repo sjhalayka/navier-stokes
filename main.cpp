@@ -1247,8 +1247,8 @@ void fireBullet() {
 	case SINUSOIDAL:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.local_velX = 0.5f * cos(angle);
-			newBullet.local_velY = 0.5f * sin(angle);
+			newBullet.local_velX = 1.0f * cos(angle);
+			newBullet.local_velY = 1.0f * sin(angle);
 			newBullet.sinusoidal_shift = false;
 			newBullet.sinusoidal_amplitude = 0.005f;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
