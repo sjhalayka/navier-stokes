@@ -372,8 +372,8 @@ public:
 		under_fire = other.under_fire;
 		cannons = other.cannons;
 		is_foreground = other.is_foreground;
-		//		prevPosX = other.prevPosX;
-		//		prevPosY = other.prevPosY;
+		prevPosX = other.prevPosX;
+		prevPosY = other.prevPosY;
 
 				// Copy chunking data
 		data_offsetX = other.data_offsetX;
@@ -456,8 +456,8 @@ public:
 			under_fire = other.under_fire;
 			cannons = other.cannons;
 			is_foreground = other.is_foreground;
-			//			prevPosX = other.prevPosX;
-			//			prevPosY = other.prevPosY;
+			prevPosX = other.prevPosX;
+			prevPosY = other.prevPosY;
 
 						// Copy chunking data
 			data_offsetX = other.data_offsetX;
@@ -546,7 +546,7 @@ public:
 	bool under_fire = false;
 	vector<Cannon> cannons;
 	bool is_foreground = false;
-	//	float prevPosX = 0, prevPosY = 0;
+	float prevPosX = 0, prevPosY = 0;
 	bool is_dying_bullet = false;
 
 	float data_offsetX = 0.0f;
@@ -2670,6 +2670,7 @@ void main()
         
         // Add force to velocity
         velocity += direction * strength * falloff;
+        velocity += direction * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -2752,6 +2753,8 @@ void main() {
 
 const char* renderFragmentShader = R"(
 #version 330 core
+uniform sampler2D velocityTexture;
+
 uniform sampler2D obstacleTexture;
 uniform sampler2D collisionTexture;
 uniform sampler2D colorTexture;
@@ -2864,6 +2867,10 @@ void main() {
        FragColor = color4;
     }
 
+	vec4 vel = texture(velocityTexture, adjustedCoord);	
+
+	FragColor += vel;
+	FragColor /= 2.0;
 }
 )";
 
@@ -4873,7 +4880,7 @@ void subtractPressureGradient() {
 
 
 // Add force to the velocity field
-void addForce(float posX, float posY, float global_velX, float global_velY, float radius, float strength)
+void addForce(float posX, float posY, float prevPosX, float prevPosY, float radius, float strength)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
@@ -4887,14 +4894,27 @@ void addForce(float posX, float posY, float global_velX, float global_velY, floa
 	//float x_shift = 0.01 * rand() / float(RAND_MAX);
 	//float y_shift = 0.01 * rand() / float(RAND_MAX);
 
-	float mousePosX = posX;// +x_shift;
-	float mousePosY = posY;// +y_shift;
+	float mousePosX = posX;
+	float mousePosY = posY;
 
-	float mouseVelX = global_velX;
-	float mouseVelY = global_velY;
+	float prevMouseX = prevPosX;
+	float prevMouseY = prevPosY;
 
-	float mouse_vel_length = sqrt(global_velX * global_velX + global_velY * global_velY);
+	float aspect = HEIGHT / float(WIDTH);
 
+	//mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	//prevMouseY = (prevMouseY - 0.5f) * aspect + 0.5f;
+
+	float mouseVelX = (mousePosX - prevMouseX) / (HEIGHT / (float(WIDTH)));
+	float mouseVelY = (mousePosY - prevMouseY);
+
+	float mouse_vel_length = sqrt(mouseVelX * mouseVelX + mouseVelY * mouseVelY);
+
+	if (mouse_vel_length > 0)
+	{
+		mouseVelX /= mouse_vel_length;
+		mouseVelY /= mouse_vel_length;
+	}
 
 	// Set uniforms
 	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
@@ -4902,7 +4922,7 @@ void addForce(float posX, float posY, float global_velX, float global_velY, floa
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), mouse_vel_length * strength);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
 	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
 	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
 
@@ -5319,6 +5339,9 @@ void move_and_fork_bullets(void)
 
 		for (auto& stamp : stamps)
 		{
+			stamp.prevPosX = stamp.posX;
+			stamp.prevPosY = stamp.posY;
+
 			if (type == "ally" && ally_fire == HOMING)
 			{
 				long long signed int closest_enemy = -1;
@@ -5608,9 +5631,12 @@ void move_ships(void) {
 	for (auto& stamp : allyShips) {
 		//if (stamp.to_be_culled) continue;
 
+		stamp.prevPosX = stamp.posX;
+		stamp.prevPosY = stamp.posY;
+
 		const float aspect = WIDTH / float(HEIGHT);
 
-		stamp.posX += stamp.local_velX*DT;// / aspect;
+		stamp.posX += stamp.local_velX * DT;// / aspect;
 		stamp.posY += stamp.local_velY * DT;
 
 		// Calculate adjusted Y coordinate that accounts for aspect ratio
@@ -5639,6 +5665,9 @@ void move_ships(void) {
 	{
 		if (stamp.is_foreground)// || stamp.to_be_culled)
 			continue;
+
+		stamp.prevPosX = stamp.posX;
+		stamp.prevPosY = stamp.posY;
 
 		const float aspect = WIDTH / float(HEIGHT);
 
@@ -6099,6 +6128,9 @@ void move_powerups(void)
 
 		for (auto& stamp : stamps)
 		{
+			stamp.prevPosX = stamp.posX;
+			stamp.prevPosY = stamp.posY;
+
 			const float aspect = WIDTH / float(HEIGHT);
 			//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
 			//std::chrono::duration<float, std::milli> elapsed;
@@ -6267,7 +6299,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].global_velX, allyBullets[i].global_velY, allyBullets[i].force_radius, 1);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 100);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].local_velX, allyBullets[i].local_velY, allyBullets[i].colour_radius);
 	}
 
@@ -6300,7 +6332,7 @@ void simulationStep()
 
 	advectColor();
 	//applyVorticityConfinementColor();
-	diffuseColor(); 
+	diffuseColor();
 
 	advectFriendlyColor();
 	//applyVorticityConfinementFriendlyColor();
@@ -6342,6 +6374,7 @@ void renderToScreen()
 	//elapsed = global_time_end - app_start_time;
 
 	// Set uniforms
+	glUniform1i(glGetUniformLocation(renderProgram, "velocityTexture"), 0);
 	glUniform1i(glGetUniformLocation(renderProgram, "obstacleTexture"), 1);
 	glUniform1i(glGetUniformLocation(renderProgram, "collisionTexture"), 2);
 	glUniform1i(glGetUniformLocation(renderProgram, "colorTexture"), 3);
@@ -6352,6 +6385,9 @@ void renderToScreen()
 	glUniform1f(glGetUniformLocation(renderProgram, "time"), GLOBAL_TIME);
 
 	// Bind textures
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 	glActiveTexture(GL_TEXTURE2);
@@ -7037,7 +7073,7 @@ void specialKeyboardUp(int key, int x, int y) {
 		if (upKeyPressed) {
 			allyShips[0].local_velY = 1;
 		}
-		if (downKeyPressed) { 
+		if (downKeyPressed) {
 			allyShips[0].local_velY = -1;
 		}
 		if (leftKeyPressed) {
