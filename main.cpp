@@ -5674,6 +5674,17 @@ void move_ships(void) {
 		stamp.posY += stamp.local_velY * DT;
 
 		stamp.posX += foreground_vel * DT;
+
+
+		//			if (stamp.local_velY > 0.001)
+//				stamp.currentVariationIndex = 1;
+//			else if (stamp.local_velY < -0.001)
+//				stamp.currentVariationIndex = 2;
+//			else
+//				stamp.currentVariationIndex = 0;
+
+
+
 	}
 
 
