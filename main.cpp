@@ -197,7 +197,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -2064,7 +2064,7 @@ uniform vec2 texelSize;
 uniform float viscosity;
 uniform float dt;
 out vec4 FragColor;
-const float fake_dispersion = 1.0;//0.99;
+const float fake_dispersion = 0.5;//0.99;
 
 in vec2 TexCoord;
 
@@ -2239,7 +2239,7 @@ uniform float dt;
 out float FragColor;
 
 in vec2 TexCoord;
-const float fake_dispersion = 0.75;
+const float fake_dispersion = 0.8;
 
 void main() {
     // Check if we're in an obstacle
@@ -2666,11 +2666,10 @@ void main()
     // Apply force based on radius
 
      float falloff = 1.0 - (distance / radius);
-        falloff = falloff * falloff;
+       // falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength * falloff;
-        velocity += direction * strength * falloff;
+        velocity += normalize(direction) * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -2867,10 +2866,10 @@ void main() {
        FragColor = color4;
     }
 
-	vec4 vel = texture(velocityTexture, adjustedCoord);	
+	//vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	FragColor += vel;
-	FragColor /= 2.0;
+	//FragColor += vel/1000;
+	//FragColor /= 2.0;
 }
 )";
 
@@ -4936,8 +4935,8 @@ void addForce(float posX, float posY, float prevPosX, float prevPosY, float radi
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Swap texture indices
-	velocityIndex = 1 - velocityIndex;
+	//// Swap texture indices
+	//velocityIndex = 1 - velocityIndex;
 }
 
 
@@ -4994,7 +4993,7 @@ void addMouseForce() {
 }
 
 
-void addColor(float posX, float posY, float global_velX, float global_velY, float radius)
+void addColor(float posX, float posY, float radius)
 {
 	// Determine which color texture to modify based on the active mode
 	GLuint targetTexture;
@@ -5773,6 +5772,8 @@ void move_ships(void) {
 		float originalWidth = referenceChunk.data_original_width / float(WIDTH);
 		float originalHeight = referenceChunk.data_original_height / float(HEIGHT);
 
+
+
 		// Now update all chunks based on where the original would be
 		for (size_t idx : indices) {
 			Stamp& chunk = enemyShips[idx];
@@ -5781,9 +5782,13 @@ void move_ships(void) {
 			float chunkWidth = chunk.width / float(WIDTH);
 			float chunkHeight = chunk.height / float(HEIGHT);
 
+			chunk.prevPosX = chunk.posX;
+			chunk.prevPosY = chunk.posY;
+
 			chunk.posX += chunk.local_velX * DT;
 			chunk.posY += chunk.local_velY * DT;
 			chunk.posX += foreground_vel * DT;
+
 		}
 	}
 }
@@ -6297,19 +6302,24 @@ void simulationStep()
 
 	red_mode = true;
 
+	cout << "ALLY BULLET COUNT " << allyBullets.size() << endl;
+
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 100);
-		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].local_velX, allyBullets[i].local_velY, allyBullets[i].colour_radius);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 500);
+		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
 	red_mode = false;
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].global_velX, enemyBullets[i].global_velY, enemyBullets[i].force_radius, 1);
-		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].local_velX, enemyBullets[i].local_velY, enemyBullets[i].colour_radius);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].prevPosX, enemyBullets[i].prevPosY, enemyBullets[i].force_radius, 5000);
+		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
+
+	// Swap texture indices
+	velocityIndex = 1 - velocityIndex;
 
 	red_mode = old_red_mode;
 
