@@ -2666,7 +2666,7 @@ void main()
     // Apply force based on radius
 
      float falloff = 1.0 - (distance / radius);
-       // falloff = falloff * falloff;
+        falloff = falloff * falloff;
         
         // Add force to velocity
         velocity += normalize(direction) * strength * falloff;
@@ -6554,28 +6554,52 @@ void display()
 void idle()
 {
 	// Use GLUT's elapsed time (in milliseconds) as the real-time source
-	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
-	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	float deltaTime = currentTime - lastTime;
-	lastTime = currentTime;
+	//static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	//float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	//float deltaTime = currentTime - lastTime;
+	//lastTime = currentTime;
 
-	// Accumulate time, cap it to prevent excessive catch-up
-	static float accumulator = 0.0f;
-	accumulator += deltaTime;
+	//// Accumulate time, cap it to prevent excessive catch-up
+	//static float accumulator = 0.0f;
+	//accumulator += deltaTime;
 
-	const float MAX_ACCUMULATOR = DT * 1.0; // Cap at 5 frames to avoid spiral of death
-	if (accumulator > MAX_ACCUMULATOR) {
-		accumulator = MAX_ACCUMULATOR;
-	}
+	//const float MAX_ACCUMULATOR = DT * 1.0;
+	//if (accumulator > MAX_ACCUMULATOR) {
+	//	accumulator = MAX_ACCUMULATOR;
+	//}
 
-	frameCount++;
+	//frameCount++;
 
-	// Fixed time step loop
-	while (accumulator >= DT) {
-		simulationStep(); // Update the simulation by one fixed step
-		GLOBAL_TIME += DT; // Increment global time by fixed step
+	//// Fixed time step loop
+	//while (accumulator >= DT) {
+	//	simulationStep(); // Update the simulation by one fixed step
+	//	GLOBAL_TIME += DT; // Increment global time by fixed step
+	//	accumulator -= DT;
+	//}
+
+
+
+
+	static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	static double accumulator = 0.0;
+
+	double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	double frameTime = newTime - currentTime;
+	currentTime = newTime;
+	
+	if (frameTime > DT)
+		frameTime = DT;
+
+	accumulator += frameTime;
+
+	while (accumulator >= DT)
+	{
+		simulationStep();
 		accumulator -= DT;
+		GLOBAL_TIME += DT;
 	}
+
+
 
 
 
