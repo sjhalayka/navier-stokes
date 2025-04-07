@@ -2669,7 +2669,7 @@ void main()
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += normalize(direction) * strength * falloff;
+        velocity += direction * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -2868,7 +2868,7 @@ void main() {
 
 	//vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	//FragColor += vel/1000;
+	//FragColor += vel;
 	//FragColor /= 2.0;
 }
 )";
@@ -6306,7 +6306,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 500);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
