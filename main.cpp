@@ -197,7 +197,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 60;
+const float FPS = 30;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -375,7 +375,7 @@ public:
 		prevPosX = other.prevPosX;
 		prevPosY = other.prevPosY;
 
-				// Copy chunking data
+		// Copy chunking data
 		data_offsetX = other.data_offsetX;
 		data_offsetY = other.data_offsetY;
 		data_original_width = other.data_original_width;
@@ -459,7 +459,7 @@ public:
 			prevPosX = other.prevPosX;
 			prevPosY = other.prevPosY;
 
-						// Copy chunking data
+			// Copy chunking data
 			data_offsetX = other.data_offsetX;
 			data_offsetY = other.data_offsetY;
 			data_original_width = other.data_original_width;
@@ -2181,14 +2181,14 @@ uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize; // Add this uniform to match texture shader
 
-out float FragColor;
+out vec4 FragColor;
 
 in vec2 TexCoord;
 
 void main() 
 {
     // Get current obstacle value
-    float obstacle = texture(obstacleTexture, TexCoord).r;
+    vec4 obstacle = texture(obstacleTexture, TexCoord);
     
     // Get dimensions
     vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
@@ -2210,13 +2210,15 @@ void main()
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
         
         // Sample stamp texture (use alpha channel for transparency)
-        float stampValue = texture(stampTexture, stampCoord).a;
+		float a = texture(stampTexture, stampCoord).a;
+
+        float stampValue = a;
         
         // Apply threshold to make it binary
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
         // Combine with existing obstacle (using max for union)
-        obstacle = max(obstacle, stampValue);
+        obstacle = vec4(stampValue);
     }
     
     FragColor = obstacle;
@@ -2633,35 +2635,25 @@ in vec2 TexCoord;
 
 void main()
 {
-	float distance = length(TexCoord - point);
-
-	// Abort early
-	if(distance >= radius)
-		discard;
-
 	float aspect_ratio = WIDTH/HEIGHT;
 
     vec2 adjustedCoord = TexCoord;
     
     // For non-square textures, adjust sampling to prevent stretching
-    if (aspect_ratio > 1.0) {
-        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
-    } else if (aspect_ratio < 1.0) {
-        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
-    }
-
-    // Check if we're in an obstacle
-    float obstacle = texture(obstacleTexture, adjustedCoord).r;
-    //if (obstacle > 0.0) {
-    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    //    return;
+    //if (aspect_ratio > 1.0) {
+    //    adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    //} else if (aspect_ratio < 1.0) {
+    //    adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
     //}
+
+	float distance = length(adjustedCoord - point);
+
+	// Abort early
+	if(distance >= radius)
+		discard;
 
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
-    
-    // Calculate distance to force application point
-    
     
     // Apply force based on radius
 
@@ -2669,7 +2661,7 @@ void main()
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += direction * strength * falloff;
+        velocity += (direction) * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -2868,7 +2860,12 @@ void main() {
 
 	//vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	//FragColor += vel;
+	//float log_vel_x = log(vel.x);
+	//float log_vel_y = log(vel.y);
+
+	//vec4 logvel = vec4(log_vel_x, log_vel_y, 1.0, 1.0);
+
+	//FragColor += logvel;
 	//FragColor /= 2.0;
 }
 )";
@@ -6317,7 +6314,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000.0);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
@@ -6325,7 +6322,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].prevPosX, enemyBullets[i].prevPosY, enemyBullets[i].force_radius, 5000);
+		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].prevPosX, enemyBullets[i].prevPosY, enemyBullets[i].force_radius, 5000);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
@@ -6597,7 +6594,7 @@ void idle()
 	double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	double frameTime = newTime - currentTime;
 	currentTime = newTime;
-	
+
 	if (frameTime > DT)
 		frameTime = DT;
 
@@ -7530,6 +7527,7 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
 
 
 
