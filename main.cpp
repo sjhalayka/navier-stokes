@@ -197,7 +197,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 30;
+const float FPS = 60;
 const float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -214,6 +214,9 @@ GLuint pressureTexture[2];
 GLuint divergenceTexture;
 GLuint obstacleTexture;
 GLuint collisionTexture;
+GLuint collisionTexture2;
+
+
 GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
@@ -2176,22 +2179,19 @@ const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
 uniform sampler2D stampTexture;
-uniform vec3 stamp_unique_colour;
 uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize; // Add this uniform to match texture shader
 
-
-
-out vec4 FragColor;
+out float FragColor;
 
 in vec2 TexCoord;
 
 void main() 
 {
     // Get current obstacle value
-    vec4 obstacle = texture(obstacleTexture, TexCoord);
+    float obstacle = texture(obstacleTexture, TexCoord).r;
     
     // Get dimensions
     vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
@@ -2213,15 +2213,13 @@ void main()
         stampCoord.y >= 0.0 && stampCoord.y <= 1.0) {
         
         // Sample stamp texture (use alpha channel for transparency)
-		float a = texture(stampTexture, stampCoord).a;
-
-        float stampValue = a;
+        float stampValue = texture(stampTexture, stampCoord).a;
         
         // Apply threshold to make it binary
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
         // Combine with existing obstacle (using max for union)
-        obstacle = vec4(stampValue, stamp_unique_colour);
+        obstacle = max(obstacle, stampValue);
     }
     
     FragColor = obstacle;
@@ -2638,25 +2636,35 @@ in vec2 TexCoord;
 
 void main()
 {
-	float aspect_ratio = WIDTH/HEIGHT;
-
-    vec2 adjustedCoord = TexCoord;
-    
-    // For non-square textures, adjust sampling to prevent stretching
-    //if (aspect_ratio > 1.0) {
-    //    adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
-    //} else if (aspect_ratio < 1.0) {
-    //    adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
-    //}
-
-	float distance = length(adjustedCoord - point);
+	float distance = length(TexCoord - point);
 
 	// Abort early
 	if(distance >= radius)
 		discard;
 
+	float aspect_ratio = WIDTH/HEIGHT;
+
+    vec2 adjustedCoord = TexCoord;
+    
+    // For non-square textures, adjust sampling to prevent stretching
+    if (aspect_ratio > 1.0) {
+        adjustedCoord.x = (adjustedCoord.x - 0.5) / aspect_ratio + 0.5;
+    } else if (aspect_ratio < 1.0) {
+        adjustedCoord.y = (adjustedCoord.y - 0.5) * aspect_ratio + 0.5;
+    }
+
+    // Check if we're in an obstacle
+    float obstacle = texture(obstacleTexture, adjustedCoord).r;
+    //if (obstacle > 0.0) {
+    //    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    //    return;
+    //}
+
     // Get current velocity
     vec2 velocity = texture(velocityTexture, adjustedCoord).xy;
+    
+    // Calculate distance to force application point
+    
     
     // Apply force based on radius
 
@@ -2664,7 +2672,7 @@ void main()
         falloff = falloff * falloff;
         
         // Add force to velocity
-        velocity += (direction) * strength * falloff;
+        velocity += direction * strength * falloff;
     
     FragColor = vec4(velocity, 0.0, 1.0);
 }
@@ -2678,7 +2686,8 @@ uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
 uniform float collisionThreshold;
 uniform float colorThreshold;  // Threshold for color detection
-out vec4 FragColor;
+layout (location = 0) out vec4 FragColor;
+layout (location = 1) out vec4 FragColor2; 
 
 in vec2 TexCoord;
 
@@ -2735,10 +2744,19 @@ void main() {
             // No collision
             FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         }
+
+
+	FragColor2 = FragColor;//vec4(1, 0.5, 0.0, 1.0);
+  
     } else {
         // Not in an obstacle - no collision
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+
+
+	FragColor2 = FragColor;//vec4(1, 0.5, 0.0, 1.0);
     }
+
+
 }
 )";
 
@@ -2863,15 +2881,8 @@ void main() {
 
 	//vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	//float log_vel_x = log(vel.x);
-	//float log_vel_y = log(vel.y);
-
-	//vec4 logvel = vec4(log_vel_x, log_vel_y, 1.0, 1.0);
-
-	//FragColor += logvel;
+	//FragColor += vel;
 	//FragColor /= 2.0;
-
-	FragColor = texture(obstacleTexture, adjustedCoord);
 }
 )";
 
@@ -3286,51 +3297,11 @@ void clearObstacleTexture() {
 }
 
 
-struct RGB_char
-{
-	unsigned char r = 0, g = 0, b = 0;
 
-	bool operator<(const RGB_char& right) const
-	{
-		if (right.r > r)
-			return true;
-		else if (right.r < r)
-			return false;
 
-		if (right.g > g)
-			return true;
-		else if (right.g < g)
-			return false;
-
-		if (right.b > b)
-			return true;
-		else if (right.b < b)
-			return false;
-
-		return false;
-	}
-};
-
-map<RGB_char, size_t> colour_to_index_map;
-map<size_t, RGB_char> index_to_colour_map;
-
-void reapplyAllStamps() 
-{
-	colour_to_index_map.clear();
-	size_t index = 0;
-
-	auto processStamps = [&](const std::vector<Stamp>& stamps) 
-	{
-		for (const auto& stamp : stamps) 
-		{
-			RGB_char RGB;
-			RGB.r = rand() % 255;
-			RGB.g = rand() % 255;
-			RGB.b = rand() % 255;
-
-			colour_to_index_map[RGB] = index;
-			index_to_colour_map[index] = RGB;
-
+void reapplyAllStamps() {
+	auto processStamps = [&](const std::vector<Stamp>& stamps) {
+		for (const auto& stamp : stamps) {
 			// If the stamp is dead then don't use it for an obstacle
 			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
 			if (stamp.to_be_culled) continue;
@@ -3352,10 +3323,7 @@ void reapplyAllStamps()
 
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
-			glUniform3f(glGetUniformLocation(stampObstacleProgram, "stamp_unique_colour"),
-				index_to_colour_map[index].r,
-				index_to_colour_map[index].g,
-				index_to_colour_map[index].b);
+
 
 			GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 			glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -3367,8 +3335,6 @@ void reapplyAllStamps()
 
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-			
-			index++;
 		}
 	};
 
@@ -3576,10 +3542,15 @@ void processCollectedBlackeningPoints() {
 }
 
 
+
 void generateFluidStampCollisionsDamage()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, collisionTexture2, 0);
+
+	GLenum drawBuffers[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+	glDrawBuffers(2, drawBuffers);
 
 	glUseProgram(detectCollisionProgram);
 
@@ -3636,8 +3607,12 @@ void generateFluidStampCollisionsDamage()
 	//	}
 	//}
 
+
+
 	// Allocate buffer for collision data - RGBA
 	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+
+	glReadBuffer(GL_COLOR_ATTACHMENT1);
 
 	// Read back collision texture data from GPU
 	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
@@ -3851,8 +3826,6 @@ void applyBitmapObstacle() {
 		(float)currentStamp->width, (float)currentStamp->height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
-
-
 
 	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -4590,8 +4563,11 @@ void initGL() {
 	}
 
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
-	obstacleTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
+	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
+	collisionTexture2 = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
+
+
 	backgroundTexture = loadTexture("level1/grid_wide.png");
 	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
 
@@ -4648,6 +4624,8 @@ void initGL() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture2, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -6366,7 +6344,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000.0);
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
@@ -6374,7 +6352,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-		//addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].prevPosX, enemyBullets[i].prevPosY, enemyBullets[i].force_radius, 5000);
+		addForce(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].prevPosX, enemyBullets[i].prevPosY, enemyBullets[i].force_radius, 5000);
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
@@ -6485,10 +6463,7 @@ void renderToScreen()
 	projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
-	//size_t id = 0;
 
-
-	// to do: re-enable this once ids are given out
 	auto renderStamps = [&](const std::vector<Stamp>& stamps)
 	{
 		for (const auto& stamp : stamps) {
@@ -7235,6 +7210,7 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &divergenceTexture);
 	glDeleteTextures(1, &obstacleTexture);
 	glDeleteTextures(1, &collisionTexture);
+	glDeleteTextures(1, &collisionTexture2);
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
@@ -7582,7 +7558,6 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
-
 
 
 
