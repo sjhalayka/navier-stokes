@@ -2176,10 +2176,13 @@ const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
 uniform sampler2D stampTexture;
+uniform vec3 stamp_unique_colour;
 uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize; // Add this uniform to match texture shader
+
+
 
 out vec4 FragColor;
 
@@ -2218,7 +2221,7 @@ void main()
         stampValue = stampValue > threshold ? 1.0 : 0.0;
         
         // Combine with existing obstacle (using max for union)
-        obstacle = vec4(stampValue);
+        obstacle = vec4(stampValue, stamp_unique_colour);
     }
     
     FragColor = obstacle;
@@ -2867,6 +2870,8 @@ void main() {
 
 	//FragColor += logvel;
 	//FragColor /= 2.0;
+
+	FragColor = texture(obstacleTexture, adjustedCoord);
 }
 )";
 
@@ -3281,11 +3286,51 @@ void clearObstacleTexture() {
 }
 
 
+struct RGB_char
+{
+	unsigned char r = 0, g = 0, b = 0;
 
+	bool operator<(const RGB_char& right) const
+	{
+		if (right.r > r)
+			return true;
+		else if (right.r < r)
+			return false;
 
-void reapplyAllStamps() {
-	auto processStamps = [&](const std::vector<Stamp>& stamps) {
-		for (const auto& stamp : stamps) {
+		if (right.g > g)
+			return true;
+		else if (right.g < g)
+			return false;
+
+		if (right.b > b)
+			return true;
+		else if (right.b < b)
+			return false;
+
+		return false;
+	}
+};
+
+map<RGB_char, size_t> colour_to_index_map;
+map<size_t, RGB_char> index_to_colour_map;
+
+void reapplyAllStamps() 
+{
+	colour_to_index_map.clear();
+	size_t index = 0;
+
+	auto processStamps = [&](const std::vector<Stamp>& stamps) 
+	{
+		for (const auto& stamp : stamps) 
+		{
+			RGB_char RGB;
+			RGB.r = rand() % 255;
+			RGB.g = rand() % 255;
+			RGB.b = rand() % 255;
+
+			colour_to_index_map[RGB] = index;
+			index_to_colour_map[index] = RGB;
+
 			// If the stamp is dead then don't use it for an obstacle
 			// This is so that the stamp doesn't interfere with the colour / force of its explosion when it dies and fades away
 			if (stamp.to_be_culled) continue;
@@ -3307,7 +3352,10 @@ void reapplyAllStamps() {
 
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), stamp.posX, stamp.posY);
 			glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
-
+			glUniform3f(glGetUniformLocation(stampObstacleProgram, "stamp_unique_colour"),
+				index_to_colour_map[index].r,
+				index_to_colour_map[index].g,
+				index_to_colour_map[index].b);
 
 			GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 			glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -3319,6 +3367,8 @@ void reapplyAllStamps() {
 
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+			
+			index++;
 		}
 	};
 
@@ -3801,6 +3851,8 @@ void applyBitmapObstacle() {
 		(float)currentStamp->width, (float)currentStamp->height);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+
+
 
 	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -4538,7 +4590,7 @@ void initGL() {
 	}
 
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
-	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
+	obstacleTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	backgroundTexture = loadTexture("level1/grid_wide.png");
 	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
@@ -6433,7 +6485,10 @@ void renderToScreen()
 	projectionLocation = glGetUniformLocation(stampTextureProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
+	//size_t id = 0;
 
+
+	// to do: re-enable this once ids are given out
 	auto renderStamps = [&](const std::vector<Stamp>& stamps)
 	{
 		for (const auto& stamp : stamps) {
