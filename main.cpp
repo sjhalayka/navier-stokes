@@ -59,7 +59,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.5;
+float foreground_vel = -0.05;
 
 
 // Structure to hold collision point data
@@ -6363,8 +6363,17 @@ void simulationStep()
 	//solvePressure(20);
 	//subtractPressureGradient();
 
-	generateFluidStampCollisionsDamage();
-	processCollectedBlackeningPoints();
+	frameCount++;
+
+	// Update 10 times per second
+	if (frameCount % size_t(FPS / 6) == 0)
+	{
+		generateFluidStampCollisionsDamage();
+		processCollectedBlackeningPoints();
+	}
+
+
+
 }
 
 
@@ -6682,7 +6691,7 @@ void testForegroundChunking() {
 
 	float normalized_stamp_width = originalStamp.width / float(WIDTH);
 	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
-	 
+
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
 	originalStamp.posY = 0.742f;
@@ -6702,7 +6711,7 @@ void testForegroundChunking() {
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = (200)* 1.35;
+	iv.y = (200) * 1.35;
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6759,10 +6768,10 @@ void testForegroundChunking() {
 
 		newStamp.posX = output_screen_locations[i].x;
 		newStamp.posY = output_screen_locations[i].y;// *(WIDTH / float(HEIGHT)); // 0.25;// input_pixel_locations[i].y / float(HEIGHT);// output_screen_locations[i].y;
-		
-		
-		
-		
+
+
+
+
 		newStamp.local_velX = 0;// foreground_vel;
 		newStamp.local_velY = 0;
 
