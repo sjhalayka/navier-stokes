@@ -59,7 +59,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.05;
+float foreground_vel = -0.5;
 
 
 // Structure to hold collision point data
@@ -214,9 +214,6 @@ GLuint pressureTexture[2];
 GLuint divergenceTexture;
 GLuint obstacleTexture;
 GLuint collisionTexture;
-GLuint collisionTexture2;
-
-
 GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
@@ -733,7 +730,7 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 
 		// Store the result
 		output_screen_locations[i].x = screenX;
-		output_screen_locations[i].y = screenY * scaleFactor;
+		output_screen_locations[i].y = screenY;// *scaleFactor;
 	}
 
 
@@ -2686,8 +2683,7 @@ uniform sampler2D colorTexture;
 uniform sampler2D friendlyColorTexture;
 uniform float collisionThreshold;
 uniform float colorThreshold;  // Threshold for color detection
-layout (location = 0) out vec4 FragColor;
-layout (location = 1) out vec4 FragColor2; 
+out vec4 FragColor;
 
 in vec2 TexCoord;
 
@@ -2744,19 +2740,10 @@ void main() {
             // No collision
             FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         }
-
-
-	FragColor2 = FragColor;//vec4(1, 0.5, 0.0, 1.0);
-  
     } else {
         // Not in an obstacle - no collision
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-
-
-	FragColor2 = FragColor;//vec4(1, 0.5, 0.0, 1.0);
     }
-
-
 }
 )";
 
@@ -3542,15 +3529,10 @@ void processCollectedBlackeningPoints() {
 }
 
 
-
 void generateFluidStampCollisionsDamage()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, collisionTexture2, 0);
-
-	GLenum drawBuffers[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-	glDrawBuffers(2, drawBuffers);
 
 	glUseProgram(detectCollisionProgram);
 
@@ -3607,12 +3589,8 @@ void generateFluidStampCollisionsDamage()
 	//	}
 	//}
 
-
-
 	// Allocate buffer for collision data - RGBA
 	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
-
-	glReadBuffer(GL_COLOR_ATTACHMENT1);
 
 	// Read back collision texture data from GPU
 	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
@@ -4565,9 +4543,6 @@ void initGL() {
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
 	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
-	collisionTexture2 = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
-
-
 	backgroundTexture = loadTexture("level1/grid_wide.png");
 	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
 
@@ -4624,8 +4599,6 @@ void initGL() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture2, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -6340,7 +6313,7 @@ void simulationStep()
 
 	red_mode = true;
 
-	cout << "ALLY BULLET COUNT " << allyBullets.size() << endl;
+	//cout << "ALLY BULLET COUNT " << allyBullets.size() << endl;
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
@@ -6709,33 +6682,33 @@ void testForegroundChunking() {
 
 	float normalized_stamp_width = originalStamp.width / float(WIDTH);
 	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
-
+	 
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.84f;
+	originalStamp.posY = 0.742f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
 
 	// to do: tinker with this to get perfect scale and translation
-	float scaleFactor = 1.095f;
+	float scaleFactor = 1.1f;
 
 	vector<ivec2> input_pixel_locations;
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 128;
+	iv.y = (1080) * 1.35;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = (100);
+	iv.y = (200)* 1.35;
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
 
 	// foreground width and height must be evenly divisible by 120
-	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 120, scaleFactor, input_pixel_locations, output_screen_locations);
+	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 360, scaleFactor, input_pixel_locations, output_screen_locations);
 
 	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
 
@@ -6782,8 +6755,14 @@ void testForegroundChunking() {
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
 
+		cout << output_screen_locations[i].x << " " << output_screen_locations[i].y << endl;
+
 		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y;
+		newStamp.posY = output_screen_locations[i].y;// *(WIDTH / float(HEIGHT)); // 0.25;// input_pixel_locations[i].y / float(HEIGHT);// output_screen_locations[i].y;
+		
+		
+		
+		
 		newStamp.local_velX = 0;// foreground_vel;
 		newStamp.local_velY = 0;
 
@@ -7210,7 +7189,6 @@ void reshape(int w, int h) {
 	glDeleteTextures(1, &divergenceTexture);
 	glDeleteTextures(1, &obstacleTexture);
 	glDeleteTextures(1, &collisionTexture);
-	glDeleteTextures(1, &collisionTexture2);
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
