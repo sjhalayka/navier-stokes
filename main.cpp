@@ -59,7 +59,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.05;
+float foreground_vel = -0.5;
 
 
 // Structure to hold collision point data
@@ -6371,9 +6371,6 @@ void simulationStep()
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
 	}
-
-
-
 }
 
 
@@ -6707,7 +6704,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = (256) * 1.35;
+	iv.y = (1080) * 1.35;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
