@@ -6698,7 +6698,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = (1080) * 1.35;
+	iv.y = (256) * 1.35;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
