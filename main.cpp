@@ -6365,8 +6365,7 @@ void simulationStep()
 
 	frameCount++;
 
-	// Update 10 times per second
-	if (frameCount % size_t(FPS / 6) == 0)
+	if (frameCount % (size_t(FPS ) / 10) == 0)
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
