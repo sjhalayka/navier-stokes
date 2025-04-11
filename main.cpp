@@ -6721,15 +6721,15 @@ void testForegroundChunking() {
 	float normalized_stamp_height = originalStamp.height / float(HEIGHT);
 
 	// to do: tinker with these to get perfect scale and translation
-	originalStamp.posX = 1.0f + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.742f;
+	originalStamp.posX = 1.5 + normalized_stamp_width / 2.0f;
+	originalStamp.posY = 0.73f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
 
 	// to do: tinker with this to get perfect scale and translation
-	float scaleFactor = 1.1f;
+	float scaleFactor = 1.35f;
 
 	vector<ivec2> input_pixel_locations;
 
