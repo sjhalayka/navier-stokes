@@ -1233,8 +1233,8 @@ void fireBullet() {
 	case STRAIGHT:
 		for (size_t i = 0; i < num_streams; i++, angle += angle_step) {
 			Stamp newBullet = bulletTemplate;
-			newBullet.local_velX = 0.25f * cos(angle);
-			newBullet.local_velY = 0.25f * sin(angle);
+			newBullet.local_velX = 1.0f * cos(angle);
+			newBullet.local_velY = 1.0f * sin(angle);
 			newBullet.sinusoidal_amplitude = 0;
 			newBullet.birth_time = GLOBAL_TIME;// GLOBAL_TIME;
 			newBullet.death_time = -1;
@@ -2865,10 +2865,10 @@ void main() {
        FragColor = color4;
     }
 
-	//vec4 vel = texture(velocityTexture, adjustedCoord);	
+//	vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	//FragColor += vel;
-	//FragColor /= 2.0;
+//	FragColor += vel;
+//	FragColor /= 2.0;
 }
 )";
 
@@ -6349,7 +6349,7 @@ void simulationStep()
 
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 1000);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 100);
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
@@ -6723,13 +6723,12 @@ void testForegroundChunking() {
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.5 + normalized_stamp_width / 2.0f;
 	originalStamp.posY = 0.73f;
+	float scaleFactor = 1.35f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
 	originalStamp.is_foreground = true;
 
-	// to do: tinker with this to get perfect scale and translation
-	float scaleFactor = 1.35f;
 
 	vector<ivec2> input_pixel_locations;
 
