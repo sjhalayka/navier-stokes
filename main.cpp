@@ -59,7 +59,7 @@ using namespace std;
 // to do: collision detection and response to collisions with foreground
 
 
-float foreground_vel = -0.5;
+float foreground_vel = -0.05;
 
 
 // Structure to hold collision point data
@@ -1785,8 +1785,8 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 const char* batchBlackeningFragmentShader = R"(
 #version 330 core
 uniform sampler2D currentBlackening;        // Current blackening texture
-uniform vec2 collisionPositions[1024];        // Array of collision positions
-uniform float collisionIntensities[1024];     // Array of collision intensities
+uniform vec2 collisionPositions[16];        // Array of collision positions
+uniform float collisionIntensities[16];     // Array of collision intensities
 uniform int numCollisionPoints;             // Actual number of collision points
 uniform float radius;                       // Radius of the blackening mark
 uniform vec2 texSize;                       // Texture dimensions
@@ -1799,7 +1799,7 @@ void main() {
     vec4 current = texture(currentBlackening, TexCoord);
     
     // Maximum blackening from all collision points
-    float maxBlackening = 0.0;
+    float maxBlackening = current.r;  // Start with existing blackening level
     
     // Process all collision points
     for (int i = 0; i < numCollisionPoints; i++) {
@@ -1818,14 +1818,13 @@ void main() {
             
             // Scale by collision intensity
             pointBlackening *= intensity;
-            //pointBlackening /= 0.01;
             
-            // Keep the maximum blackening value
+            // Keep the maximum blackening value (new or existing)
             maxBlackening = max(maxBlackening, pointBlackening);
         }
     }
     
-    // Combine with existing blackening (use max to ensure we don't reduce blackening)
+    // Output the maximum blackening value
     FragColor = vec4(maxBlackening, maxBlackening, maxBlackening, 1.0);
 }
 )";
@@ -3323,7 +3322,7 @@ void reapplyAllStamps() {
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 		}
-	};
+		};
 
 	if (allyShips.empty() && enemyShips.empty() && allyBullets.empty() && enemyBullets.empty() && allyPowerUps.empty()) return;
 
@@ -3459,13 +3458,35 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 }
 
 
+
+
+
 void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const std::vector<BlackeningPoint>& points) {
 	if (points.empty() || textureID == 0) {
 		return;
 	}
 
 	// Limit number of points to shader array size
-	const int MAX_POINTS = 1024;  // Maximum points we can process in one batch
+	const int MAX_POINTS = 16;  // Maximum points we can process in one batch
+
+	// Create a temporary texture to use as the input for each batch
+	GLuint tempTexture = 0;
+	glGenTextures(1, &tempTexture);
+	glBindTexture(GL_TEXTURE_2D, tempTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+	// Copy the initial blackening texture content to our temp texture
+	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture, 0);
+
+	// Use a simple copy shader or glCopyTexSubImage2D to copy from textureID to tempTexture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
 
 	// Process points in batches
 	for (size_t offset = 0; offset < points.size(); offset += MAX_POINTS) {
@@ -3503,19 +3524,30 @@ void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const
 		GLuint projectionLocation = glGetUniformLocation(batchBlackeningProgram, "projection");
 		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
-		// Bind the current blackening texture
+		// Bind the current state of the blackening texture (from the previous batch or initial texture)
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, textureID);
+		glBindTexture(GL_TEXTURE_2D, tempTexture);
 
 		// Draw a full-screen quad to update the texture
 		glBindVertexArray(vao);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+		// Copy the result back to our temp texture for the next batch
+		glBindTexture(GL_TEXTURE_2D, tempTexture);
+		glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
 	}
+
+	// Clean up
+	glDeleteTextures(1, &tempTexture);
 
 	// Reset viewport
 	glViewport(0, 0, WIDTH, HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
+
+
+
+
 
 void processCollectedBlackeningPoints() {
 	for (auto& [textureID, data] : stampCollisionMap) {
@@ -3735,7 +3767,7 @@ void generateFluidStampCollisionsDamage()
 				last_did_damage_at = GLOBAL_TIME;
 			}
 		}
-	};
+		};
 
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
@@ -5333,151 +5365,151 @@ void updateObstacle() {
 void move_and_fork_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
-	{
-		float aspect = HEIGHT / float(WIDTH);
-
-		for (auto& stamp : stamps)
 		{
-			stamp.prevPosX = stamp.posX;
-			stamp.prevPosY = stamp.posY;
+			float aspect = HEIGHT / float(WIDTH);
 
-			if (type == "ally" && ally_fire == HOMING)
+			for (auto& stamp : stamps)
 			{
-				long long signed int closest_enemy = -1;
-				float closest_distance = FLT_MAX;
+				stamp.prevPosX = stamp.posX;
+				stamp.prevPosY = stamp.posY;
 
-				for (size_t i = 0; i < enemyShips.size(); i++)
+				if (type == "ally" && ally_fire == HOMING)
 				{
-					if (enemyShips[i].to_be_culled || enemyShips[i].is_foreground)
-						continue;
+					long long signed int closest_enemy = -1;
+					float closest_distance = FLT_MAX;
 
-					float x0 = stamp.posX;
-					float y0 = stamp.posY;
-					float x1 = enemyShips[i].posX;
-					float y1 = enemyShips[i].posY;
-
-					float d = sqrt(pow(x1 - x0, 2.0f) + pow(y1 - y0, 2.0f));
-
-					if (d < closest_distance)
+					for (size_t i = 0; i < enemyShips.size(); i++)
 					{
-						closest_enemy = i;
-						closest_distance = d;
+						if (enemyShips[i].to_be_culled || enemyShips[i].is_foreground)
+							continue;
+
+						float x0 = stamp.posX;
+						float y0 = stamp.posY;
+						float x1 = enemyShips[i].posX;
+						float y1 = enemyShips[i].posY;
+
+						float d = sqrt(pow(x1 - x0, 2.0f) + pow(y1 - y0, 2.0f));
+
+						if (d < closest_distance)
+						{
+							closest_enemy = i;
+							closest_distance = d;
+						}
+					}
+
+					if (closest_enemy == -1)
+					{
+						stamp.posX += stamp.local_velX;
+						stamp.posY += stamp.local_velY;
+					}
+					else
+					{
+						float dir_x = enemyShips[closest_enemy].posX - stamp.posX;
+						float dir_y = enemyShips[closest_enemy].posY - stamp.posY;
+
+						float len = sqrt(dir_x * dir_x + dir_y * dir_y);
+
+
+						dir_x /= len;
+						dir_y /= len;
+						dir_x /= 100;
+						dir_y /= 100;
+
+
+						float rand_x = 0, rand_y = 0;
+						RandomUnitVector(rand_x, rand_y);
+
+						stamp.local_velX = dir_x;
+						stamp.local_velY = dir_y;
+
+						stamp.posX += stamp.local_velX;
+						stamp.posY += stamp.local_velY;
 					}
 				}
-
-				if (closest_enemy == -1)
-				{
-					stamp.posX += stamp.local_velX;
-					stamp.posY += stamp.local_velY;
-				}
 				else
 				{
-					float dir_x = enemyShips[closest_enemy].posX - stamp.posX;
-					float dir_y = enemyShips[closest_enemy].posY - stamp.posY;
+					//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+					//std::chrono::duration<float, std::milli> elapsed;
+					//elapsed = global_time_end - app_start_time;
 
-					float len = sqrt(dir_x * dir_x + dir_y * dir_y);
+					// Store the original direction vector
+					float dirX = stamp.local_velX * aspect * DT;
+					float dirY = stamp.local_velY * DT;
+
+					// Normalize the direction vector
+					float dirLength = sqrt(dirX * dirX + dirY * dirY);
+					if (dirLength > 0) {
+						dirX /= dirLength;
+						dirY /= dirLength;
+					}
+
+					// Calculate the perpendicular direction vector (rotate 90 degrees)
+					float perpX = -dirY;
+					float perpY = dirX;
+
+					// Calculate time-based sinusoidal amplitude
+					// Use the birth_time to ensure continuous motion
+					float timeSinceCreation = GLOBAL_TIME - stamp.birth_time;
+					float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+					float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
 
 
-					dir_x /= len;
-					dir_y /= len;
-					dir_x /= 100;
-					dir_y /= 100;
+					float sinValue = 0;
 
+					if (stamp.sinusoidal_shift)
+						sinValue = -sin(timeSinceCreation * frequency);
+					else
+						sinValue = sin(timeSinceCreation * frequency);
 
+					// Move forward along original path
+					float forwardSpeed = dirLength; // Original velocity magnitude
+					stamp.posX += dirX * forwardSpeed;
+					stamp.posY += dirY * forwardSpeed;
+
+					// Add sinusoidal motion perpendicular to the path
+					stamp.posX += perpX * sinValue * amplitude;
+					stamp.posY += perpY * sinValue * amplitude;
+
+					// Add in random walking, like lightning (from original code)
 					float rand_x = 0, rand_y = 0;
 					RandomUnitVector(rand_x, rand_y);
+					stamp.posX += rand_x * stamp.path_randomization;
+					stamp.posY += rand_y * stamp.path_randomization;
 
-					stamp.local_velX = dir_x;
-					stamp.local_velY = dir_y;
 
-					stamp.posX += stamp.local_velX;
-					stamp.posY += stamp.local_velY;
+					float r = rand() / float(RAND_MAX);
+
+					//if (stamp.is_dying_bullet)
+					//{
+					//	stamp.posX += stamp.global_velX;
+					//	stamp.posY += stamp.global_velY;
+					//}
+
+					// Split the lightning
+					// to do: make the forked lightning smaller
+					//if (r < stamp.random_forking)
+					//{
+					//	Stamp newBullet = stamp;
+
+					//	float rand_x = 0, rand_y = 0;
+					//	RandomUnitVector(rand_x, rand_y);
+					//	newBullet.global_velX += rand_x * r;
+					//	newBullet.global_velY += rand_y * r;
+
+					//	if (type == "ally")
+					//		allyBullets.push_back(newBullet);
+
+					//	if (type == "enemy")
+					//		enemyBullets.push_back(newBullet);
+
+					//}
 				}
+
+				// If a dying bullet, then move it along with the foreground
+				if (stamp.is_dying_bullet)
+					stamp.posX += foreground_vel * DT;
 			}
-			else
-			{
-				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-				//std::chrono::duration<float, std::milli> elapsed;
-				//elapsed = global_time_end - app_start_time;
-
-				// Store the original direction vector
-				float dirX = stamp.local_velX * aspect * DT;
-				float dirY = stamp.local_velY * DT;
-
-				// Normalize the direction vector
-				float dirLength = sqrt(dirX * dirX + dirY * dirY);
-				if (dirLength > 0) {
-					dirX /= dirLength;
-					dirY /= dirLength;
-				}
-
-				// Calculate the perpendicular direction vector (rotate 90 degrees)
-				float perpX = -dirY;
-				float perpY = dirX;
-
-				// Calculate time-based sinusoidal amplitude
-				// Use the birth_time to ensure continuous motion
-				float timeSinceCreation = GLOBAL_TIME - stamp.birth_time;
-				float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
-				float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
-
-
-				float sinValue = 0;
-
-				if (stamp.sinusoidal_shift)
-					sinValue = -sin(timeSinceCreation * frequency);
-				else
-					sinValue = sin(timeSinceCreation * frequency);
-
-				// Move forward along original path
-				float forwardSpeed = dirLength; // Original velocity magnitude
-				stamp.posX += dirX * forwardSpeed;
-				stamp.posY += dirY * forwardSpeed;
-
-				// Add sinusoidal motion perpendicular to the path
-				stamp.posX += perpX * sinValue * amplitude;
-				stamp.posY += perpY * sinValue * amplitude;
-
-				// Add in random walking, like lightning (from original code)
-				float rand_x = 0, rand_y = 0;
-				RandomUnitVector(rand_x, rand_y);
-				stamp.posX += rand_x * stamp.path_randomization;
-				stamp.posY += rand_y * stamp.path_randomization;
-
-
-				float r = rand() / float(RAND_MAX);
-
-				//if (stamp.is_dying_bullet)
-				//{
-				//	stamp.posX += stamp.global_velX;
-				//	stamp.posY += stamp.global_velY;
-				//}
-
-				// Split the lightning
-				// to do: make the forked lightning smaller
-				//if (r < stamp.random_forking)
-				//{
-				//	Stamp newBullet = stamp;
-
-				//	float rand_x = 0, rand_y = 0;
-				//	RandomUnitVector(rand_x, rand_y);
-				//	newBullet.global_velX += rand_x * r;
-				//	newBullet.global_velY += rand_y * r;
-
-				//	if (type == "ally")
-				//		allyBullets.push_back(newBullet);
-
-				//	if (type == "enemy")
-				//		enemyBullets.push_back(newBullet);
-
-				//}
-			}
-
-			// If a dying bullet, then move it along with the foreground
-			if (stamp.is_dying_bullet)
-				stamp.posX += foreground_vel * DT;
-		}
-	};
+		};
 
 	update_bullets(allyBullets, "ally");
 	update_bullets(enemyBullets, "enemy");
@@ -5544,23 +5576,23 @@ void mark_old_bullets(void)
 void mark_offscreen_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps)
-	{
-		for (auto& stamp : stamps)
 		{
-			float aspect = WIDTH / float(HEIGHT);
-
-			// Calculate adjusted Y coordinate that accounts for aspect ratio
-			float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-			// Check if the stamp is outside the visible area
-			// The bullet stamp is 1x1 pixels, so this is an easy calculation
-			if (stamp.posX < 0 || stamp.posX > 1 ||
-				adjustedPosY < 0 || adjustedPosY > 1)
+			for (auto& stamp : stamps)
 			{
-				stamp.to_be_culled = true;
+				float aspect = WIDTH / float(HEIGHT);
+
+				// Calculate adjusted Y coordinate that accounts for aspect ratio
+				float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+				// Check if the stamp is outside the visible area
+				// The bullet stamp is 1x1 pixels, so this is an easy calculation
+				if (stamp.posX < 0 || stamp.posX > 1 ||
+					adjustedPosY < 0 || adjustedPosY > 1)
+				{
+					stamp.to_be_culled = true;
+				}
 			}
-		}
-	};
+		};
 
 	update_bullets(allyBullets);
 	update_bullets(enemyBullets);
@@ -5569,20 +5601,20 @@ void mark_offscreen_bullets(void)
 void cull_marked_bullets(void)
 {
 	auto update_bullets = [&](std::vector<Stamp>& stamps, string type)
-	{
-		// Use iterator-based erase to safely remove elements
-		auto it = stamps.begin();
-		while (it != stamps.end()) {
-			if (it->to_be_culled) {
-				// Stamp destructor will handle texture cleanup
-				cout << "culling " << type << " bullet" << endl;
-				it = stamps.erase(it);
+		{
+			// Use iterator-based erase to safely remove elements
+			auto it = stamps.begin();
+			while (it != stamps.end()) {
+				if (it->to_be_culled) {
+					// Stamp destructor will handle texture cleanup
+					cout << "culling " << type << " bullet" << endl;
+					it = stamps.erase(it);
+				}
+				else {
+					++it;
+				}
 			}
-			else {
-				++it;
-			}
-		}
-	};
+		};
 
 	update_bullets(allyBullets, "Ally");
 	update_bullets(enemyBullets, "Enemy");
@@ -6046,35 +6078,35 @@ void mark_colliding_ships(void)
 void mark_offscreen_ships(void)
 {
 	auto update_ships = [&](std::vector<Stamp>& stamps)
-	{
-		for (auto& stamp : stamps)
 		{
-			const float aspect = WIDTH / float(HEIGHT);
-
-			// Calculate adjusted Y coordinate that accounts for aspect ratio
-			const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
-			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
-
-			// get rid of enemy ships that completely cross the left edge of the screen
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
-				//stamp.posX > 1 + stamp_width_in_normalized_units / 2.0f ||
-			//	adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
-			//	adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+			for (auto& stamp : stamps)
 			{
-				stamp.to_be_culled = true;
+				const float aspect = WIDTH / float(HEIGHT);
+
+				// Calculate adjusted Y coordinate that accounts for aspect ratio
+				const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+				const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
+				const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
+
+				// get rid of enemy ships that completely cross the left edge of the screen
+				if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)// ||
+					//stamp.posX > 1 + stamp_width_in_normalized_units / 2.0f ||
+				//	adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				//	adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+				{
+					stamp.to_be_culled = true;
+				}
+
+
+				// Check if the stamp is outside the visible area
+				//if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
+				//	adjustedPosY < -0.5 || adjustedPosY > 1.5)
+				//{
+				//	stamp.to_be_culled = true;
+				//}
 			}
-
-
-			// Check if the stamp is outside the visible area
-			//if (stamp.posX < -0.5 || stamp.posX > 1.5 ||
-			//	adjustedPosY < -0.5 || adjustedPosY > 1.5)
-			//{
-			//	stamp.to_be_culled = true;
-			//}
-		}
-	};
+		};
 
 	//update_ships(allyShips);
 	update_ships(enemyShips);
@@ -6085,15 +6117,15 @@ void mark_offscreen_ships(void)
 void proceed_stamp_opacity(void)
 {
 	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
-	{
-		for (size_t i = 0; i < stamps.size(); i++)
 		{
-			if (stamps[i].to_be_culled)
+			for (size_t i = 0; i < stamps.size(); i++)
 			{
-				stamps[i].stamp_opacity -= 0.25;
+				if (stamps[i].to_be_culled)
+				{
+					stamps[i].stamp_opacity -= 0.25;
+				}
 			}
-		}
-	};
+		};
 
 	update_ships(allyShips, "Ally");
 	update_ships(enemyShips, "Enemy");
@@ -6103,18 +6135,18 @@ void proceed_stamp_opacity(void)
 void cull_marked_ships(void)
 {
 	auto update_ships = [&](std::vector<Stamp>& stamps, string type)
-	{
-		auto it = stamps.begin();
-		while (it != stamps.end()) {
-			if (it->to_be_culled && it->stamp_opacity <= 0) {
-				cout << "culling " << type << " ship" << endl;
-				it = stamps.erase(it);
+		{
+			auto it = stamps.begin();
+			while (it != stamps.end()) {
+				if (it->to_be_culled && it->stamp_opacity <= 0) {
+					cout << "culling " << type << " ship" << endl;
+					it = stamps.erase(it);
+				}
+				else {
+					++it;
+				}
 			}
-			else {
-				++it;
-			}
-		}
-	};
+		};
 
 	update_ships(allyShips, "Ally");
 	update_ships(enemyShips, "Enemy");
@@ -6133,63 +6165,63 @@ void cull_marked_ships(void)
 void move_powerups(void)
 {
 	auto update_powerups = [&](std::vector<Stamp>& stamps)
-	{
-		//for (auto& stamp : stamps)
-		//{
-		//	const float aspect = WIDTH / float(HEIGHT);
-
-		//	stamp.posX += stamp.global_velX / aspect;
-		//	stamp.posY += stamp.global_velY;
-		//}
-
-		for (auto& stamp : stamps)
 		{
-			stamp.prevPosX = stamp.posX;
-			stamp.prevPosY = stamp.posY;
+			//for (auto& stamp : stamps)
+			//{
+			//	const float aspect = WIDTH / float(HEIGHT);
 
-			const float aspect = WIDTH / float(HEIGHT);
-			//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			//std::chrono::duration<float, std::milli> elapsed;
-			//elapsed = global_time_end - app_start_time;
+			//	stamp.posX += stamp.global_velX / aspect;
+			//	stamp.posY += stamp.global_velY;
+			//}
 
-			// Store the original direction vector
-			float dirX = stamp.local_velX * aspect;
-			float dirY = stamp.local_velY;
+			for (auto& stamp : stamps)
+			{
+				stamp.prevPosX = stamp.posX;
+				stamp.prevPosY = stamp.posY;
 
-			// Normalize the direction vector
-			float dirLength = sqrt(dirX * dirX + dirY * dirY);
-			if (dirLength > 0) {
-				dirX /= dirLength;
-				dirY /= dirLength;
+				const float aspect = WIDTH / float(HEIGHT);
+				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				//std::chrono::duration<float, std::milli> elapsed;
+				//elapsed = global_time_end - app_start_time;
+
+				// Store the original direction vector
+				float dirX = stamp.local_velX * aspect;
+				float dirY = stamp.local_velY;
+
+				// Normalize the direction vector
+				float dirLength = sqrt(dirX * dirX + dirY * dirY);
+				if (dirLength > 0) {
+					dirX /= dirLength;
+					dirY /= dirLength;
+				}
+
+				// Calculate the perpendicular direction vector (rotate 90 degrees)
+				float perpX = -dirY;
+				float perpY = dirX;
+
+				// Calculate time-based sinusoidal amplitude
+				// Use the birth_time to ensure continuous motion
+				float timeSinceCreation = GLOBAL_TIME - stamp.birth_time;
+				float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
+				float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
+
+				float sinValue = 0;
+
+				if (stamp.sinusoidal_shift)
+					sinValue = -sin(timeSinceCreation * frequency);
+				else
+					sinValue = sin(timeSinceCreation * frequency);
+
+				// Move forward along original path
+				float forwardSpeed = dirLength; // Original velocity magnitude
+				stamp.posX += stamp.local_velX * aspect;
+				stamp.posY += stamp.local_velY;
+
+				// Add sinusoidal motion perpendicular to the path
+				stamp.posX += perpX * sinValue * amplitude;
+				stamp.posY += perpY * sinValue * amplitude;
 			}
-
-			// Calculate the perpendicular direction vector (rotate 90 degrees)
-			float perpX = -dirY;
-			float perpY = dirX;
-
-			// Calculate time-based sinusoidal amplitude
-			// Use the birth_time to ensure continuous motion
-			float timeSinceCreation = GLOBAL_TIME - stamp.birth_time;
-			float frequency = stamp.sinusoidal_frequency; // Controls how many waves appear
-			float amplitude = stamp.sinusoidal_amplitude; // Controls wave height
-
-			float sinValue = 0;
-
-			if (stamp.sinusoidal_shift)
-				sinValue = -sin(timeSinceCreation * frequency);
-			else
-				sinValue = sin(timeSinceCreation * frequency);
-
-			// Move forward along original path
-			float forwardSpeed = dirLength; // Original velocity magnitude
-			stamp.posX += stamp.local_velX * aspect;
-			stamp.posY += stamp.local_velY;
-
-			// Add sinusoidal motion perpendicular to the path
-			stamp.posX += perpX * sinValue * amplitude;
-			stamp.posY += perpY * sinValue * amplitude;
-		}
-	};
+		};
 
 	update_powerups(allyPowerUps);
 }
@@ -6238,15 +6270,15 @@ void mark_colliding_powerups(void)
 void mark_offscreen_powerups(void)
 {
 	auto update_powerups = [&](std::vector<Stamp>& stamps)
-	{
-		for (auto& stamp : stamps)
 		{
-			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
+			for (auto& stamp : stamps)
+			{
+				const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
 
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)
-				stamp.to_be_culled = true;
-		}
-	};
+				if (stamp.posX < -stamp_width_in_normalized_units / 2.0f)
+					stamp.to_be_culled = true;
+			}
+		};
 
 	update_powerups(allyPowerUps);
 }
@@ -6255,18 +6287,18 @@ void mark_offscreen_powerups(void)
 void cull_marked_powerups(void)
 {
 	auto update_powerups = [&](std::vector<Stamp>& stamps)
-	{
-		auto it = stamps.begin();
-		while (it != stamps.end()) {
-			if (it->to_be_culled) {
-				cout << "culling marked powerup" << endl;
-				it = stamps.erase(it);
+		{
+			auto it = stamps.begin();
+			while (it != stamps.end()) {
+				if (it->to_be_culled) {
+					cout << "culling marked powerup" << endl;
+					it = stamps.erase(it);
+				}
+				else {
+					++it;
+				}
 			}
-			else {
-				++it;
-			}
-		}
-	};
+		};
 
 	update_powerups(allyPowerUps);
 }
@@ -6276,10 +6308,10 @@ void cull_marked_powerups(void)
 void simulationStep()
 {
 	auto updateDynamicTextures = [&](std::vector<Stamp>& stamps)
-	{
-		for (auto& stamp : stamps)
-			updateDynamicTexture(stamp);
-	};
+		{
+			for (auto& stamp : stamps)
+				updateDynamicTexture(stamp);
+		};
 
 	updateDynamicTextures(allyShips);
 	updateDynamicTextures(enemyShips);
@@ -6365,7 +6397,7 @@ void simulationStep()
 
 	frameCount++;
 
-	if (frameCount % (size_t(FPS ) / 10) == 0)
+	if (frameCount % (size_t(FPS) / 10) == 0)
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -6443,78 +6475,78 @@ void renderToScreen()
 
 
 	auto renderStamps = [&](const std::vector<Stamp>& stamps)
-	{
-		for (const auto& stamp : stamps) {
+		{
+			for (const auto& stamp : stamps) {
 
 
-			// to do: do not draw if offscreen
-			const float aspect = WIDTH / float(HEIGHT);
+				// to do: do not draw if offscreen
+				const float aspect = WIDTH / float(HEIGHT);
 
-			// Calculate adjusted Y coordinate that accounts for aspect ratio
-			const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
+				// Calculate adjusted Y coordinate that accounts for aspect ratio
+				const float adjustedPosY = (stamp.posY - 0.5f) * aspect + 0.5f;
 
-			const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
-			const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
+				const float stamp_width_in_normalized_units = stamp.width / float(WIDTH);
+				const float stamp_height_in_normalized_units = stamp.height / float(HEIGHT);
 
-			// get rid of enemy ships that completely cross the left edge of the screen
-			if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
-				stamp.posX > 1.0f + stamp_width_in_normalized_units / 2.0f ||
-				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
-				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
-			{
-				continue;
-			}
-
-
-			size_t variationIndex = stamp.currentVariationIndex;
-			if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-				stamp.textureIDs[variationIndex] == 0) {
-				for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
-					if (stamp.textureIDs[i] != 0) {
-						variationIndex = i;
-						break;
-					}
-				}
-				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
-					stamp.textureIDs[variationIndex] == 0) {
+				// get rid of enemy ships that completely cross the left edge of the screen
+				if (stamp.posX < -stamp_width_in_normalized_units / 2.0f ||
+					stamp.posX > 1.0f + stamp_width_in_normalized_units / 2.0f ||
+					adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+					adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+				{
 					continue;
 				}
+
+
+				size_t variationIndex = stamp.currentVariationIndex;
+				if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+					stamp.textureIDs[variationIndex] == 0) {
+					for (size_t i = 0; i < stamp.textureIDs.size(); i++) {
+						if (stamp.textureIDs[i] != 0) {
+							variationIndex = i;
+							break;
+						}
+					}
+					if (variationIndex < 0 || variationIndex >= stamp.textureIDs.size() ||
+						stamp.textureIDs[variationIndex] == 0) {
+						continue;
+					}
+				}
+
+				//float aspect = WIDTH / float(HEIGHT);
+				float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
+
+				glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
+				glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
+				glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
+				glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
+				glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+
+				// added in opacity as a uniform, so that the stamp can fade away over time upon death
+				glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
+
+				if (stamp.is_foreground)
+					glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), false);
+				else
+					glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
+
+				//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
+				//std::chrono::duration<float, std::milli> elapsed;
+				//elapsed = global_time_end - app_start_time;
+
+				glUniform1f(glGetUniformLocation(stampTextureProgram, "time"), GLOBAL_TIME);
+
+
+				//uniform int under_fire;
+				//uniform float time;
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+
+				glBindVertexArray(vao);
+				glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 			}
-
-			//float aspect = WIDTH / float(HEIGHT);
-			float stamp_y = (stamp.posY - 0.5f) * aspect + 0.5f;
-
-			glUniform1i(glGetUniformLocation(stampTextureProgram, "stampTexture"), 0);
-			glUniform2f(glGetUniformLocation(stampTextureProgram, "position"), stamp.posX, stamp_y);
-			glUniform2f(glGetUniformLocation(stampTextureProgram, "stampSize"), (float)stamp.width, (float)stamp.height);
-			glUniform1f(glGetUniformLocation(stampTextureProgram, "threshold"), 0.1f);
-			glUniform2f(glGetUniformLocation(stampTextureProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
-
-			// added in opacity as a uniform, so that the stamp can fade away over time upon death
-			glUniform1f(glGetUniformLocation(stampTextureProgram, "stamp_opacity"), stamp.stamp_opacity);
-
-			if (stamp.is_foreground)
-				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), false);
-			else
-				glUniform1i(glGetUniformLocation(stampTextureProgram, "under_fire"), stamp.under_fire);
-
-			//std::chrono::high_resolution_clock::time_point global_time_end = std::chrono::high_resolution_clock::now();
-			//std::chrono::duration<float, std::milli> elapsed;
-			//elapsed = global_time_end - app_start_time;
-
-			glUniform1f(glGetUniformLocation(stampTextureProgram, "time"), GLOBAL_TIME);
-
-
-			//uniform int under_fire;
-			//uniform float time;
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
-
-			glBindVertexArray(vao);
-			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-		}
-	};
+		};
 
 	renderStamps(allyShips);
 	renderStamps(enemyShips);
