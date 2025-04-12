@@ -2176,12 +2176,15 @@ const char* stampObstacleFragmentShader = R"(
 #version 330 core
 uniform sampler2D obstacleTexture;
 uniform sampler2D stampTexture;
+uniform sampler2D colourTexture;
+uniform sampler2D friendlyColorTexture;
+
 uniform vec2 position;
 uniform vec2 stampSize;
 uniform float threshold;
 uniform vec2 screenSize; // Add this uniform to match texture shader
 
-out float FragColor;
+out vec4 FragColor;
 
 in vec2 TexCoord;
 
@@ -2219,7 +2222,7 @@ void main()
         obstacle = max(obstacle, stampValue);
     }
     
-    FragColor = obstacle;
+    FragColor = vec4(obstacle, 1, 1, 1);
 }
 )";
 
@@ -3319,6 +3322,10 @@ void reapplyAllStamps() {
 			glBindTexture(GL_TEXTURE_2D, obstacleTexture);
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, stamp.textureIDs[variationIndex]);
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, colorTexture[colorIndex]);
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, friendlyColorTexture[friendlyColorIndex]);
 
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
@@ -3334,9 +3341,10 @@ void reapplyAllStamps() {
 
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
 	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
+	glUniform1i(glGetUniformLocation(stampObstacleProgram, "colorTexture"), 2);
+	glUniform1i(glGetUniformLocation(stampObstacleProgram, "friendlyColorTexture"), 3);
 	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
 	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
-
 
 	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -3776,81 +3784,81 @@ void generateFluidStampCollisionsDamage()
 
 
 
-
-void applyBitmapObstacle() {
-	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty())) return;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-
-	glUseProgram(stampObstacleProgram);
-
-	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-
-	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
-
-	lastRightMouseDown = rightMouseDown;
-
-	// Preview the current template stamp at mouse position based on type
-	const Stamp* currentStamp = nullptr;
-
-	switch (currentTemplateType) {
-	case ALLY:
-		if (allyTemplates.empty()) return;
-		currentStamp = &allyTemplates[currentAllyTemplateIndex];
-		break;
-	case ENEMY:
-		if (enemyTemplates.empty()) return;
-		currentStamp = &enemyTemplates[currentEnemyTemplateIndex];
-		break;
-	case BULLET:
-		if (bulletTemplates.empty()) return;
-		currentStamp = &bulletTemplates[0]; // Always use the first bullet template
-		break;
-	}
-
-	size_t currentVariation = 0;
-
-	if (upKeyPressed) {
-		currentVariation = 1;
-	}
-	else if (downKeyPressed) {
-		currentVariation = 2;
-	}
-	if (currentVariation >= currentStamp->textureIDs.size() ||
-		currentStamp->textureIDs[currentVariation] == 0) {
-		for (size_t i = 0; i < currentStamp->textureIDs.size(); i++) {
-			if (currentStamp->textureIDs[i] != 0) {
-				currentVariation = i;
-				break;
-			}
-		}
-	}
-
-	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
-	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"),
-		(float)currentStamp->width, (float)currentStamp->height);
-	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
-	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
-
-	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, currentStamp->textureIDs[currentVariation]);
-
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-}
-
+//
+//void applyBitmapObstacle() {
+//	if (!rightMouseDown || (allyTemplates.empty() && enemyTemplates.empty() && bulletTemplates.empty())) return;
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
+//
+//	glUseProgram(stampObstacleProgram);
+//
+//	GLuint projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+//	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+//
+//
+//	float mousePosX = mouseX / (float)WIDTH;
+//	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);
+//
+//	lastRightMouseDown = rightMouseDown;
+//
+//	// Preview the current template stamp at mouse position based on type
+//	const Stamp* currentStamp = nullptr;
+//
+//	switch (currentTemplateType) {
+//	case ALLY:
+//		if (allyTemplates.empty()) return;
+//		currentStamp = &allyTemplates[currentAllyTemplateIndex];
+//		break;
+//	case ENEMY:
+//		if (enemyTemplates.empty()) return;
+//		currentStamp = &enemyTemplates[currentEnemyTemplateIndex];
+//		break;
+//	case BULLET:
+//		if (bulletTemplates.empty()) return;
+//		currentStamp = &bulletTemplates[0]; // Always use the first bullet template
+//		break;
+//	}
+//
+//	size_t currentVariation = 0;
+//
+//	if (upKeyPressed) {
+//		currentVariation = 1;
+//	}
+//	else if (downKeyPressed) {
+//		currentVariation = 2;
+//	}
+//	if (currentVariation >= currentStamp->textureIDs.size() ||
+//		currentStamp->textureIDs[currentVariation] == 0) {
+//		for (size_t i = 0; i < currentStamp->textureIDs.size(); i++) {
+//			if (currentStamp->textureIDs[i] != 0) {
+//				currentVariation = i;
+//				break;
+//			}
+//		}
+//	}
+//
+//	glUniform1i(glGetUniformLocation(stampObstacleProgram, "obstacleTexture"), 0);
+//	glUniform1i(glGetUniformLocation(stampObstacleProgram, "stampTexture"), 1);
+//	glUniform2f(glGetUniformLocation(stampObstacleProgram, "position"), mousePosX, mousePosY);
+//	glUniform2f(glGetUniformLocation(stampObstacleProgram, "stampSize"),
+//		(float)currentStamp->width, (float)currentStamp->height);
+//	glUniform1f(glGetUniformLocation(stampObstacleProgram, "threshold"), 0.5f);
+//	glUniform2f(glGetUniformLocation(stampObstacleProgram, "screenSize"), (float)WIDTH, (float)HEIGHT);
+//
+//	projectionLocation = glGetUniformLocation(stampObstacleProgram, "projection");
+//	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+//
+//
+//	glActiveTexture(GL_TEXTURE0);
+//	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+//	glActiveTexture(GL_TEXTURE1);
+//	glBindTexture(GL_TEXTURE_2D, currentStamp->textureIDs[currentVariation]);
+//
+//	glBindVertexArray(vao);
+//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+//}
+//
 
 
 
