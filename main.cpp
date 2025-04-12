@@ -2192,6 +2192,8 @@ void main()
 {
     // Get current obstacle value
     float obstacle = texture(obstacleTexture, TexCoord).r;
+    float red = texture(colourTexture, TexCoord).r;
+    float blue = texture(friendlyColorTexture, TexCoord).r;
     
     // Get dimensions
     vec2 stampTexSize = vec2(textureSize(stampTexture, 0));
@@ -2222,7 +2224,7 @@ void main()
         obstacle = max(obstacle, stampValue);
     }
     
-    FragColor = vec4(obstacle, 1, 1, 1);
+    FragColor = vec4(obstacle, red, blue, 1);
 }
 )";
 
@@ -2692,8 +2694,15 @@ in vec2 TexCoord;
 
 void main() {
     // Get current obstacle value
-    float obstacle = texture(obstacleTexture, TexCoord).r;
+    vec4 obstacle = texture(obstacleTexture, TexCoord);
     
+	FragColor = vec4(obstacle.g, 0, obstacle.b, obstacle.r);
+	return;
+
+
+
+
+
     if (obstacle > 0.0) {
         // We're in an obstacle - check neighboring pixels
         vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
