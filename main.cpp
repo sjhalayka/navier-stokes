@@ -1295,7 +1295,7 @@ void fireBullet() {
 			newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
-			newStamp.death_time = GLOBAL_TIME + 1.0f * rand() / float(RAND_MAX);
+			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
 			newStamp.random_forking = 0.001f;
 
 			cout << "Added new bullet" << endl;
@@ -1313,11 +1313,11 @@ void fireBullet() {
 			newStamp.local_velX *= WIDTH / float(HEIGHT);
 			newStamp.local_velX *= 2.0f;
 
-			newStamp.local_velX /= 100.0f / (rand() / float(RAND_MAX));
-			newStamp.local_velY /= 100.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velX /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
-			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
+			newStamp.death_time = GLOBAL_TIME + 5.0f * rand() / float(RAND_MAX);
 			newStamp.random_forking = 0.01f;
 			cout << "Added new bullet" << endl;
 			allyBullets.push_back(newStamp);
@@ -2038,6 +2038,7 @@ in vec2 TexCoord;
 
 void main() {
     vec4 original = texture(originalTexture, TexCoord);
+
     vec4 mask = texture(maskTexture, TexCoord);
     
     // Since the mask texture is white where blackening should occur,
@@ -4573,7 +4574,7 @@ void initGL() {
 	}
 
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
-	obstacleTexture = createTexture(GL_R32F, GL_RED, false, WIDTH, HEIGHT);
+	obstacleTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	backgroundTexture = loadTexture("level1/grid_wide.png");
 	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
@@ -5487,22 +5488,22 @@ void move_and_fork_bullets(void)
 
 					// Split the lightning
 					// to do: make the forked lightning smaller
-					//if (r < stamp.random_forking)
-					//{
-					//	Stamp newBullet = stamp;
+					if (r < stamp.random_forking)
+					{
+						Stamp newBullet = stamp;
 
-					//	float rand_x = 0, rand_y = 0;
-					//	RandomUnitVector(rand_x, rand_y);
-					//	newBullet.global_velX += rand_x * r;
-					//	newBullet.global_velY += rand_y * r;
+						float rand_x = 0, rand_y = 0;
+						RandomUnitVector(rand_x, rand_y);
+						newBullet.local_velX += rand_x * r;
+						newBullet.local_velY += rand_y * r;
 
-					//	if (type == "ally")
-					//		allyBullets.push_back(newBullet);
+						if (type == "ally")
+							allyBullets.push_back(newBullet);
 
-					//	if (type == "enemy")
-					//		enemyBullets.push_back(newBullet);
+						if (type == "enemy")
+							enemyBullets.push_back(newBullet);
 
-					//}
+					}
 				}
 
 				// If a dying bullet, then move it along with the foreground
@@ -6391,9 +6392,9 @@ void simulationStep()
 	//applyVorticityConfinementFriendlyColor();
 	diffuseFriendlyColor();
 
-	//computeDivergence();
-	//solvePressure(20);
-	//subtractPressureGradient();
+	computeDivergence();
+	solvePressure(20);
+	subtractPressureGradient();
 
 	frameCount++;
 
