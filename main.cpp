@@ -213,7 +213,7 @@ GLuint velocityTexture[2];
 GLuint pressureTexture[2];
 GLuint divergenceTexture;
 GLuint obstacleTexture;
-GLuint collisionTexture;
+//GLuint collisionTexture;
 GLuint colorTexture[2];  // Ping-pong buffers for color
 int colorIndex = 0;      // Index for current color texture
 GLuint friendlyColorTexture[2];  // Second set of color textures for friendly fire
@@ -2185,7 +2185,7 @@ uniform float threshold;
 uniform vec2 screenSize; // Add this uniform to match texture shader
 uniform float colorThreshold; // Threshold for color detection
 
-out vec4 FragColor;
+out vec3 FragColor;
 
 in vec2 TexCoord;
 
@@ -2274,7 +2274,7 @@ void main()
     }
     
     // Final output: r=obstacle, g=red collision, b=blue collision
-    FragColor = vec4(newObstacle, newRedCollision, newBlueCollision, 1.0);
+    FragColor = vec3(newObstacle, newRedCollision, newBlueCollision);
 }
 )";
 
@@ -3612,13 +3612,13 @@ void generateFluidStampCollisionsDamage() {
 	// We no longer need a separate collision texture rendering pass
 	// as collision data is now stored directly in the obstacle texture
 
-	// Allocate buffer for collision data - RGBA
-	std::vector<float> collisionData(WIDTH * HEIGHT * 4);
+	// Allocate buffer for collision data - RGB
+	std::vector<float> collisionData(WIDTH * HEIGHT * 3);
 
 	// Read back obstacle texture data from GPU (which now includes collision info)
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);	
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_FLOAT, collisionData.data());
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGB, GL_FLOAT, collisionData.data());
 
 	// Clear previous collision locations
 	collisionPoints.clear();
@@ -3626,10 +3626,10 @@ void generateFluidStampCollisionsDamage() {
 	// Find collision locations and categorize them
 	for (int y = 0; y < HEIGHT; ++y) {
 		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 4;
-			float obstacle = collisionData[index];     // R channel: obstacle
-			float r = collisionData[index + 1];        // G channel: red collision
-			float b = collisionData[index + 2];        // B channel: blue collision
+			int index = (y * WIDTH + x) * 3;
+			float obstacle = collisionData[index + 0];     // R channel: obstacle
+			float r		   = collisionData[index + 1];        // G channel: red collision
+			float b        = collisionData[index + 2];        // B channel: blue collision
 
 			// Only consider points where we have an obstacle AND a collision
 			if (obstacle > 0.0f && (r > 0.0f || b > 0.0f)) {
@@ -4496,8 +4496,8 @@ void initGL() {
 	}
 
 	divergenceTexture = createTexture(GL_R32F, GL_RED, true, WIDTH, HEIGHT);
-	obstacleTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
-	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
+	obstacleTexture = createTexture(GL_RGB32F, GL_RGB, false, WIDTH, HEIGHT);
+//	collisionTexture = createTexture(GL_RGBA32F, GL_RGBA, false, WIDTH, HEIGHT);
 	backgroundTexture = loadTexture("level1/grid_wide.png");
 	backgroundTexture2 = loadTexture("level1/grid_wide2.png");
 
@@ -4548,8 +4548,8 @@ void initGL() {
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, collisionTexture, 0);
+	//glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[0], 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1], 0);
@@ -7082,7 +7082,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(pressureProgram);
 	glDeleteProgram(gradientSubtractProgram);
 	glDeleteProgram(addForceProgram);
-	
+
 	glDeleteProgram(diffuseColorProgram);
 	glDeleteProgram(addColorProgram);
 	glDeleteProgram(stampObstacleProgram);
@@ -7108,7 +7108,7 @@ void reshape(int w, int h) {
 	glDeleteTextures(2, pressureTexture);
 	glDeleteTextures(1, &divergenceTexture);
 	glDeleteTextures(1, &obstacleTexture);
-	glDeleteTextures(1, &collisionTexture);
+//	glDeleteTextures(1, &collisionTexture);
 	glDeleteTextures(2, colorTexture);
 	glDeleteTextures(2, friendlyColorTexture);
 	glDeleteTextures(1, &backgroundTexture);
@@ -7442,6 +7442,7 @@ int main(int argc, char** argv) {
 	glutFullScreen();
 
 	cout << WIDTH << "X" << HEIGHT << endl;
+
 
 
 
