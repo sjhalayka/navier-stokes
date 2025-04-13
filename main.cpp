@@ -242,9 +242,9 @@ GLuint diffuseVelocityProgram;
 GLuint stampObstacleProgram;
 GLuint stampTextureProgram;
 GLuint renderProgram;
-GLuint dilationProgram;
-GLuint gaussianBlurHorizontalProgram;
-GLuint gaussianBlurVerticalProgram;
+//GLuint dilationProgram;
+//GLuint gaussianBlurHorizontalProgram;
+//GLuint gaussianBlurVerticalProgram;
 GLuint blackeningProgram;
 GLuint curlProgram;
 GLuint vorticityForceProgram;
@@ -3606,62 +3606,37 @@ void processCollectedBlackeningPoints() {
 }
 
 
+
+
 void generateFluidStampCollisionsDamage() {
-	// Set up a PBO for asynchronous readback if not already created
-	static GLuint pbo = 0;
-	static size_t pboSize = 0;
+	// We no longer need a separate collision texture rendering pass
+	// as collision data is now stored directly in the obstacle texture
 
-	const size_t dataSize = WIDTH * HEIGHT * 3 * sizeof(float);
+	// Allocate buffer for collision data - RGB
+	std::vector<float> collisionData(WIDTH * HEIGHT * 3);
 
-	// Initialize PBO or resize if needed
-	if (pbo == 0) {
-		glGenBuffers(1, &pbo);
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-		glBufferData(GL_PIXEL_PACK_BUFFER, dataSize, nullptr, GL_STREAM_READ);
-		pboSize = dataSize;
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-	}
-	else if (pboSize < dataSize) {
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-		glBufferData(GL_PIXEL_PACK_BUFFER, dataSize, nullptr, GL_STREAM_READ);
-		pboSize = dataSize;
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-	}
-
-	// Read pixel data from obstacle texture into PBO
+	// Read back obstacle texture data from GPU (which now includes collision info)
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGB, GL_FLOAT, 0);
-
-	// Map PBO to get collision data
-	float* collisionData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGB, GL_FLOAT, collisionData.data());
 
 	// Clear previous collision locations
 	collisionPoints.clear();
 
-	if (collisionData) {
-		// Find collision locations and categorize them
-		for (int y = 0; y < HEIGHT; ++y) {
-			for (int x = 0; x < WIDTH; ++x) {
-				int index = (y * WIDTH + x) * 3;
-				float obstacle = collisionData[index + 0];     // R channel: obstacle
-				float r = collisionData[index + 1];           // G channel: red collision
-				float b = collisionData[index + 2];           // B channel: blue collision
+	// Find collision locations and categorize them
+	for (int y = 0; y < HEIGHT; ++y) {
+		for (int x = 0; x < WIDTH; ++x) {
+			int index = (y * WIDTH + x) * 3;
+			float obstacle = collisionData[index + 0];     // R channel: obstacle
+			float r = collisionData[index + 1];        // G channel: red collision
+			float b = collisionData[index + 2];        // B channel: blue collision
 
-				// Only consider points where we have an obstacle AND a collision
-				if (obstacle > 0.0f && (r > 0.0f || b > 0.0f)) {
-					collisionPoints.push_back(CollisionPoint(x, y, r, b));
-				}
+			// Only consider points where we have an obstacle AND a collision
+			if (obstacle > 0.0f && (r > 0.0f || b > 0.0f)) {
+				collisionPoints.push_back(CollisionPoint(x, y, r, b));
 			}
 		}
-
-		glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 	}
-
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	if (collisionPoints.empty())
 		return;
@@ -3726,6 +3701,8 @@ void generateFluidStampCollisionsDamage() {
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
+
+
 
 
 
@@ -3995,9 +3972,6 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering, int wi
 
 void initGPUImageProcessing() {
 	// Create shader programs
-	dilationProgram = createShaderProgram(vertexShaderSource, dilationFragmentShader);
-	gaussianBlurHorizontalProgram = createShaderProgram(vertexShaderSource, gaussianBlurHorizontalFragmentShader);
-	gaussianBlurVerticalProgram = createShaderProgram(vertexShaderSource, gaussianBlurVerticalFragmentShader);
 	blackeningProgram = createShaderProgram(vertexShaderSource, blackeningFragmentShader);
 
 	// Create framebuffer for processing
@@ -4298,77 +4272,6 @@ public:
 
 TextRenderer* textRenderer = nullptr;
 
-
-void applyDilationGPU(GLuint inputTexture, GLuint outputTexture, int width, int height, int radius) {
-	// Bind framebuffer and set output texture
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
-
-	// Viewport should match texture dimensions
-	glViewport(0, 0, width, height);
-
-	// Use dilation shader program
-	glUseProgram(dilationProgram);
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(dilationProgram, "inputTexture"), 0);
-	glUniform1i(glGetUniformLocation(dilationProgram, "radius"), radius);
-	glUniform2f(glGetUniformLocation(dilationProgram, "texelSize"), 1.0f / width, 1.0f / height);
-
-
-	GLuint projectionLocation = glGetUniformLocation(dilationProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	// Bind input texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, inputTexture);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	glViewport(0, 0, WIDTH, HEIGHT);
-}
-
-// Function to apply Gaussian blur on the GPU
-void applyGaussianBlurGPU(GLuint inputTexture, GLuint outputTexture, int width, int height, double sigma) {
-	// First pass: horizontal blur (input -> tempTexture1)
-	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tempTexture1, 0);
-	glViewport(0, 0, width, height);
-
-	glUseProgram(gaussianBlurHorizontalProgram);
-	glUniform1i(glGetUniformLocation(gaussianBlurHorizontalProgram, "inputTexture"), 0);
-	glUniform1f(glGetUniformLocation(gaussianBlurHorizontalProgram, "sigma"), (float)sigma);
-	glUniform2f(glGetUniformLocation(gaussianBlurHorizontalProgram, "texelSize"), 1.0f / width, 1.0f / height);
-
-	GLuint projectionLocation = glGetUniformLocation(gaussianBlurHorizontalProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, inputTexture);
-
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	// Second pass: vertical blur (tempTexture1 -> outputTexture)
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
-
-	glUseProgram(gaussianBlurVerticalProgram);
-	glUniform1i(glGetUniformLocation(gaussianBlurVerticalProgram, "inputTexture"), 0);
-	glUniform1f(glGetUniformLocation(gaussianBlurVerticalProgram, "sigma"), (float)sigma);
-	glUniform2f(glGetUniformLocation(gaussianBlurVerticalProgram, "texelSize"), 1.0f / width, 1.0f / height);
-
-	projectionLocation = glGetUniformLocation(gaussianBlurVerticalProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tempTexture1);
-
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	glViewport(0, 0, WIDTH, HEIGHT);
-}
 
 // Function to apply blackening effect
 void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint outputTexture, int width, int height) {
@@ -5147,14 +5050,9 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
-				// Apply dilation directly to the blackening texture
-				applyDilationGPU(stamp.blackeningTexture, tempTexture1, stamp.width, stamp.height, 1);
-
-				// Apply Gaussian blur to the dilated mask
-				applyGaussianBlurGPU(tempTexture1, tempTexture2, stamp.width, stamp.height, 5.0);
 
 				// Apply the blackening effect to the original texture using the blurred mask
-				applyBlackeningEffectGPU(originalTexture, tempTexture2, stamp.textureIDs[i], stamp.width, stamp.height);
+				applyBlackeningEffectGPU(originalTexture, stamp.blackeningTexture, stamp.textureIDs[i], stamp.width, stamp.height);
 
 				// Clean up temporary texture
 				glDeleteTextures(1, &originalTexture);
@@ -7112,9 +7010,6 @@ void reshape(int w, int h) {
 	glDeleteProgram(diffuseVelocityProgram);
 	glDeleteProgram(stampTextureProgram);
 	glDeleteProgram(renderProgram);
-	glDeleteProgram(dilationProgram);
-	glDeleteProgram(gaussianBlurHorizontalProgram);
-	glDeleteProgram(gaussianBlurVerticalProgram);
 	glDeleteProgram(blackeningProgram);
 	glDeleteProgram(curlProgram);
 	glDeleteProgram(vorticityForceProgram);
