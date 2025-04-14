@@ -3617,7 +3617,7 @@ public:
 	};
 
 	GPUCollisionDetector(int width, int height)
-		: m_width(width), m_height(height), m_maxCollisionPoints(10000) {
+		: m_width(width), m_height(height), m_maxCollisionPoints(65535) {
 		initCompute();
 	}
 
