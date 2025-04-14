@@ -6402,9 +6402,9 @@ void simulationStep() {
 	advectFriendlyColor();
 	diffuseFriendlyColor();
 
-	computeDivergence();
-	solvePressure(20);
-	subtractPressureGradient();
+	//computeDivergence();
+	//solvePressure(20);
+	//subtractPressureGradient();
 
 	frameCount++;
 
