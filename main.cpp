@@ -6409,7 +6409,8 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	if (frameCount % (size_t(FPS) / 10) == 0) {
+	if (1)//frameCount % (size_t(FPS) / 10) == 0) 
+	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
 	}
