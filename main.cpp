@@ -6733,7 +6733,7 @@ void testForegroundChunking() {
 
 	vector<vec2> output_screen_locations;
 
-	// foreground width and height must be evenly divisible by 120
+	// foreground width and height must be evenly divisible by 360
 	std::vector<Stamp> chunks = chunkForegroundStamp(originalStamp, 360, scaleFactor, input_pixel_locations, output_screen_locations);
 
 	std::cout << "Generated " << chunks.size() << " chunks with scale factor " << scaleFactor << "." << std::endl;
