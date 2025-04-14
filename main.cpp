@@ -2048,6 +2048,10 @@ void main() {
     // Apply the blackening effect to the original texture
     FragColor = original * (1.0 - maskIntensity);
     FragColor.a = original.a; // Preserve alpha channel
+
+	if(maskIntensity > 0.5)
+		FragColor.a = 0.0;		
+	
 }
 )";
 
