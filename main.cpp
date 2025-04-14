@@ -3606,37 +3606,217 @@ void processCollectedBlackeningPoints() {
 }
 
 
+// New class to handle GPU-based collision detection
+class GPUCollisionDetector {
+public:
+	struct GPUCollisionPoint {
+		int x;
+		int y;
+		float r;
+		float b;
+	};
+
+	GPUCollisionDetector(int width, int height)
+		: m_width(width), m_height(height), m_maxCollisionPoints(10000) {
+		initCompute();
+	}
+
+	~GPUCollisionDetector() {
+		glDeleteProgram(m_computeProgram);
+		glDeleteBuffers(1, &m_ssbo);
+	}
+
+	// Initialize compute shader and SSBO
+	void initCompute() {
+		// Create compute shader
+		m_computeProgram = createComputeShaderProgram(computeShaderSource);
+
+		// Create SSBO
+		glGenBuffers(1, &m_ssbo);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_ssbo);
+
+		// Allocate buffer for counter (first int) + array of collision points
+		// Size = sizeof(int) + maxCollisionPoints * sizeof(GPUCollisionPoint)
+		glBufferData(GL_SHADER_STORAGE_BUFFER,
+			sizeof(int) + m_maxCollisionPoints * sizeof(GPUCollisionPoint),
+			nullptr, GL_DYNAMIC_COPY);
+
+		// Initialize counter to 0
+		int zero = 0;
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &zero);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
+
+	// Compile compute shader
+	GLuint createComputeShaderProgram(const char* src) {
+		GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
+		glShaderSource(computeShader, 1, &src, nullptr);
+		glCompileShader(computeShader);
+
+		// Check for errors
+		GLint success;
+		glGetShaderiv(computeShader, GL_COMPILE_STATUS, &success);
+		if (!success) {
+			char infoLog[512];
+			glGetShaderInfoLog(computeShader, 512, nullptr, infoLog);
+			std::cerr << "Compute shader compilation error: " << infoLog << std::endl;
+		}
+
+		GLuint program = glCreateProgram();
+		glAttachShader(program, computeShader);
+		glLinkProgram(program);
+
+		// Check for linking errors
+		glGetProgramiv(program, GL_LINK_STATUS, &success);
+		if (!success) {
+			char infoLog[512];
+			glGetProgramInfoLog(program, 512, nullptr, infoLog);
+			std::cerr << "Compute shader program linking error: " << infoLog << std::endl;
+		}
+
+		glDeleteShader(computeShader);
+		return program;
+	}
+
+	// Process collisions using compute shader
+	std::vector<CollisionPoint> detectCollisions(GLuint obstacleTexture) {
+		// Reset collision counter
+		int zero = 0;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_ssbo);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &zero);
+
+		// Bind SSBO to the compute shader
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_ssbo);
+
+		// Use compute shader
+		glUseProgram(m_computeProgram);
+
+		// Bind obstacle texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+		glUniform1i(glGetUniformLocation(m_computeProgram, "obstacleTexture"), 0);
+		glUniform1i(glGetUniformLocation(m_computeProgram, "maxCollisionPoints"), m_maxCollisionPoints);
+
+		// Dispatch compute shader
+		int groupSizeX = (m_width + 15) / 16;
+		int groupSizeY = (m_height + 15) / 16;
+		glDispatchCompute(groupSizeX, groupSizeY, 1);
+
+		// Wait for compute shader to finish
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+		// Read back the number of collision points
+		int collisionCount;
+		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &collisionCount);
+
+		// Clamp to maximum
+		collisionCount = std::min(collisionCount, m_maxCollisionPoints);
+
+		if (collisionCount > 0) {
+			// Read back the collision points
+			std::vector<GPUCollisionPoint> gpuPoints(collisionCount);
+			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER,
+				sizeof(int), // Skip the counter
+				collisionCount * sizeof(GPUCollisionPoint),
+				gpuPoints.data());
+
+			// Convert to the game's CollisionPoint format
+			std::vector<CollisionPoint> result;
+			result.reserve(collisionCount);
+			for (const auto& gpuPoint : gpuPoints) {
+				result.push_back(CollisionPoint(gpuPoint.x, gpuPoint.y, gpuPoint.r, gpuPoint.b));
+			}
+
+			return result;
+		}
+
+		return std::vector<CollisionPoint>();
+	}
+
+private:
+	// Compute shader source code
+	static constexpr const char* computeShaderSource = R"(
+#version 430 core
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// Input textures
+layout(binding = 0) uniform sampler2D obstacleTexture;
+
+// Structure to store collision point data
+struct CollisionPoint {
+    int x;
+    int y;
+    float r;  // Red collision value
+    float b;  // Blue collision value
+};
+
+// Output SSBO to store collision points
+layout(std430, binding = 0) buffer CollisionBuffer {
+    // First int is used as a counter for the number of collision points
+    int count;
+    CollisionPoint points[];
+} collisionBuffer;
+
+uniform int maxCollisionPoints;
+
+void main() {
+    // Get the pixel coordinates we're processing
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    
+    // Check if this invocation is within the texture dimensions
+    ivec2 texSize = textureSize(obstacleTexture, 0);
+    if(texCoord.x >= texSize.x || texCoord.y >= texSize.y) {
+        return;
+    }
+    
+    // Read obstacle data from texture (RGB format)
+    vec3 obstacleData = texelFetch(obstacleTexture, texCoord, 0).rgb;
+    float obstacle = obstacleData.r;     // R channel: obstacle
+    float r = obstacleData.g;            // G channel: red collision
+    float b = obstacleData.b;            // B channel: blue collision
+    
+    // Only consider points with an obstacle AND a collision
+    if(obstacle > 0.0 && (r > 0.0 || b > 0.0)) {
+        // Atomically increment the counter and get its previous value
+        int index = atomicAdd(collisionBuffer.count, 1);
+        
+        // Only add the point if we haven't exceeded the maximum
+        if(index < maxCollisionPoints) {
+            // Store the collision point data
+            collisionBuffer.points[index].x = texCoord.x;
+            collisionBuffer.points[index].y = texCoord.y;
+            collisionBuffer.points[index].r = r;
+            collisionBuffer.points[index].b = b;
+        }
+    }
+}
+    )";
+
+	int m_width;
+	int m_height;
+	int m_maxCollisionPoints;
+	GLuint m_computeProgram;
+	GLuint m_ssbo;
+};
+
+// Global instance of our collision detector
+GPUCollisionDetector* gpuCollisionDetector = nullptr;
+
+
+
 
 
 void generateFluidStampCollisionsDamage() {
-	// We no longer need a separate collision texture rendering pass
-	// as collision data is now stored directly in the obstacle texture
+	// Initialize the GPU collision detector if it doesn't exist yet
+	if (!gpuCollisionDetector) {
+		gpuCollisionDetector = new GPUCollisionDetector(WIDTH, HEIGHT);
+	}
 
-	// Allocate buffer for collision data - RGB
-	std::vector<float> collisionData(WIDTH * HEIGHT * 3);
-
-	// Read back obstacle texture data from GPU (which now includes collision info)
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, obstacleTexture, 0);
-	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGB, GL_FLOAT, collisionData.data());
-
-	// Clear previous collision locations
+	// Clear previous collision points
 	collisionPoints.clear();
 
-	// Find collision locations and categorize them
-	for (int y = 0; y < HEIGHT; ++y) {
-		for (int x = 0; x < WIDTH; ++x) {
-			int index = (y * WIDTH + x) * 3;
-			float obstacle = collisionData[index + 0];     // R channel: obstacle
-			float r = collisionData[index + 1];        // G channel: red collision
-			float b = collisionData[index + 2];        // B channel: blue collision
-
-			// Only consider points where we have an obstacle AND a collision
-			if (obstacle > 0.0f && (r > 0.0f || b > 0.0f)) {
-				collisionPoints.push_back(CollisionPoint(x, y, r, b));
-			}
-		}
-	}
+	// Use GPU to detect collisions
+	collisionPoints = gpuCollisionDetector->detectCollisions(obstacleTexture);
 
 	if (collisionPoints.empty())
 		return;
@@ -3701,7 +3881,6 @@ void generateFluidStampCollisionsDamage() {
 	generateFluidCollisionsForStamps(allyShips, "Ally Ship");
 	generateFluidCollisionsForStamps(enemyShips, "Enemy Ship");
 }
-
 
 
 
@@ -7015,6 +7194,13 @@ void reshape(int w, int h) {
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
 	glDeleteProgram(batchBlackeningProgram);
+
+
+	if (gpuCollisionDetector) {
+		delete gpuCollisionDetector;
+		gpuCollisionDetector = nullptr;
+	}
+
 
 	// Delete OpenGL resources
 	glDeleteFramebuffers(1, &fbo);
