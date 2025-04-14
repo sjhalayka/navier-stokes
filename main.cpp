@@ -2050,8 +2050,7 @@ void main() {
     FragColor.a = original.a; // Preserve alpha channel
 
 	if(maskIntensity > 0.9)
-		FragColor.a = 0.0;		
-	
+		FragColor.a = 0.0;	
 }
 )";
 
