@@ -1800,7 +1800,7 @@ uniform float random_number;
 
 // Multiple outputs
 layout(location = 0) out vec4 FragColor;     // Main output (blackened texture)
-layout(location = 1) out vec4 MaskColor;     // Updated mask output
+//layout(location = 1) out vec4 MaskColor;     // Updated mask output
 
 in vec2 TexCoord;
 
@@ -1818,7 +1818,7 @@ void main() {
     if(maskIntensity == 1.0 && random_number > 0.9)
         FragColor.a = 0.0;
         
-    MaskColor = mask;
+//    MaskColor = mask;
 }
 )";
 
@@ -4522,18 +4522,18 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
 
 	// Set up multiple render targets
-	GLenum attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+//	GLenum attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, maskTexture, 0);
-	glDrawBuffers(2, attachments);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, maskTexture, 0);
+//	glDrawBuffers(2, attachments);
 
 	// Check framebuffer status
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE) {
-		std::cerr << "Framebuffer not complete: " << status << std::endl;
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		return;
-	}
+	//GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	//if (status != GL_FRAMEBUFFER_COMPLETE) {
+	//	std::cerr << "Framebuffer not complete: " << status << std::endl;
+	//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//	return;
+	//}
 
 	glViewport(0, 0, width, height);
 
