@@ -2076,36 +2076,36 @@ void main() {
     FragColor = sum / weightSum;
 }
 )";
-
-// New GLSL shader for blackening effect
-const char* blackeningFragmentShader = R"(
-#version 330 core
-uniform sampler2D originalTexture;
-uniform sampler2D maskTexture;
-uniform float random_number;
-
-out vec4 FragColor;
-in vec2 TexCoord;
-
-void main() {
-    vec4 original = texture(originalTexture, TexCoord);
-
-    vec4 mask = texture(maskTexture, TexCoord);
-    
-    // Since the mask texture is white where blackening should occur,
-    // we need to invert it to get the right effect
-    float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
-    
-    // Apply the blackening effect to the original texture
-    FragColor = original * (1.0 - maskIntensity);
-    FragColor.a = original.a; // Preserve alpha channel
-
-	if(maskIntensity == 1.0 && random_number > 0.5)
-		FragColor.a = 0.0;
-	else
-		
-}
-)";
+//
+//// New GLSL shader for blackening effect
+//const char* blackeningFragmentShader = R"(
+//#version 330 core
+//uniform sampler2D originalTexture;
+//uniform sampler2D maskTexture;
+//uniform float random_number;
+//
+//out vec4 FragColor;
+//in vec2 TexCoord;
+//
+//void main() {
+//    vec4 original = texture(originalTexture, TexCoord);
+//
+//    vec4 mask = texture(maskTexture, TexCoord);
+//    
+//    // Since the mask texture is white where blackening should occur,
+//    // we need to invert it to get the right effect
+//    float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
+//    
+//    // Apply the blackening effect to the original texture
+//    FragColor = original * (1.0 - maskIntensity);
+//    FragColor.a = original.a; // Preserve alpha channel
+//
+//	if(maskIntensity == 1.0 && random_number > 0.5)
+//		FragColor.a = 0.0;
+//	else
+//		
+//}
+//)";
 
 
 
@@ -4207,7 +4207,7 @@ GLuint createTexture(GLint internalFormat, GLenum format, bool filtering, int wi
 
 void initGPUImageProcessing() {
 	// Create shader programs
-	blackeningProgram = createShaderProgram(vertexShaderSource, blackeningFragmentShader);
+//	blackeningProgram = createShaderProgram(vertexShaderSource, blackeningFragmentShader);
 
 
 
@@ -6740,7 +6740,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = (1080 / 2);
+	iv.y = 1080/2;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
@@ -6797,14 +6797,13 @@ void testForegroundChunking() {
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
 
-
-		cout << output_screen_locations[i].x << " " << output_screen_locations[i].y << endl;
-
 		newStamp.posX = output_screen_locations[i].x;
-		newStamp.posY = output_screen_locations[i].y;// *(WIDTH / float(HEIGHT)); // 0.25;// input_pixel_locations[i].y / float(HEIGHT);// output_screen_locations[i].y;
+		newStamp.posY = input_pixel_locations[i].y / float(HEIGHT);
 
+		const float aspect = WIDTH / float(HEIGHT);
 
-
+		// SUPER IMPORTANT
+		newStamp.posY = (aspect + 2.0 * newStamp.posY - 1.0) / (2 * aspect);
 
 		newStamp.local_velX = 0;// foreground_vel;
 		newStamp.local_velY = 0;
