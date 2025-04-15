@@ -252,6 +252,9 @@ GLuint applyForceProgram;
 //GLuint blackeningMarkProgram;
 //GLuint blackeningCopyProgram;
 
+GLuint multiTargetBlackeningProgram;
+
+
 GLuint batchBlackeningProgram;
 
 GLuint vao, vbo;
@@ -658,8 +661,8 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 			chunkStamp.currentVariationIndex = 0;
 
 			// Scale the offsets proportionally
-			float offsetX = (float)startX / originalStamp.width / 1.35f;// *scaleFactor;
-			float offsetY = (float)startY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));// *scaleFactor;
+			float offsetX = (float)startX / originalStamp.width / scaleFactor;
+			float offsetY = (float)startY / originalStamp.height / (WIDTH / float(HEIGHT)) / scaleFactor;
 
 			std::vector<unsigned char> chunkPixelData(chunkStamp.width * chunkStamp.height * originalStamp.channels);
 
@@ -1781,6 +1784,53 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 
 
 
+
+
+
+
+
+
+
+
+const char* multiTargetBlackeningFragmentShader = R"(
+#version 330 core
+uniform sampler2D originalTexture;
+uniform sampler2D maskTexture;
+uniform float random_number;
+
+// Multiple outputs
+layout(location = 0) out vec4 FragColor;     // Main output (blackened texture)
+layout(location = 1) out vec4 MaskColor;     // Updated mask output
+
+in vec2 TexCoord;
+
+void main() {
+    vec4 original = texture(originalTexture, TexCoord);
+    vec4 mask = texture(maskTexture, TexCoord);
+    
+    // Calculate mask intensity from current mask
+    float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
+    
+    // Apply the blackening effect to the original texture (output 0)
+    FragColor = original * (1.0 - maskIntensity);
+    FragColor.a = original.a; // Preserve alpha channel
+
+    if(maskIntensity == 1.0 && random_number > 0.9)
+        FragColor.a = 0.0;
+        
+    MaskColor = mask;
+}
+)";
+
+
+
+
+
+
+
+
+
+
 // Add this shader definition
 const char* batchBlackeningFragmentShader = R"(
 #version 330 core
@@ -2052,6 +2102,8 @@ void main() {
 
 	if(maskIntensity == 1.0 && random_number > 0.5)
 		FragColor.a = 0.0;
+	else
+		
 }
 )";
 
@@ -4157,6 +4209,11 @@ void initGPUImageProcessing() {
 	// Create shader programs
 	blackeningProgram = createShaderProgram(vertexShaderSource, blackeningFragmentShader);
 
+
+
+	multiTargetBlackeningProgram = createShaderProgram(vertexShaderSource, multiTargetBlackeningFragmentShader);
+	
+	
 	// Create framebuffer for processing
 	glGenFramebuffers(1, &processingFBO);
 
@@ -4456,18 +4513,36 @@ public:
 TextRenderer* textRenderer = nullptr;
 
 
-// Function to apply blackening effect
+
+
+
+
+
 void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint outputTexture, int width, int height) {
 	glBindFramebuffer(GL_FRAMEBUFFER, processingFBO);
+
+	// Set up multiple render targets
+	GLenum attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, maskTexture, 0);
+	glDrawBuffers(2, attachments);
+
+	// Check framebuffer status
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		std::cerr << "Framebuffer not complete: " << status << std::endl;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		return;
+	}
+
 	glViewport(0, 0, width, height);
 
-	glUseProgram(blackeningProgram);
-	glUniform1i(glGetUniformLocation(blackeningProgram, "originalTexture"), 0);
-	glUniform1i(glGetUniformLocation(blackeningProgram, "maskTexture"), 1);
-	glUniform1f(glGetUniformLocation(blackeningProgram, "random_number"), rand()/float(RAND_MAX));
+	glUseProgram(multiTargetBlackeningProgram);
+	glUniform1i(glGetUniformLocation(multiTargetBlackeningProgram, "originalTexture"), 0);
+	glUniform1i(glGetUniformLocation(multiTargetBlackeningProgram, "maskTexture"), 1);
+	glUniform1f(glGetUniformLocation(multiTargetBlackeningProgram, "random_number"), rand() / float(RAND_MAX));
 
-	GLuint projectionLocation = glGetUniformLocation(blackeningProgram, "projection");
+	GLuint projectionLocation = glGetUniformLocation(multiTargetBlackeningProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
 	glActiveTexture(GL_TEXTURE0);
@@ -4477,64 +4552,14 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	// Reset to single render target
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, 0, 0);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
 	glViewport(0, 0, WIDTH, HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
-
-
-
-//
-//GLuint createBlackeningMaskTexture(const Stamp& stamp, size_t variationIndex) {
-//	// Create a temporary texture to use as a mask
-//	GLuint maskTexture;
-//	glGenTextures(1, &maskTexture);
-//	glBindTexture(GL_TEXTURE_2D, maskTexture);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//
-//	// Create an empty black texture
-//	std::vector<unsigned char> emptyData(stamp.width * stamp.height * 4, 0);
-//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, stamp.width, stamp.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, emptyData.data());
-//
-//	// If there are blackening points, update the texture with white points
-//	if (!stamp.blackening_points.empty()) {
-//		// Create a temporary data array to upload to the texture
-//		std::vector<unsigned char> pointData = emptyData;
-//
-//
-//		for (const auto& point : stamp.blackening_points) {
-//			size_t index = (point.y * stamp.width + point.x) * 4;
-//
-//			if (index >= 0 && index < pointData.size() - 3) {
-//				pointData[index + 0] = 0; // R
-//				pointData[index + 1] = 0; // G
-//				pointData[index + 2] = 0; // B
-//				pointData[index + 3] = 255; // A
-//			}
-//		}
-//
-//		for (const auto& point : stamp.blackening_points) {
-//			size_t index = (point.y * stamp.width + point.x) * 4;
-//			if (index >= 0 && index < pointData.size() - 3) {
-//
-//				if (pointData[index + 0] < 256 - 32)
-//				{
-//					pointData[index + 0] += 32; // R
-//					pointData[index + 1] += 32; // G
-//					pointData[index + 2] += 32; // B
-//				}
-//
-//				pointData[index + 3] = 255; // A
-//			}
-//		}
-//
-//		// Upload the temporary data to the texture
-//		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stamp.width, stamp.height, GL_RGBA, GL_UNSIGNED_BYTE, pointData.data());
-//	}
-//
-//	return maskTexture;
-//}
 
 
 
@@ -5211,17 +5236,6 @@ void updateDynamicTexture(Stamp& stamp) {
 				setupProcessingTexture(tempTexture1, stamp.width, stamp.height);
 				setupProcessingTexture(tempTexture2, stamp.width, stamp.height);
 
-				//for (size_t j = 0; j < stamp.width; j++)
-				//{
-				//	for (size_t k = 0; k < stamp.height; k++)
-				//	{
-				//		size_t index = 4 * (j * stamp.height + k);
-
-				//		stamp.backupData[i][index + 3] = stamp.pixelData[i][index + 3];
-				//	}
-				//}
-
-
 				// Create a texture from the backup data
 				GLuint originalTexture;
 				glGenTextures(1, &originalTexture);
@@ -5235,7 +5249,7 @@ void updateDynamicTexture(Stamp& stamp) {
 
 
 
-				// Apply the blackening effect to the original texture using the blurred mask
+				// Apply the blackening effect to the original texture using the mask
 				applyBlackeningEffectGPU(originalTexture, stamp.blackeningTexture, stamp.textureIDs[i], stamp.width, stamp.height);
 
 				// Clean up temporary texture
@@ -6726,11 +6740,11 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = (1080/2);
+	iv.y = (1080 / 2);
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = (1080/2);
+	iv.y = (1080 / 2);
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6783,7 +6797,7 @@ void testForegroundChunking() {
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
 
-		
+
 		cout << output_screen_locations[i].x << " " << output_screen_locations[i].y << endl;
 
 		newStamp.posX = output_screen_locations[i].x;
@@ -7201,6 +7215,8 @@ void reshape(int w, int h) {
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
 	glDeleteProgram(batchBlackeningProgram);
+
+	glDeleteProgram(multiTargetBlackeningProgram);
 
 
 	if (gpuCollisionDetector) {
