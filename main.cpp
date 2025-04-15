@@ -713,18 +713,18 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 	for (size_t i = 0; i < input_pixel_locations.size(); i++) {
 		// Get pixel coordinates in original stamp space
 		float pixelX = static_cast<float>(input_pixel_locations[i].x);
-//		float pixelY = static_cast<float>(input_pixel_locations[i].y);
+		//		float pixelY = static_cast<float>(input_pixel_locations[i].y);
 
-		// Calculate normalized position within the original stamp with the special scaling
-		// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
+				// Calculate normalized position within the original stamp with the special scaling
+				// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
 		float offsetX = pixelX / originalStamp.width / scaleFactor;
-//		float offsetY = pixelY / originalStamp.height / scaleFactor / (WIDTH / float(HEIGHT));
+		//		float offsetY = pixelY / originalStamp.height / scaleFactor / (WIDTH / float(HEIGHT));
 
-		// Calculate normalized dimensions of original stamp in screen space
+				// Calculate normalized dimensions of original stamp in screen space
 		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
-//		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
+		//		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
 
-		// Calculate screen coordinates using the same positioning logic as chunks
+				// Calculate screen coordinates using the same positioning logic as chunks
 		float screenX = originalStamp.posX - normalizedOrigWidth / 2.0f +
 			offsetX * normalizedOrigWidth;
 
@@ -2967,6 +2967,19 @@ void main() {
     } else {
        FragColor = color4;
     }
+
+
+	vec4 vel = texture(velocityTexture, adjustedCoord);	
+
+	//float log_vel_x = log(vel.x);
+	//float log_vel_y = log(vel.y);
+
+	//vec4 logvel = vec4(log_vel_x, log_vel_y, 1.0, 1.0);
+
+	FragColor += vel;
+	FragColor /= 2.0;
+
+
 }
 )";
 
@@ -4212,8 +4225,8 @@ void initGPUImageProcessing() {
 
 
 	multiTargetBlackeningProgram = createShaderProgram(vertexShaderSource, multiTargetBlackeningFragmentShader);
-	
-	
+
+
 	// Create framebuffer for processing
 	glGenFramebuffers(1, &processingFBO);
 
@@ -4524,16 +4537,16 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	// Set up multiple render targets
 //	GLenum attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outputTexture, 0);
-//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, maskTexture, 0);
-//	glDrawBuffers(2, attachments);
+	//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, maskTexture, 0);
+	//	glDrawBuffers(2, attachments);
 
-	// Check framebuffer status
-	//GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	//if (status != GL_FRAMEBUFFER_COMPLETE) {
-	//	std::cerr << "Framebuffer not complete: " << status << std::endl;
-	//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	//	return;
-	//}
+		// Check framebuffer status
+		//GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		//if (status != GL_FRAMEBUFFER_COMPLETE) {
+		//	std::cerr << "Framebuffer not complete: " << status << std::endl;
+		//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//	return;
+		//}
 
 	glViewport(0, 0, width, height);
 
@@ -4967,67 +4980,6 @@ void subtractPressureGradient() {
 
 
 
-// Add force to the velocity field
-void addForce(float posX, float posY, float prevPosX, float prevPosY, float radius, float strength)
-{
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-
-	glUseProgram(addForceProgram);
-
-
-	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	//float x_shift = 0.01 * rand() / float(RAND_MAX);
-	//float y_shift = 0.01 * rand() / float(RAND_MAX);
-
-	float mousePosX = posX;
-	float mousePosY = posY;
-
-	float prevMouseX = prevPosX;
-	float prevMouseY = prevPosY;
-
-	float aspect = HEIGHT / float(WIDTH);
-
-	//mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-	//prevMouseY = (prevMouseY - 0.5f) * aspect + 0.5f;
-
-	float mouseVelX = (mousePosX - prevMouseX) / (HEIGHT / (float(WIDTH)));
-	float mouseVelY = (mousePosY - prevMouseY);
-
-	float mouse_vel_length = sqrt(mouseVelX * mouseVelX + mouseVelY * mouseVelY);
-
-	if (mouse_vel_length > 0)
-	{
-		mouseVelX /= mouse_vel_length;
-		mouseVelY /= mouse_vel_length;
-	}
-
-	// Set uniforms
-	glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-	glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
-	glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
-	glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
-
-	// Bind textures
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	// Render full-screen quad
-	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	//// Swap texture indices
-	//velocityIndex = 1 - velocityIndex;
-}
-
 
 void addMouseForce() {
 	if (!mouseDown) return;
@@ -5046,10 +4998,10 @@ void addMouseForce() {
 
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
-	float mousePosY = 1.0f - (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+	float mousePosY = (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
 
 	// Center the Y coordinate, apply aspect ratio, then un-center
-	mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	//mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
 
 	float mouseVelX = (mouseX - prevMouseX) * 0.01f / (HEIGHT / (float(WIDTH)));
 	float mouseVelY = -(mouseY - prevMouseY) * 0.01f;
@@ -5073,13 +5025,89 @@ void addMouseForce() {
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	// Swap texture indices
-	velocityIndex = 1 - velocityIndex;
+
 
 	// Update previous mouse position
 	prevMouseX = mouseX;
 	prevMouseY = mouseY;
 }
+
+
+
+
+// Add force to the velocity field
+void addForce(float posX, float posY, float prevPosX, float prevPosY, float radius, float strength)
+{
+	mouseX = posX * WIDTH;
+	mouseY = posY * HEIGHT;
+
+	prevMouseX = prevPosX * WIDTH;
+	prevMouseY = prevPosY * HEIGHT;
+
+	bool oldMouseDown = mouseDown;
+	mouseDown = true;
+
+	addMouseForce();
+
+	mouseDown = oldMouseDown;
+
+	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
+
+	//glUseProgram(addForceProgram);
+
+	//GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
+	//glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
+
+	////float x_shift = 0.01 * rand() / float(RAND_MAX);
+	////float y_shift = 0.01 * rand() / float(RAND_MAX);
+
+	//float mousePosX = posX;
+	//float mousePosY = posY;
+
+	//float prevMouseX = prevPosX;
+	//float prevMouseY = prevPosY;
+
+	//float aspect = HEIGHT / float(WIDTH);
+
+	////mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
+	////prevMouseY = (prevMouseY - 0.5f) * aspect + 0.5f;
+
+	//float mouseVelX = (mousePosX - prevMouseX) / (HEIGHT / (float(WIDTH)));
+	//float mouseVelY = (mousePosY - prevMouseY);
+
+	//float mouse_vel_length = sqrt(mouseVelX * mouseVelX + mouseVelY * mouseVelY);
+
+	//if (mouse_vel_length > 0)
+	//{
+	//	mouseVelX /= mouse_vel_length;
+	//	mouseVelY /= mouse_vel_length;
+	//}
+
+	//// Set uniforms
+	//glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
+	//glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
+	//glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
+	//glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
+	//glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
+	//glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
+	//glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
+	//glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
+
+	//// Bind textures
+	//glActiveTexture(GL_TEXTURE0);
+	//glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
+	//glActiveTexture(GL_TEXTURE1);
+	//glBindTexture(GL_TEXTURE_2D, obstacleTexture);
+
+	//// Render full-screen quad
+	//glBindVertexArray(vao);
+	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	////// Swap texture indices
+	////velocityIndex = 1 - velocityIndex;
+}
+
 
 
 void addColor(float posX, float posY, float radius)
@@ -6385,7 +6413,10 @@ void simulationStep() {
 	red_mode = true;
 
 	// Process ally bullets
-	for (size_t i = 0; i < allyBullets.size(); i++) {
+	for (size_t i = 0; i < allyBullets.size(); i++) 
+	{
+		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 10.0);
+	
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
@@ -6396,13 +6427,16 @@ void simulationStep() {
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
+	addMouseForce();
+	addMouseColor();
+
+
 	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
 
 	red_mode = old_red_mode;
 
-	addMouseForce();
-	addMouseColor();
+
 
 	clearObstacleTexture();
 
@@ -6740,7 +6774,7 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = 1080/2;
+	iv.y = 1080 / 2;
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
