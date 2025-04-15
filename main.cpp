@@ -289,7 +289,7 @@ enum powerup_type { SINUSOIDAL_POWERUP, RANDOM_POWERUP, HOMING_POWERUP, X3_POWER
 bool has_sinusoidal_fire = true;
 bool has_random_fire = true;
 bool has_homing_fire = true;
-bool x3_fire = true;
+bool x3_fire = false;
 bool x5_fire = true;
 
 
@@ -2032,6 +2032,7 @@ const char* blackeningFragmentShader = R"(
 #version 330 core
 uniform sampler2D originalTexture;
 uniform sampler2D maskTexture;
+uniform float random_number;
 
 out vec4 FragColor;
 in vec2 TexCoord;
@@ -2049,8 +2050,8 @@ void main() {
     FragColor = original * (1.0 - maskIntensity);
     FragColor.a = original.a; // Preserve alpha channel
 
-	if(maskIntensity > 0.9)
-		FragColor.a = 0.0;	
+	if(maskIntensity == 1.0 && random_number > 0.5)
+		FragColor.a = 0.0;
 }
 )";
 
@@ -3874,7 +3875,7 @@ void generateFluidStampCollisionsDamage() {
 				static float last_did_damage_at = GLOBAL_TIME;
 
 				stamps[i].health -= damage * DT;
-				cout << stamps[i].health << endl;
+				//cout << stamps[i].health << endl;
 
 				last_did_damage_at = GLOBAL_TIME;
 			}
@@ -4464,6 +4465,7 @@ void applyBlackeningEffectGPU(GLuint originalTexture, GLuint maskTexture, GLuint
 	glUseProgram(blackeningProgram);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "originalTexture"), 0);
 	glUniform1i(glGetUniformLocation(blackeningProgram, "maskTexture"), 1);
+	glUniform1f(glGetUniformLocation(blackeningProgram, "random_number"), rand()/float(RAND_MAX));
 
 	GLuint projectionLocation = glGetUniformLocation(blackeningProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
@@ -6724,11 +6726,11 @@ void testForegroundChunking() {
 
 	ivec2 iv;
 	iv.x = 100;
-	iv.y = (1080) * 1.35;
+	iv.y = (1080/2);
 	input_pixel_locations.push_back(iv);
 
 	iv.x = 3000;
-	iv.y = (200) * 1.35;
+	iv.y = (1080/2);
 	input_pixel_locations.push_back(iv);
 
 	vector<vec2> output_screen_locations;
@@ -6781,6 +6783,7 @@ void testForegroundChunking() {
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
 
+		
 		cout << output_screen_locations[i].x << " " << output_screen_locations[i].y << endl;
 
 		newStamp.posX = output_screen_locations[i].x;
