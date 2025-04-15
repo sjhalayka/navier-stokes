@@ -713,27 +713,27 @@ std::vector<Stamp> chunkForegroundStamp(const Stamp& originalStamp, int chunkSiz
 	for (size_t i = 0; i < input_pixel_locations.size(); i++) {
 		// Get pixel coordinates in original stamp space
 		float pixelX = static_cast<float>(input_pixel_locations[i].x);
-		float pixelY = static_cast<float>(input_pixel_locations[i].y);
+//		float pixelY = static_cast<float>(input_pixel_locations[i].y);
 
 		// Calculate normalized position within the original stamp with the special scaling
 		// Note: Using the same scaling factors as used for chunk offsets (1.35f division)
-		float offsetX = pixelX / originalStamp.width / 1.35f;
-		float offsetY = pixelY / originalStamp.height / 1.35f / (WIDTH / float(HEIGHT));
+		float offsetX = pixelX / originalStamp.width / scaleFactor;
+//		float offsetY = pixelY / originalStamp.height / scaleFactor / (WIDTH / float(HEIGHT));
 
 		// Calculate normalized dimensions of original stamp in screen space
 		float normalizedOrigWidth = originalStamp.width / float(WIDTH) * scaleFactor;
-		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
+//		float normalizedOrigHeight = originalStamp.height / float(HEIGHT) * scaleFactor;
 
 		// Calculate screen coordinates using the same positioning logic as chunks
 		float screenX = originalStamp.posX - normalizedOrigWidth / 2.0f +
 			offsetX * normalizedOrigWidth;
 
-		float screenY = originalStamp.posY - normalizedOrigHeight / 2.0f +
-			offsetY * normalizedOrigHeight;
+		//float screenY = originalStamp.posY - normalizedOrigHeight / 2.0f +
+		//	offsetY * normalizedOrigHeight;
 
 		// Store the result
 		output_screen_locations[i].x = screenX;
-		output_screen_locations[i].y = screenY;// *scaleFactor;
+		//output_screen_locations[i].y = screenY;// *scaleFactor;
 	}
 
 
@@ -6797,7 +6797,7 @@ void testForegroundChunking() {
 		// Explicitly ensure blackeningTexture is 0
 		newStamp.blackeningTexture = 0;
 
-		newStamp.posX = output_screen_locations[i].x;
+		newStamp.posX = output_screen_locations[i].x + newStamp.width / float(WIDTH) * 0.5;
 		newStamp.posY = input_pixel_locations[i].y / float(HEIGHT);
 
 		const float aspect = WIDTH / float(HEIGHT);
@@ -6805,7 +6805,7 @@ void testForegroundChunking() {
 		// SUPER IMPORTANT
 		newStamp.posY = (aspect + 2.0 * newStamp.posY - 1.0) / (2 * aspect);
 
-		newStamp.local_velX = 0;// foreground_vel;
+		newStamp.local_velX = 0;
 		newStamp.local_velY = 0;
 
 		newStamp.birth_time = GLOBAL_TIME;
