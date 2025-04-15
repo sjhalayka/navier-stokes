@@ -2976,8 +2976,8 @@ void main() {
 
 	//vec4 logvel = vec4(log_vel_x, log_vel_y, 1.0, 1.0);
 
-	FragColor += vel;
-	FragColor /= 2.0;
+	//FragColor += vel;
+	//FragColor /= 2.0;
 
 
 }
@@ -4993,12 +4993,14 @@ void addMouseForce() {
 	GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
 
-
-	float aspect = HEIGHT / float(WIDTH);
-
 	// Get normalized mouse position (0 to 1 range)
 	float mousePosX = mouseX / (float)WIDTH;
 	float mousePosY = (mouseY / (float)HEIGHT);  // Invert Y for OpenGL coordinates
+
+	//const float aspect = WIDTH / float(HEIGHT);
+
+	//mousePosY = (aspect + 2.0 * mousePosY - 1.0) / (2 * aspect);
+	//prevMouseY = (aspect + 2.0 * prevMouseY - 1.0) / (2 * aspect);
 
 	// Center the Y coordinate, apply aspect ratio, then un-center
 	//mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
@@ -5013,7 +5015,7 @@ void addMouseForce() {
 	glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
 	glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
 	glUniform1f(glGetUniformLocation(addForceProgram, "radius"), 0.05f);
-	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 5000);
+	glUniform1f(glGetUniformLocation(addForceProgram, "strength"), 100);
 
 	// Bind textures
 	glActiveTexture(GL_TEXTURE0);
@@ -5028,8 +5030,8 @@ void addMouseForce() {
 
 
 	// Update previous mouse position
-	prevMouseX = mouseX;
-	prevMouseY = mouseY;
+	//prevMouseX = mouseX;
+	//prevMouseY = mouseY;
 }
 
 
