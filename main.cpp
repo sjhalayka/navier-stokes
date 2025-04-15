@@ -1785,8 +1785,8 @@ std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> 
 const char* batchBlackeningFragmentShader = R"(
 #version 330 core
 uniform sampler2D currentBlackening;        // Current blackening texture
-uniform vec2 collisionPositions[16];        // Array of collision positions
-uniform float collisionIntensities[16];     // Array of collision intensities
+uniform vec2 collisionPositions[256];        // Array of collision positions
+uniform float collisionIntensities[256];     // Array of collision intensities
 uniform int numCollisionPoints;             // Actual number of collision points
 uniform float radius;                       // Radius of the blackening mark
 uniform vec2 texSize;                       // Texture dimensions
@@ -3515,7 +3515,7 @@ void batchUpdateBlackeningTexture(GLuint textureID, int width, int height, const
 	}
 
 	// Limit number of points to shader array size
-	const int MAX_POINTS = 16;  // Maximum points we can process in one batch
+	const int MAX_POINTS = 256;  // Maximum points we can process in one batch
 
 	// Create a temporary texture to use as the input for each batch
 	GLuint tempTexture = 0;
