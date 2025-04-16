@@ -197,8 +197,8 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 60;
-const float DT = 1.0f / FPS;
+const float FPS = 60; // Balanced heuristic amount
+float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
@@ -6403,7 +6403,7 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	if (1)//frameCount % (size_t(FPS) / 10) == 0) 
+	if (frameCount % (size_t(FPS) / 10) == 0) 
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -6597,8 +6597,6 @@ void idle()
 	//	accumulator = MAX_ACCUMULATOR;
 	//}
 
-	//frameCount++;
-
 	//// Fixed time step loop
 	//while (accumulator >= DT) {
 	//	simulationStep(); // Update the simulation by one fixed step
@@ -6609,31 +6607,43 @@ void idle()
 
 
 
-	static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	static double accumulator = 0.0;
-
-	double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	double frameTime = newTime - currentTime;
-	currentTime = newTime;
-
-	if (frameTime > DT)
-		frameTime = DT;
-
-	accumulator += frameTime;
-
-	while (accumulator >= DT)
-	{
-		simulationStep();
-		accumulator -= DT;
-		GLOBAL_TIME += DT;
-	}
 
 
 
+	//static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	//static double accumulator = 0.0;
+
+	//double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	//double frameTime = newTime - currentTime;
+	//currentTime = newTime;
+
+	//if (frameTime > DT)
+	//	frameTime = DT;
+
+	//accumulator += frameTime;
+
+	//while (accumulator >= DT)
+	//{
+	//	simulationStep();
+	//	accumulator -= DT;
+	//	GLOBAL_TIME += DT;
+	//}
 
 
-	//GLOBAL_TIME += DT;
-	//simulationStep();
+
+	// Use variable time step
+	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	
+	DT = currentTime - lastTime;
+
+	simulationStep();
+	GLOBAL_TIME += DT;
+
+	lastTime = currentTime;
+
+
+
 
 	if (spacePressed)
 		fireBullet();
