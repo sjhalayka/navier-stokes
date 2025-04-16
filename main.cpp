@@ -2120,7 +2120,7 @@ uniform vec2 texelSize;
 uniform float viscosity;
 uniform float dt;
 out vec4 FragColor;
-const float fake_dispersion = 0.5;//0.99;
+const float fake_dispersion = 0.99;
 
 in vec2 TexCoord;
 
@@ -2971,8 +2971,8 @@ void main() {
 
 	vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	FragColor += vel;
-	FragColor /= 2.0;
+	//FragColor += vel;
+	//FragColor /= 2.0;
 
 
 }
@@ -5047,7 +5047,6 @@ void addForce(float posX, float posY, float prevPosX, float prevPosY, float radi
 	addMouseForce();
 
 	mouseDown = oldMouseDown;
-
 }
 
 
@@ -6357,7 +6356,7 @@ void simulationStep() {
 	// Process ally bullets
 	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
-		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 10.0);
+		//addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 10.0);
 
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
@@ -6369,8 +6368,8 @@ void simulationStep() {
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
-	addMouseForce();
-	addMouseColor();
+	//addMouseForce();
+	//addMouseColor();
 
 
 	// Swap texture indices
@@ -6388,8 +6387,8 @@ void simulationStep() {
 	updateObstacle();
 
 	// Fluid simulation steps
-	advectVelocity();
-	diffuseVelocity();
+	//advectVelocity();
+	//diffuseVelocity();
 
 	advectColor();
 	diffuseColor();
@@ -6397,9 +6396,9 @@ void simulationStep() {
 	advectFriendlyColor();
 	diffuseFriendlyColor();
 
-	computeDivergence();
-	solvePressure(20);
-	subtractPressureGradient();
+	//computeDivergence();
+	//solvePressure(20);
+	//subtractPressureGradient();
 
 	frameCount++;
 
