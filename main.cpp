@@ -2971,13 +2971,8 @@ void main() {
 
 	vec4 vel = texture(velocityTexture, adjustedCoord);	
 
-	//float log_vel_x = log(vel.x);
-	//float log_vel_y = log(vel.y);
-
-	//vec4 logvel = vec4(log_vel_x, log_vel_y, 1.0, 1.0);
-
-	//FragColor += vel;
-	//FragColor /= 2.0;
+	FragColor += vel;
+	FragColor /= 2.0;
 
 
 }
@@ -5053,61 +5048,6 @@ void addForce(float posX, float posY, float prevPosX, float prevPosY, float radi
 
 	mouseDown = oldMouseDown;
 
-	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, velocityTexture[1 - velocityIndex], 0);
-
-	//glUseProgram(addForceProgram);
-
-	//GLuint projectionLocation = glGetUniformLocation(addForceProgram, "projection");
-	//glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(orthoMatrix));
-
-	////float x_shift = 0.01 * rand() / float(RAND_MAX);
-	////float y_shift = 0.01 * rand() / float(RAND_MAX);
-
-	//float mousePosX = posX;
-	//float mousePosY = posY;
-
-	//float prevMouseX = prevPosX;
-	//float prevMouseY = prevPosY;
-
-	//float aspect = HEIGHT / float(WIDTH);
-
-	////mousePosY = (mousePosY - 0.5f) * aspect + 0.5f;
-	////prevMouseY = (prevMouseY - 0.5f) * aspect + 0.5f;
-
-	//float mouseVelX = (mousePosX - prevMouseX) / (HEIGHT / (float(WIDTH)));
-	//float mouseVelY = (mousePosY - prevMouseY);
-
-	//float mouse_vel_length = sqrt(mouseVelX * mouseVelX + mouseVelY * mouseVelY);
-
-	//if (mouse_vel_length > 0)
-	//{
-	//	mouseVelX /= mouse_vel_length;
-	//	mouseVelY /= mouse_vel_length;
-	//}
-
-	//// Set uniforms
-	//glUniform1i(glGetUniformLocation(addForceProgram, "velocityTexture"), 0);
-	//glUniform1i(glGetUniformLocation(addForceProgram, "obstacleTexture"), 1);
-	//glUniform2f(glGetUniformLocation(addForceProgram, "point"), mousePosX, mousePosY);
-	//glUniform2f(glGetUniformLocation(addForceProgram, "direction"), mouseVelX, mouseVelY);
-	//glUniform1f(glGetUniformLocation(addForceProgram, "radius"), radius);
-	//glUniform1f(glGetUniformLocation(addForceProgram, "strength"), strength);
-	//glUniform1f(glGetUniformLocation(addForceProgram, "WIDTH"), (float)WIDTH);
-	//glUniform1f(glGetUniformLocation(addForceProgram, "HEIGHT"), (float)HEIGHT);
-
-	//// Bind textures
-	//glActiveTexture(GL_TEXTURE0);
-	//glBindTexture(GL_TEXTURE_2D, velocityTexture[velocityIndex]);
-	//glActiveTexture(GL_TEXTURE1);
-	//glBindTexture(GL_TEXTURE_2D, obstacleTexture);
-
-	//// Render full-screen quad
-	//glBindVertexArray(vao);
-	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	////// Swap texture indices
-	////velocityIndex = 1 - velocityIndex;
 }
 
 
@@ -6415,10 +6355,10 @@ void simulationStep() {
 	red_mode = true;
 
 	// Process ally bullets
-	for (size_t i = 0; i < allyBullets.size(); i++) 
+	for (size_t i = 0; i < allyBullets.size(); i++)
 	{
 		addForce(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].prevPosX, allyBullets[i].prevPosY, allyBullets[i].force_radius, 10.0);
-	
+
 		addColor(allyBullets[i].posX, allyBullets[i].posY, allyBullets[i].colour_radius);
 	}
 
@@ -6457,9 +6397,9 @@ void simulationStep() {
 	advectFriendlyColor();
 	diffuseFriendlyColor();
 
-	//computeDivergence();
-	//solvePressure(20);
-	//subtractPressureGradient();
+	computeDivergence();
+	solvePressure(20);
+	subtractPressureGradient();
 
 	frameCount++;
 
