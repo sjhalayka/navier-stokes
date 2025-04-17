@@ -198,7 +198,7 @@ glm::mat4 orthoMatrix;
 
 float GLOBAL_TIME = 0;
 const float FPS = 60;
-float DT = 0; // This is variable //1.0f / FPS;
+float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
 const float COLLISION_THRESHOLD = 0.5f; // Threshold for color-obstacle collision
@@ -3890,6 +3890,24 @@ void generateFluidStampCollisionsDamage() {
 
 		for (size_t i = 0; i < stamps.size(); i++)
 		{
+			const float aspect = WIDTH / float(HEIGHT);
+
+			// Calculate adjusted Y coordinate that accounts for aspect ratio
+			const float adjustedPosY = (stamps[i].posY - 0.5f) * aspect + 0.5f;
+
+			const float stamp_width_in_normalized_units = stamps[i].width / float(WIDTH);
+			const float stamp_height_in_normalized_units = stamps[i].height / float(HEIGHT);
+		
+			// Skip offscreen stamps
+			if (stamps[i].posX < -stamp_width_in_normalized_units / 2.0f ||
+				stamps[i].posX > 1.0f + stamp_width_in_normalized_units / 2.0f ||
+				adjustedPosY < -stamp_height_in_normalized_units / 2.0f ||
+				adjustedPosY > 1.0f + stamp_height_in_normalized_units / 2.0f)
+			{
+				continue;
+			}
+
+
 			stamps[i].under_fire = false;
 
 			int stampCollisions = 0;
@@ -3909,14 +3927,15 @@ void generateFluidStampCollisionsDamage() {
 			}
 
 			// Report collisions for this stamp
-			if (stampCollisions > 0) {
+			if (stampCollisions > 0) 
+			{
 				stampHitCount++;
 
-				std::string textureName = stamps[i].baseFilename;
-				std::string variationName = "unknown";
+				//std::string textureName = stamps[i].baseFilename;
+				//std::string variationName = "unknown";
 
-				if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
-					variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
+				//if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
+				//	variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
 
 				float damage = 0.0f;
 
@@ -6403,7 +6422,7 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	if (1)//frameCount % (size_t(FPS) / 10) == 0) 
+	if (frameCount % (size_t(FPS) / 10) == 0) 
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -6582,70 +6601,52 @@ void display()
 // GLUT idle callback
 void idle()
 {
-	// Use GLUT's elapsed time (in milliseconds) as the real-time source
-	//static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
-	//float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	//float deltaTime = currentTime - lastTime;
-	//lastTime = currentTime;
 
-	//// Accumulate time, cap it to prevent excessive catch-up
-	//static float accumulator = 0.0f;
-	//accumulator += deltaTime;
+	// Fixed time step
+	static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	static double accumulator = 0.0;
 
-	//const float MAX_ACCUMULATOR = DT * 1.0;
-	//if (accumulator > MAX_ACCUMULATOR) {
-	//	accumulator = MAX_ACCUMULATOR;
-	//}
+	double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	double frameTime = newTime - currentTime;
+	currentTime = newTime;
 
-	//frameCount++;
+	if (frameTime > DT)
+		frameTime = DT;
 
-	//// Fixed time step loop
-	//while (accumulator >= DT) {
-	//	simulationStep(); // Update the simulation by one fixed step
-	//	GLOBAL_TIME += DT; // Increment global time by fixed step
-	//	accumulator -= DT;
-	//}
+	accumulator += frameTime;
 
-
-
-
-	//static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	//static double accumulator = 0.0;
-
-	//double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	//double frameTime = newTime - currentTime;
-	//currentTime = newTime;
-
-	//if (frameTime > DT)
-	//	frameTime = DT;
-
-	//accumulator += frameTime;
-
-	//while (accumulator >= DT)
-	//{
-	//	simulationStep();
-	//	accumulator -= DT;
-	//	GLOBAL_TIME += DT;
-	//}
-
-
-	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
-	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-
-	const float d = 1.0 / FPS;
-
-	DT = currentTime - lastTime;
-
-	if (DT > d)
+	while (accumulator >= DT)
 	{
 		simulationStep();
+		accumulator -= DT;
 		GLOBAL_TIME += DT;
-		lastTime = currentTime;
 	}
 
 
-	//GLOBAL_TIME += DT;
-	//simulationStep();
+
+
+
+
+
+
+	// Variable time step
+
+	//static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	//float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+
+	//const float d = 1.0 / FPS;
+
+	//DT = currentTime - lastTime;
+
+	//if (DT > d)
+	//{
+	//	simulationStep();
+	//	GLOBAL_TIME += DT;
+	//	lastTime = currentTime;
+	//}
+
+
+
 
 	if (spacePressed)
 		fireBullet();
