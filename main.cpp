@@ -5306,18 +5306,22 @@ void updateObstacle() {
 
 		// Set variation based on arrow key state
 		if (upKeyPressed) {
-			if (newStamp.textureIDs.size() > 1 && newStamp.textureIDs[1] != 0) {
+			if (0)//newStamp.textureIDs.size() > 1 && newStamp.textureIDs[1] != 0)
+			{
 				newStamp.currentVariationIndex = 1;
 			}
-			else {
+			else 
+			{
 				newStamp.currentVariationIndex = 0;
 			}
 		}
 		else if (downKeyPressed) {
-			if (newStamp.textureIDs.size() > 2 && newStamp.textureIDs[2] != 0) {
-				newStamp.currentVariationIndex = 2;
+			if (0)//newStamp.textureIDs.size() > 2 && newStamp.textureIDs[2] != 0) 
+			{
+				//newStamp.currentVariationIndex = 2;
 			}
-			else {
+			else 
+			{
 				newStamp.currentVariationIndex = 0;
 			}
 		}
@@ -6388,7 +6392,7 @@ void simulationStep() {
 	}
 
 	//addMouseForce();
-	//addMouseColor();
+	addMouseColor();
 
 
 	// Swap texture indices
@@ -7064,9 +7068,15 @@ void specialKeyboard(int key, int x, int y) {
 	case GLUT_KEY_UP:
 		upKeyPressed = true;
 
+		//for (auto& stamp : allyShips) {
+		//	if (stamp.textureIDs[0] != 0) {
+		//		stamp.currentVariationIndex = 1; // up variation
+		//	}
+		//}
+
 		for (auto& stamp : allyShips) {
 			if (stamp.textureIDs[0] != 0) {
-				stamp.currentVariationIndex = 1; // up variation
+				stamp.currentVariationIndex = 0; // center variation
 			}
 		}
 
@@ -7074,9 +7084,15 @@ void specialKeyboard(int key, int x, int y) {
 	case GLUT_KEY_DOWN:
 		downKeyPressed = true;
 
+		//for (auto& stamp : allyShips) {
+		//	if (stamp.textureIDs[0] != 0) {
+		//		stamp.currentVariationIndex = 2; // down variation
+		//	}
+		//}
+
 		for (auto& stamp : allyShips) {
 			if (stamp.textureIDs[0] != 0) {
-				stamp.currentVariationIndex = 2; // down variation
+				stamp.currentVariationIndex = 0; // center variation
 			}
 		}
 
