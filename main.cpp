@@ -197,7 +197,7 @@ glm::mat4 orthoMatrix;
 
 
 float GLOBAL_TIME = 0;
-const float FPS = 60;
+const float FPS = 45;
 float DT = 1.0f / FPS;
 const float VISCOSITY = 0.5f;     // Fluid viscosity
 const float DIFFUSION = 0.5f;    //  diffusion rate
@@ -6391,16 +6391,18 @@ void simulationStep() {
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
-	//addMouseForce();
-	addMouseColor();
-
 
 	// Swap texture indices
-	velocityIndex = 1 - velocityIndex;
+
 
 	red_mode = old_red_mode;
 
 
+
+	addMouseForce();
+	addMouseColor();
+
+	velocityIndex = 1 - velocityIndex;
 
 	clearObstacleTexture();
 
@@ -6426,7 +6428,7 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	if (frameCount % (size_t(FPS) / 10) == 0) 
+	if (frameCount % size_t(FPS / 10) == 0) 
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -6606,25 +6608,25 @@ void display()
 void idle()
 {
 
-	// Fixed time step
-	static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	static double accumulator = 0.0;
+	//// Fixed time step
+	//static double currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	//static double accumulator = 0.0;
 
-	double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	double frameTime = newTime - currentTime;
-	currentTime = newTime;
+	//double newTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	//double frameTime = newTime - currentTime;
+	//currentTime = newTime;
 
-	if (frameTime > DT)
-		frameTime = DT;
+	//if (frameTime > DT)
+	//	frameTime = DT;
 
-	accumulator += frameTime;
+	//accumulator += frameTime;
 
-	while (accumulator >= DT)
-	{
-		simulationStep();
-		accumulator -= DT;
-		GLOBAL_TIME += DT;
-	}
+	//while (accumulator >= DT)
+	//{
+	//	simulationStep();
+	//	accumulator -= DT;
+	//	GLOBAL_TIME += DT;
+	//}
 
 
 
@@ -6635,19 +6637,19 @@ void idle()
 
 	// Variable time step
 
-	//static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
-	//float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	static float lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f; // Convert to seconds
+	float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 
-	//const float d = 1.0 / FPS;
+	const float d = 1.0 / FPS;
 
-	//DT = currentTime - lastTime;
+	DT = currentTime - lastTime;
 
-	//if (DT > d)
-	//{
-	//	simulationStep();
-	//	GLOBAL_TIME += DT;
-	//	lastTime = currentTime;
-	//}
+	if (DT > d)
+	{
+		simulationStep();
+		GLOBAL_TIME += DT;
+		lastTime = currentTime;
+	}
 
 
 
@@ -6815,6 +6817,14 @@ void testForegroundChunking() {
 void keyboard(unsigned char key, int x, int y) {
 	switch (key)
 	{
+	case 'm':
+	{
+		if(allyShips.size() > 0)
+		cout << getPixelValueFromStamp(allyShips[0], 0, 116, 64, 3) / 255.0f << endl;
+
+		break;
+	}
+
 	case '9':
 	{
 		testForegroundChunking();
