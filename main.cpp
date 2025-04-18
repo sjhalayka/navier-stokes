@@ -3929,12 +3929,6 @@ void generateFluidStampCollisionsDamage() {
 			{
 				stampHitCount++;
 
-				//std::string textureName = stamps[i].baseFilename;
-				//std::string variationName = "unknown";
-
-				//if (stamps[i].currentVariationIndex < stamps[i].textureNames.size())
-				//	variationName = stamps[i].textureNames[stamps[i].currentVariationIndex];
-
 				float damage = 0.0f;
 
 				if (type == "Ally Ship") {
@@ -3951,7 +3945,7 @@ void generateFluidStampCollisionsDamage() {
 
 				static float last_did_damage_at = GLOBAL_TIME;
 
-				stamps[i].health -= damage * DT;
+				stamps[i].health -= damage;// *DT;
 				//cout << stamps[i].health << endl;
 
 				last_did_damage_at = GLOBAL_TIME;
