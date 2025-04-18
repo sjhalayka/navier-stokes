@@ -6391,17 +6391,14 @@ void simulationStep() {
 		addColor(enemyBullets[i].posX, enemyBullets[i].posY, enemyBullets[i].colour_radius);
 	}
 
-
-	// Swap texture indices
-
-
 	red_mode = old_red_mode;
 
 
 
-	addMouseForce();
-	addMouseColor();
+	//addMouseForce();
+	//addMouseColor();
 
+	// Swap texture indices
 	velocityIndex = 1 - velocityIndex;
 
 	clearObstacleTexture();
@@ -6428,7 +6425,8 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	if (1)//frameCount % size_t(FPS / 10) == 0) 
+	// (every 10 frames)
+	if (frameCount % 10 == 0) 
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
