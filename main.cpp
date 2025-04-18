@@ -245,7 +245,7 @@ GLuint renderProgram;
 //GLuint dilationProgram;
 //GLuint gaussianBlurHorizontalProgram;
 //GLuint gaussianBlurVerticalProgram;
-GLuint blackeningProgram;
+//GLuint blackeningProgram;
 GLuint curlProgram;
 GLuint vorticityForceProgram;
 GLuint applyForceProgram;
@@ -253,8 +253,6 @@ GLuint applyForceProgram;
 //GLuint blackeningCopyProgram;
 
 GLuint multiTargetBlackeningProgram;
-
-
 GLuint batchBlackeningProgram;
 
 GLuint vao, vbo;
@@ -1294,8 +1292,8 @@ void fireBullet() {
 			newStamp.local_velX *= WIDTH / float(HEIGHT);
 			newStamp.local_velX *= 2.0f;
 
-			newStamp.local_velX /= 250.0f / (rand() / float(RAND_MAX));
-			newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velX /= 500.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velY /= 500.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 3.0f * rand() / float(RAND_MAX);
@@ -1316,8 +1314,8 @@ void fireBullet() {
 			newStamp.local_velX *= WIDTH / float(HEIGHT);
 			newStamp.local_velX *= 2.0f;
 
-			newStamp.local_velX /= 250.0f / (rand() / float(RAND_MAX));
-			newStamp.local_velY /= 250.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velX /= 500.0f / (rand() / float(RAND_MAX));
+			newStamp.local_velY /= 500.0f / (rand() / float(RAND_MAX));
 			newStamp.path_randomization = (rand() / float(RAND_MAX)) * 0.01f;
 			newStamp.birth_time = GLOBAL_TIME;
 			newStamp.death_time = GLOBAL_TIME + 5.0f * rand() / float(RAND_MAX);
@@ -6426,7 +6424,7 @@ void simulationStep() {
 
 	// Process collisions at regular intervals
 	// (every 10 frames)
-	if (frameCount % 10 == 0) 
+	if (frameCount % 10 == 0)
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -7220,8 +7218,7 @@ void reshape(int w, int h) {
 	glDeleteProgram(stampObstacleProgram);
 	glDeleteProgram(diffuseVelocityProgram);
 	glDeleteProgram(stampTextureProgram);
-	glDeleteProgram(renderProgram);
-	glDeleteProgram(blackeningProgram);
+	//	glDeleteProgram(blackeningProgram);
 	glDeleteProgram(curlProgram);
 	glDeleteProgram(vorticityForceProgram);
 	glDeleteProgram(applyForceProgram);
