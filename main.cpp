@@ -1808,15 +1808,12 @@ void main() {
     
     // Calculate mask intensity from current mask
     float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
-    
-    // Apply the blackening effect to the original texture (output 0)
+
     FragColor = original * (1.0 - pow(maskIntensity, 4.0));
     FragColor.a = original.a; // Preserve alpha channel
 
     if(maskIntensity == 1.0 && random_number > 0.9)
         FragColor.a = 0.0;
-        
-//    MaskColor = mask;
 }
 )";
 
@@ -6713,8 +6710,8 @@ void testForegroundChunking() {
 
 	// to do: tinker with these to get perfect scale and translation
 	originalStamp.posX = 1.5 + normalized_stamp_width / 2.0f;
-	originalStamp.posY = 0.73f;
-	float scaleFactor = 1.35f;
+	originalStamp.posY = 0.726f;
+	float scaleFactor = 1.337f;
 
 	originalStamp.birth_time = GLOBAL_TIME;
 	originalStamp.death_time = -1;// GLOBAL_TIME + 30.0f;
