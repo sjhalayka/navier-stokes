@@ -3943,7 +3943,7 @@ void generateFluidStampCollisionsDamage() {
 
 				static float last_did_damage_at = GLOBAL_TIME;
 
-				stamps[i].health -= damage;// *DT;
+				stamps[i].health -= damage * DT;
 				//cout << stamps[i].health << endl;
 
 				last_did_damage_at = GLOBAL_TIME;
@@ -6415,8 +6415,8 @@ void simulationStep() {
 	frameCount++;
 
 	// Process collisions at regular intervals
-	// (every 10 frames)
-	if (frameCount % 10 == 0)
+	// (10 times per second)
+	if (frameCount % size_t(FPS / 10.0) == 0)
 	{
 		generateFluidStampCollisionsDamage();
 		processCollectedBlackeningPoints();
@@ -6632,11 +6632,14 @@ void idle()
 
 	DT = currentTime - lastTime;
 
-	if (DT > d)
+	if (DT != 0)
 	{
-		simulationStep();
-		GLOBAL_TIME += DT;
-		lastTime = currentTime;
+		if (DT > d)
+		{
+			simulationStep();
+			GLOBAL_TIME += DT;
+			lastTime = currentTime;
+		}
 	}
 
 
