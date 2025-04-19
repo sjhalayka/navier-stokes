@@ -6632,18 +6632,12 @@ void idle()
 
 	DT = currentTime - lastTime;
 
-	if (DT != 0)
+	if (DT > d)
 	{
-		if (DT > d)
-		{
-			simulationStep();
-			GLOBAL_TIME += DT;
-			lastTime = currentTime;
-		}
+		simulationStep();
+		GLOBAL_TIME += DT;
+		lastTime = currentTime;
 	}
-
-
-
 
 	if (spacePressed)
 		fireBullet();
