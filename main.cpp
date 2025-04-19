@@ -1777,8 +1777,8 @@ GLuint loadTexture(const char* filename) {
 
 
 
-std::vector<CollisionPoint> collisionPoints; //std::vector<std::pair<int, int>> collisionLocations;
-//std::vector<std::pair<int, int>> collisionLocations;
+std::vector<CollisionPoint> collisionPoints;
+
 
 
 
@@ -1810,7 +1810,7 @@ void main() {
     float maskIntensity = (mask.r + mask.g + mask.b) / 3.0;
     
     // Apply the blackening effect to the original texture (output 0)
-    FragColor = original * (1.0 - maskIntensity);
+    FragColor = original * (1.0 - pow(maskIntensity, 4.0));
     FragColor.a = original.a; // Preserve alpha channel
 
     if(maskIntensity == 1.0 && random_number > 0.9)
@@ -1850,7 +1850,8 @@ void main() {
     float maxBlackening = current.r;  // Start with existing blackening level
     
     // Process all collision points
-    for (int i = 0; i < numCollisionPoints; i++) {
+    for (int i = 0; i < numCollisionPoints; i++) 
+	{
         vec2 collisionPos = collisionPositions[i];
         float intensity = collisionIntensities[i];
         
@@ -3895,7 +3896,7 @@ void generateFluidStampCollisionsDamage() {
 
 			const float stamp_width_in_normalized_units = stamps[i].width / float(WIDTH);
 			const float stamp_height_in_normalized_units = stamps[i].height / float(HEIGHT);
-		
+
 			// Skip offscreen stamps
 			if (stamps[i].posX < -stamp_width_in_normalized_units / 2.0f ||
 				stamps[i].posX > 1.0f + stamp_width_in_normalized_units / 2.0f ||
@@ -3925,7 +3926,7 @@ void generateFluidStampCollisionsDamage() {
 			}
 
 			// Report collisions for this stamp
-			if (stampCollisions > 0) 
+			if (stampCollisions > 0)
 			{
 				stampHitCount++;
 
@@ -5302,7 +5303,7 @@ void updateObstacle() {
 			{
 				newStamp.currentVariationIndex = 1;
 			}
-			else 
+			else
 			{
 				newStamp.currentVariationIndex = 0;
 			}
@@ -5312,7 +5313,7 @@ void updateObstacle() {
 			{
 				//newStamp.currentVariationIndex = 2;
 			}
-			else 
+			else
 			{
 				newStamp.currentVariationIndex = 0;
 			}
@@ -6809,8 +6810,8 @@ void keyboard(unsigned char key, int x, int y) {
 	{
 	case 'm':
 	{
-		if(allyShips.size() > 0)
-		cout << getPixelValueFromStamp(allyShips[0], 0, 116, 64, 3) / 255.0f << endl;
+		if (allyShips.size() > 0)
+			cout << getPixelValueFromStamp(allyShips[0], 0, 116, 64, 3) / 255.0f << endl;
 
 		break;
 	}
