@@ -3532,18 +3532,16 @@ bool isCollisionInStamp(const CollisionPoint& point, Stamp& stamp, const size_t 
 		// Calculate the intensity for the blackening based on collision values
 		float intensity = 0.0f;
 		if (stamp_type == "Ally Ship")
-		{
-			// to do: test this... it makes blue fire do damage to the foreground too 
-
+		{			
 			intensity = point.b; // Use blue value for ally ships
-			//intensity = max(point.r, point.b);
 		}
 		else
 		{
 			// to do: test this... it makes blue fire do damage to the foreground too 
-
-			//intensity = point.r; // Use red value for enemy ships
-			intensity = max(point.r, point.b);
+			if(stamp.is_foreground)
+				intensity = max(point.r, point.b);
+			else
+				intensity = point.r; // Use red value for enemy ships
 		}
 
 		// Ensure the texture exists in the map
@@ -6638,6 +6636,14 @@ void idle()
 		GLOBAL_TIME += DT;
 		lastTime = currentTime;
 	}
+
+
+
+
+
+
+
+
 
 	if (spacePressed)
 		fireBullet();
